@@ -2,6 +2,42 @@
 
 All notable changes to this Skill are documented here.
 
+## [2.1.0] - 2026-08-21
+
+### Added
+
+- tty7-native worker lifecycle based on stable workspace/pane ownership returned by `tty7 new --json`.
+- Mandatory Launch Proof after the first send into a fresh tty7 pane to catch swallowed Enter during shell startup.
+- Native-status / capture-fallback dual strategy so AGY supervision does not assume a tty7 `working/waiting/done` hook exists.
+- Supervisor State Machine describing only states Codex can prove: baseline, worker allocation, turn sent/returned, review, verification, acceptance.
+- Turn Nonce protocol (`TURN_COMPLETE:<nonce>`) for stale-output-resistant AGY turn boundaries when native status is unavailable.
+- Read Before Send rule for every prompt, Enter, menu key, Escape, and interrupt sent to the AGY pane.
+- `resources/tty7-supervision.md` for tty7 ownership, launch, status, observation, crash recovery, and cleanup.
+- `resources/run-lifecycle.md` for Run Context, Supervisor State, Turn Nonce, Scope Drift, and Rework Budget.
+- Scope Drift Guard based on task-introduced changes relative to the initial Git baseline.
+- Three-cycle soft rework budget with mandatory root-cause reassessment before continuing beyond it.
+- Worker crash recovery that preserves valid repository progress before replacement/resume decisions.
+- tty7 ownership/cleanup checks in repository Review Gates.
+
+### Changed
+
+- Reframed tty7 as the worker runtime instead of treating pane capture as an ad-hoc transport.
+- Changed task cleanup from closing only a pane to removing only the dedicated worker workspace when appropriate.
+- Changed coding-agent liveness checks to prefer `tty7 agents` + pane evidence; `tty7 procs` is no longer treated as authoritative for AGY liveness.
+- Changed AGY completion semantics: native `done` or `TURN_COMPLETE` means only “worker turn returned”; only Codex Independent Verification can reach `ACCEPTED`.
+- Changed AGY hook handling from optional wording to an explicit runtime capability branch.
+- Kept the current checkout as the default for a single AGY writer, with worktrees reserved for multi-writer or explicit isolation scenarios.
+- Extended failure modes for missing AGY hooks, swallowed Enter, marker loss, long `UNKNOWN`, interrupted turns, and worker pane exit.
+
+### Preserved
+
+- Codex as Supervisor / Reviewer / QA.
+- AGY as the primary implementation writer.
+- Repository state as the source of truth.
+- Protection of pre-existing user changes.
+- No push / merge / deploy by default.
+- Evidence-driven review and rework.
+
 ## [2.0.0] - 2026-08-21
 
 ### Added
