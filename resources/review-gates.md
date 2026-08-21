@@ -195,6 +195,35 @@ git diff
 - 若任务完成且用户未要求保留，清理的是本次创建的 workspace；
 - 若保留 worker，最终汇报提供稳定 workspace/pane id。
 
+## Gate 12 — Knowledge & Documentation Alignment
+
+代码通过独立 Verification 后必须执行 Knowledge Closeout。详细协议见 `closeout-governance.md`。
+
+先做 Knowledge Impact Scan；每个相关事实面必须标成：
+
+- `verified-current`；
+- `changed-and-verified`；
+- `pending`；
+- `out-of-scope`；
+- `not-applicable`。
+
+检查：
+
+- README / usage 是否仍与最终实现一致；
+- `AGENTS.md` / `CLAUDE.md` / 项目 rules 是否仍准确、精简、可执行；
+- API / schema / CLI / shared Contract 是否与实现、示例和调用方一致；
+- env / config / provider / service / deploy / job 说明是否同步；
+- 重命名或退役 symbol 是否仍残留在非历史现役文档中；
+- 是否出现多个文档同时声称自己是同一事实的权威来源；
+- 是否把一次性开发流水账、已完成 TODO 或中间态写入长期规则；
+- 未验证行为是否被误写成“已完成 / 已上线 / 当前默认”；
+- 明显 workspace residue 是否已报告为 `deletion-candidate`，且没有未经授权删除；
+- Closeout 修改是否仍符合 baseline integrity 和 Scope Drift Guard。
+
+原则：**每次开发都必须执行 Closeout Scan，但不是每次开发都必须修改文档。** 若所有相关知识面都已是现役状态，`verified-current` 即可 PASS。
+
+对于 API、schema、CLI、环境变量、模块边界、部署、用户流程、退役/改名或跨项目协议等高影响变化，必须升级为 Full Closeout，并通过搜索旧 symbol / route / env / field / service 等方式检查 stale reference。
+
 ## Review 结论模板
 
 每轮 Review 至少得出一种明确结论：
@@ -230,4 +259,4 @@ BLOCKED
 - Decision needed: <需要用户决定什么>
 ```
 
-只有 PASS 才进入下一重要阶段。最终 `ACCEPTED` 还必须经过 Codex Independent Verification。
+只有相关代码 Gate PASS 才进入下一重要阶段。最终 `ACCEPTED` 必须同时经过 Codex Independent Verification 和 Gate 12 Knowledge Closeout Review。
