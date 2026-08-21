@@ -2,6 +2,38 @@
 
 All notable changes to this Skill are documented here.
 
+## [2.1.1] - 2026-08-21
+
+### Added
+
+- Mandatory Knowledge Impact Scan after Codex Independent Verification and before final `ACCEPTED`.
+- `CODE_VERIFIED → CLOSEOUT → CLOSEOUT_REVIEW → ACCEPTED` Supervisor lifecycle.
+- `resources/closeout-governance.md` defining Lightweight / Full Closeout, knowledge-surface statuses, change-to-knowledge routing, AGY Closeout Turn, and Codex Closeout Review.
+- Gate 12 — Knowledge & Documentation Alignment in repository Review Gates.
+- Knowledge surface statuses: `verified-current`, `changed-and-verified`, `pending`, `out-of-scope`, and `not-applicable`.
+- Full Closeout triggers for API/Contract, schema, CLI, env/config, user flow, architecture, deployment, job, rename/retirement, and cross-project protocol changes.
+- Stale-reference search guidance for old symbols, routes, fields, env vars, service names, and other retired current-state references.
+- Workspace-residue reporting via `deletion-candidate` without granting implicit destructive cleanup permission.
+
+### Changed
+
+- Changed completion semantics so successful code review/tests/builds enter `CODE_VERIFIED` instead of immediately reaching `ACCEPTED`.
+- Extended AGY's writer responsibility to affected README/docs/rules/Contract/config surfaces after final implementation stabilizes.
+- Kept Codex as the only actor allowed to decide final Acceptance; Closeout changes are independently reviewed from repository state.
+- Clarified that every development task performs a Closeout Scan, but documentation files are changed only when the final implementation actually affects them.
+- Clarified that Knowledge Closeout does not automatically include Agent memory, deploy/live verification, remote cleanup, cross-project writes, or destructive deletion.
+- Updated README and lifecycle documentation to make code-to-knowledge alignment part of the Definition of Done.
+
+### Preserved
+
+- Codex as Supervisor / Reviewer / QA.
+- AGY as the sole primary writer.
+- tty7 as the single worker runtime and pane/workspace owner.
+- Repository state as the source of truth.
+- Git baseline protection and Scope Drift Guard.
+- No push / merge / deploy by default.
+- Native-status / capture-fallback Turn supervision.
+
 ## [2.1.0] - 2026-08-21
 
 ### Added
