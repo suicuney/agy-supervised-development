@@ -1,47 +1,143 @@
 # AGY Supervised Development
 
-一个面向 **Codex + Antigravity CLI (`agy`) + tty7** 的监督式开发 Skill。
+一个面向 **Codex + tty7 + Antigravity CLI (`agy`)** 的监督式开发 Skill。
 
-它不是 AGY CLI 百科，而是一套开发治理流程：
+它不是 AGY CLI 百科，也不是通用多 Agent Framework。v2.1 专门把这一条链路做稳：
 
 ```text
 User Requirement
       ↓
 Codex Supervisor
       ↓
-AGY Implementer (isolated tty7 pane)
+tty7 Worker Runtime
+      ↓
+AGY Interactive Implementer
       ↓
 Repository Changes
       ↓
 Codex Independent Review
    ↙                 ↘
-Rework → AGY       PASS → Independent Tests
+Rework → AGY       PASS → Independent Verification
                          ↓
-                      Acceptance
+                      ACCEPTED
 ```
 
 ## 核心原则
 
 - Codex 负责主控、Review、QA 和最终验收。
-- AGY 负责主要代码实现和返工。
-- 不相信 Agent 自己的 `done`，只相信真实 repository state。
+- AGY 是唯一主要 Writer，负责实现和返工。
+- tty7 负责持久 PTY、独立 workspace/pane 和可观察运行时，不在 Skill 里重复造进程管理器。
+- 不相信 AGY 自己的 `done` / `TURN_COMPLETE`，只相信真实 repository state。
 - 每次任务先建立 Git baseline，保护用户已有改动。
-- AGY 必须运行在本 Skill 新建的独立 tty7 pane 中。
-- 不假设 shell CWD 等于 AGY 内部 workspace；显式校验项目上下文。
-- AGY 参数按当前安装版本实时检测，不把某个版本写死。
-- 默认不 push / merge / deploy，不使用全局跳过权限的危险策略。
+- 每个任务创建独立 tty7 workspace + pane，只操作自己创建的稳定 ID。
+- 不使用会漂移的 `@N` 作为 worker identity。
+- AGY 必须显式验证 repo root / branch，不能只相信 pane CWD。
+- AGY/tty7 能力按当前安装版本实时检测。
+- 默认不 push / merge / deploy，不默认全局跳过权限。
 
-## v2 重点
+## v2.1 的关键变化
 
-v2 在原有监督闭环基础上增加：
+### 1. tty7-native Worker Lifecycle
 
-1. **AGY Capability Detection**：先 `agy --help` / `--version`，再决定使用哪些参数。
-2. **Workspace Binding Guard**：防止 AGY 复用旧项目 context 导致串仓库。
-3. **Execution Mode Strategy**：按任务选择普通实现、快速编辑或 plan-first。
-4. **Task Contract**：标准化 Goal / Scope / Constraints / Acceptance / Verification。
-5. **Failure Mode Matrix**：针对启动、权限、串项目、测试失败、越界修改等确定处理方式。
-6. **Repository Review Gates**：把 Scope、Architecture、Edge Case、Tests、Diff Hygiene 等审查维度显式化。
-7. **Version-aware Runtime Reference**：AGY 工具知识独立维护，避免主 Skill 变成 CLI 手册。
+统一通过：
+
+```bash
+tty7 new --json "$repo_root"
+```
+
+保存稳定：
+
+```text
+workspace id
+pane id
+```
+
+正常结束清理本次 workspace，而不是碰用户其他终端。
+
+### 2. Launch Proof
+
+新 pane 第一次 `send --enter` 可能因 shell 启动脚本吞掉 Enter。
+
+v2.1 强制启动 AGY 后立刻 `capture`，确认命令真的离开 shell prompt；必要时只补一次 Enter。
+
+### 3. Native Status / Capture Fallback 双路径
+
+Codex 先通过 `tty7 doctor` / `tty7 agents --json` 判断当前 AGY 是否拥有 tty7 status hook。
+
+```text
+native status available
+→ tty7 wait --until waiting,done --changed
+
+status hook unavailable
+→ tty7 agents + capture + Turn Nonce
+```
+
+因此 Skill 不依赖某个固定 tty7 版本是否已经给 Antigravity 增加 hook。
+
+### 4. Supervisor State，而不是伪造 AGY 内部状态
+
+v2.1 记录 Codex 能证明的状态：
+
+```text
+INIT
+→ BASELINED
+→ TTY7_ALLOCATED
+→ AGY_BOOTING
+→ AGY_READY
+→ TURN_SENT
+→ OBSERVING
+→ TURN_RETURNED
+→ REVIEWING
+→ VERIFYING
+→ ACCEPTED
+```
+
+`TURN_COMPLETE != ACCEPTED`。
+
+### 5. Read Before Send
+
+任何 prompt、Enter、菜单按键、Escape、Ctrl-C 之前重新 capture 当前 pane：
+
+```text
+CAPTURE → CLASSIFY → DECIDE → SEND
+```
+
+避免把几秒前应答 permission 的按键发进已经变化的 TUI。
+
+### 6. Evidence-driven Rework + Soft Budget
+
+每轮返工必须包含 Issue / Evidence / Expected / Rework / Re-run。
+
+默认 3 个完整 `Review → Rework → Re-review` 周期为 soft limit；达到后必须重新评估根因，不能两个 Agent 无限互修。
+
+### 7. Scope Drift Guard
+
+Review 不只看当前 diff，还要区分：
+
+```text
+current changes - baseline changes = task-introduced changes
+```
+
+AGY 新增的超 Scope path 必须有需求依据，否则返工。
+
+## 为什么不默认 Worktree
+
+tty7 的通用多 Agent delegation 很适合“一任务一 worktree”。但这个 Skill 的默认拓扑是：
+
+```text
+AGY = sole primary writer
+Codex = read/review/verify
+```
+
+用户当前 checkout 的未提交改动又可能是任务上下文，因此 v2.1 默认继续使用当前 checkout + baseline protection。
+
+只有：
+
+- 多 Writer 并行；
+- 高风险隔离实验；
+- 用户明确要求；
+
+才优先使用独立 worktree。
 
 ## 文件结构
 
@@ -52,46 +148,47 @@ agy-supervised-development/
 ├── CHANGELOG.md
 ├── resources/
 │   ├── agy-runtime.md
+│   ├── tty7-supervision.md
+│   ├── run-lifecycle.md
 │   ├── failure-modes.md
 │   └── review-gates.md
 └── examples/
-    └── feature-development.md
+    ├── feature-development.md
+    └── rework-cycle.md
 ```
 
 ### `SKILL.md`
 
-监督开发主流程。定义角色、基线、AGY preflight、workspace 绑定、Task Contract、Review/返工和最终验收。
+Codex → tty7 → AGY 的监督主流程。
+
+### `resources/tty7-supervision.md`
+
+workspace/pane ownership、Launch Proof、native/fallback status、Read Before Send、crash recovery 和 cleanup。
+
+### `resources/run-lifecycle.md`
+
+Supervisor State、Run Context、Turn Nonce、Scope Drift 和 Rework Budget。
 
 ### `resources/agy-runtime.md`
 
-只保存监督流程真正需要的 AGY runtime 知识，包括 execution mode、workspace、permission、headless 等。
+监督流程需要的 AGY capability、workspace、execution mode、permission、conversation 等知识。
 
 ### `resources/failure-modes.md`
 
-把“AGY 卡住了”拆成可诊断状态，避免盲目重复命令。
+将启动失败、缺少 status hook、swallowed Enter、串项目、API error、worker exit、scope drift 等拆成证据驱动处理流程。
 
 ### `resources/review-gates.md`
 
-Codex 独立 Review 的检查清单与 PASS / REWORK / BLOCKED 结论格式。
+Codex 独立 Review 与 PASS / REWORK / BLOCKED / final Acceptance 规则。
 
-### `examples/feature-development.md`
+## v2 → v2.1
 
-一个中型功能从 baseline → Task Contract → AGY 实现 → Codex Review → 返工 → 验收的完整示例。
+v2 解决：
 
-## 设计取向
+> Codex 应该怎样监督 AGY。
 
-这个 Skill 刻意不复制完整 AGY flag、快捷键、插件、credits、UI 等百科内容。原因是监督式开发真正需要的是：
+v2.1 进一步解决：
 
-```text
-知道当前 AGY 能做什么
-        ↓
-正确约束它在目标仓库实现
-        ↓
-独立检查它实际做了什么
-        ↓
-有证据地返工
-        ↓
-最终验收
-```
+> Codex 怎样利用 tty7 可靠地控制一个可观察、可接管、可返工的 AGY worker，同时在 AGY 没有 tty7 native status hook 时仍然不误判状态。
 
-AGY 升级后优先更新 `resources/agy-runtime.md`，尽量保持 `SKILL.md` 的治理语义稳定。
+v2.1 暂不抽象 Grok/Pi/Claude 通用 Adapter，也不做多 Worker orchestration。先把 `Codex → tty7 → AGY` 单 worker 路径做稳定，再考虑后续泛化。
