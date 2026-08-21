@@ -1,67 +1,68 @@
 ---
 name: agy-supervised-development
-description: Use Codex as supervisor/reviewer and AGY (Antigravity CLI) as the primary implementer in an isolated tty7 pane, with capability detection, workspace binding, evidence-based review, rework loops, and independent acceptance.
-version: 2.0.0
+description: Use Codex as supervisor/reviewer and AGY (Antigravity CLI) as the primary implementer in a dedicated tty7 workspace, with tty7-native pane ownership, AGY capability detection, fallback turn completion markers, evidence-based review, rework loops, and independent acceptance.
+version: 2.1.0
 ---
 
 # AGY 监督开发
 
-当用户明确使用 `$agy-supervised-development`，或明确要求采用“Codex 监督 + AGY 执行”开发时，按本流程工作。
+当用户明确使用 `$agy-supervised-development`，或明确要求采用“Codex 监督 + tty7 + AGY 执行”开发时，按本流程工作。
 
 核心角色固定为：
 
-- **Codex = Supervisor / Reviewer / QA**：理解需求、建立基线、选择执行策略、审查真实 diff、独立运行验证、驱动返工、最终验收。
-- **AGY = Implementer**：主要负责分析实现细节、修改生产代码、补测试、按返工意见修正。
-- **Repository state = 真相来源**：AGY 的 `done`、摘要、自述测试结果都不是完成证明。
+- **Codex = Supervisor / Reviewer / QA**：理解需求、建立 Git baseline、创建和管理本次 tty7 worker workspace、委派 AGY、审查真实 repository state、驱动返工、独立验证并最终验收。
+- **tty7 = Worker Runtime**：提供持久 PTY、独立 workspace/pane、agent detection、send/capture/wait 等运行时能力；不要在 Skill 内重复造进程管理器。
+- **AGY = Implementer / Sole Primary Writer**：主要负责实现生产代码、补测试、执行针对性验证和按证据返工。
+- **Repository state = 真相来源**：AGY 的 `done`、总结、测试自述和 turn marker 都不是完成证明。
 
-本 Skill 只定义监督编排主流程。AGY 参数、版本差异和已知限制见 `resources/agy-runtime.md`；故障分类见 `resources/failure-modes.md`；审查门禁见 `resources/review-gates.md`。
+本 Skill 只定义监督编排主流程。AGY 运行时见 `resources/agy-runtime.md`；tty7 操作协议见 `resources/tty7-supervision.md`；监督状态与 Turn 协议见 `resources/run-lifecycle.md`；故障见 `resources/failure-modes.md`；审查门禁见 `resources/review-gates.md`。
 
 ## 不可违反的边界
 
-- 不把 AGY 的 `done`、自述测试结果或摘要当成完成证明。每个重要阶段都必须独立检查实际文件、`git diff`、构建和测试结果。
-- 主要生产代码由 AGY 修改。Codex 负责监督、审查、验证和返工，不抢走主要实现工作；仅在 AGY 无法继续、用户明确要求或极小的监督性修补时例外，并必须在最终汇报说明。
-- 只操作本次 Skill 创建的 tty7 workspace/pane。已有用户终端、其他 agent pane 和其他 workspace 一律只读，不得发送按键、关闭或复用。
-- 不执行 push、merge、release、deploy、修改远端历史等外部操作，除非用户明确授权。
-- 不使用“为了省事”而全局跳过权限确认的危险模式作为默认策略。权限、账号、网络、破坏性操作和跨范围访问必须保持可审计。
-- 尊重仓库已有改动：先记录基线，不得为了“清理”回滚、覆盖或删除用户已有改动。
-- 不因为 tty7 pane 的 CWD 正确，就假设 AGY 的内部 workspace/context 一定正确；必须显式校验或绑定。
+- 只有 Codex 可以把任务判定为 `ACCEPTED`。AGY 的 `done` 或 `TURN_COMPLETE` 最多表示当前 worker turn 返回。
+- 主要生产代码由 AGY 修改。Codex 负责监督、Review、验证和返工；仅在 AGY 无法继续、用户明确要求或极小的监督性修补时例外，并在最终汇报说明。
+- 每个监督任务创建独立 tty7 workspace + pane。只操作本次任务保存的稳定 workspace id 和 pane id；已有用户 pane、其他 agent pane 和其他 workspace 一律只读。
+- 不缓存 `@N` 作为 worker identity；tab 序号会漂移。优先保存 `tty7 new --json` 返回的 workspace id 和 pane id。
+- 不执行 `tty7 server stop`、`tty7 server restart`、`tty7 pane close --orphans`，不清理不是本 Skill 创建的资源。
+- 不因为 `tty7 send` 成功就认为命令启动成功；新 pane 第一次 send 后必须做 Launch Proof，防止 shell 启动期吞掉 Enter。
+- 不因为 `tty7 procs` 显示空就认为 AGY 已退出；coding agent 存活判断优先看 `tty7 agents` 和实际 pane 画面。
+- 不假设 AGY 一定有 tty7 status hook。Preflight 必须判断当前 tty7/AGY 是否能提供 native agent state；没有则使用 Turn Nonce + capture fallback。
+- 任何向 AGY 的 `send`、Enter、方向键、Escape、Ctrl-C 等操作之前，都先读取当前 pane：**Read Before Send**。
+- 不执行 push、merge、release、deploy、远端历史修改等外部操作，除非用户明确授权。
+- 不默认使用全局跳过权限确认的危险模式；权限、账号、联网、破坏性操作和跨范围访问必须可审计。
+- 尊重仓库已有改动：先记录 baseline，不得为了“清理”回滚、覆盖或删除用户已有改动。
+- 不因为 tty7 pane 的 cwd 正确，就假设 AGY 的内部 workspace/context 一定正确；必须显式绑定或验证。
 
-## 1. 建立任务范围和 Git 基线
+## 1. 建立任务范围和 Git Baseline
 
-先确定仓库根目录并读取适用的项目规则文件，例如：
+先确定仓库根目录并读取适用规则：
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `README.md`
-- 项目内开发规范、OpenAPI/Schema/Contract 文件
-- CI、lint、test、build 约定
+- 项目开发规范
+- OpenAPI / Schema / Contract
+- CI / lint / test / build 约定
 
-记录基线：
+记录：
 
 ```bash
 repo_root="$(git rev-parse --show-toplevel)"
 git status --short
 git diff --stat
 git branch --show-current
-```
-
-必要时记录当前 HEAD：
-
-```bash
 git rev-parse HEAD
 ```
 
-目的不是要求工作区必须干净，而是区分：
+必要时保存 baseline 的具体 changed paths / diff，以便后续判断 scope drift 时区分用户已有改动和 AGY 本轮新增改动。
 
-1. 用户在本任务之前已有的改动；
-2. AGY 本次产生的改动；
-3. 构建/测试产生的临时或生成文件。
+本流程默认让唯一 Writer AGY 工作在用户当前 checkout，因为未提交改动可能正是任务上下文。只有多 Writer 并行、高风险隔离实验、或用户明确要求时才改用独立 worktree；不要机械套用 worktree。
 
-若用户尚未给出具体开发目标，只完成环境和 AGY 连通性验证，不开始编码。
+若用户尚未给出具体开发目标，只做环境和连通性验证，不开始编码。
 
-## 2. AGY Preflight：先检测能力，再决定怎么启动
+## 2. Preflight：检测 AGY 与 tty7 的真实能力
 
-不要把某个 AGY 版本的参数写死为永久事实。每次任务开始都做一次轻量能力检测：
+AGY：
 
 ```bash
 command -v agy
@@ -69,112 +70,145 @@ agy --version 2>/dev/null || true
 agy --help
 ```
 
-同时检查 tty7：
+tty7：
 
 ```bash
 tty7 doctor
-tty7 agents
-tty7 pane ls --all
+tty7 agents --json
+tty7 pane ls --all --json
 ```
 
-根据 `agy --help` 的实际输出确认当前版本是否支持本次计划使用的能力，例如：
+检查两类能力：
 
-- workspace/directory 绑定能力（如 `--add-dir`）
+### AGY capabilities
+
+根据 `agy --help` 实际确认：
+
+- workspace/directory 绑定（如 `--add-dir`）
 - execution mode（如 `--mode`）
 - reasoning effort（如 `--effort`）
-- agent 选择（如 `--agent`）
-- sandbox / permission 相关参数
-- conversation / continue 能力
+- sandbox / permission
+- conversation resume
+- 其他本任务准备使用的参数
 
-**规则：Capability Detection > Capability Assumption。**
+规则：**Capability Detection > Capability Assumption**。
 
-如果文档记忆与本机 `agy --help` 冲突，以本机实际能力为准，并在最终汇报指出版本差异。
+### tty7 AGY status capability
 
-如果 tty7 服务不可达，停止 AGY 编排并告知用户；不要自行启动、重启或接管用户的 tty7 server。
+检查 `tty7 doctor` / `tty7 agents --json` 是否表明当前 Antigravity/AGY 有可用状态 hook。
 
-## 3. 创建隔离 pane，并防止 AGY 串错项目
+- **若有 native status**：后续可以用 `tty7 wait "$PANE" --until waiting,done --changed ...`。
+- **若 AGY 只能被识别、没有 status hook**：这是可支持的正常降级，不要阻塞任务；后续走 capture + Turn Nonce fallback。
+- **若 tty7 server 不可达**：停止并告知用户；不要自行启动或重启 server。
+- 不自行安装/修改 tty7 或 AGY hooks，除非用户明确要求。
 
-为本任务创建独立 tty7 workspace：
+## 3. 创建独立 tty7 Worker Workspace
 
-```bash
-tty7 new --json "$repo_root"
-```
-
-从 JSON 结果取得新 pane 的数字 id，并使用 `%<id>` 作为唯一 pane 地址。
-
-### 3.1 Workspace Binding Guard
-
-AGY 可能维护独立于 shell CWD 的持久化项目/会话状态，因此不能只依赖 `tty7 new "$repo_root"`。
-
-启动 AGY 时，优先采用当前版本实际支持的显式 workspace 绑定方式。若 `agy --help` 显示支持 `--add-dir`，优先：
+使用 `tty7 new --json`，不要默认 split 用户当前窗口：
 
 ```bash
-tty7 send "%<id>" "agy --add-dir '$repo_root'" --enter
+read -r WS PANE < <(
+  tty7 new --json "$repo_root" |
+  python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["id"], "%%%d" % d["pane"])'
+)
 ```
 
-如果当前版本不支持 `--add-dir`，则启动交互模式后，要求 AGY 明确回报它正在工作的 repository/root，并通过读取目标仓库文件、`git rev-parse --show-toplevel` 等方式验证。
+把 `WS` 和 `PANE` 放入当前监督 Run Context。它们是本任务 tty7 ownership 的唯一依据。
 
-只有以下条件都满足才算 workspace 绑定成功：
-
-1. tty7 pane 的 cwd 是 `repo_root`；
-2. AGY 能实际读取目标仓库中的已知文件；
-3. AGY 返回/执行得到的仓库 root 与 `repo_root` 一致；
-4. 没有证据表明它沿用了另一个项目的旧上下文。
-
-若发现上下文串项目，不允许继续编码；按 `resources/failure-modes.md` 处理。
-
-### 3.2 启动和连通性验证
+必要时核对：
 
 ```bash
-tty7 capture "%<id>" --plain
+tty7 ws tree "$WS"
+tty7 pane ls --all --json
 ```
 
-若出现项目 trust 界面，只有当路径准确等于 `repo_root` 且当前选项明确是信任该目录时，才可确认一次。其他权限、账号、联网或破坏性确认都要先停下。
+必须确认新 pane 的 cwd 与 `repo_root` 对应。之后所有 `send` / `capture` / cleanup 都必须显式使用 `$PANE` / `$WS`，避免误操作调用者自己的 pane。
 
-AGY 进入交互提示后，发送一个轻量验证问题，例如要求它返回当前仓库 root、当前分支和一个已知项目文件名，再 capture：
+## 4. 启动 AGY，并证明真的启动了
+
+优先使用 AGY 当前版本支持的显式 workspace 绑定。如果 `--add-dir` 可用：
 
 ```bash
-tty7 capture "%<id>" --plain --scrollback
+tty7 send "$PANE" "agy --add-dir '$repo_root'" --enter
 ```
 
-必须看到 AGY 的实际新响应，才认为启动成功。若 status hooks 可用，可用 `tty7 wait ... --changed` 避免把上一轮 stale `done` 当成当前回复；hooks 不可用时以 `capture` / `procs` 为准，不自行安装 hooks。
+否则启动普通交互 AGY，并在下一步做严格 workspace verification。
 
-## 4. 根据任务复杂度选择 AGY 执行策略
+### Launch Proof：新 pane 第一次 send 后强制检查
 
-不要所有任务都用同一种 AGY 模式。先结合本机能力和任务风险做选择。
+新 shell 还在跑启动脚本时可能吞掉第一次 Enter。发送启动命令后立刻：
 
-### A. 小型、边界清晰的修改
+```bash
+tty7 capture "$PANE" --plain | tail -5
+```
 
-例如：单点 bug、字段调整、小范围测试补充。
+若启动命令仍停在 shell prompt、没有执行，只补一次：
 
-目标：减少 AGY 自身逐文件确认，让 Codex 在外层统一 Review。
+```bash
+tty7 send "$PANE" --enter
+```
 
-若当前 AGY 支持自动接受编辑的 execution mode，可考虑使用类似 `accept-edits` 的模式；但仍不得自动放开高风险 shell/外部权限。
+不要重复发送整条 `agy ...`，避免启动两个进程。
 
-### B. 中型功能开发
+之后用：
 
-默认采用：
+```bash
+tty7 agents --json
+tty7 capture "$PANE" --plain
+```
 
-1. Codex 建立 Task Contract；
-2. AGY 理解现状并实现；
-3. Codex 阶段性 Review；
-4. AGY 返工；
-5. Codex 独立验收。
+确认 `$PANE` 中实际识别到了 AGY / Antigravity 且交互界面已出现。`tty7 procs` 不是 coding-agent 存活证明，不要把 `nothing running` 误判为 AGY 死亡。
 
-### C. 大型重构、架构改造、跨模块变更
+如果出现 trust 界面，只有路径准确等于 `repo_root` 且当前选项明确表示信任该目录时才可确认一次。账号、OAuth、联网授权、危险权限等交给用户决定。
 
-若 AGY 当前版本支持 plan mode，优先：
+## 5. Workspace Binding Verification
 
-1. AGY 先产出实施计划；
-2. Codex 审查计划是否满足仓库架构和需求；
-3. 计划通过后才允许 AGY 实现；
-4. 每个阶段都进行 Repository-level Review。
+AGY 可能维护独立于 shell CWD 的持久化 project/conversation context。因此进入正式任务前，要求 AGY 回报或实际执行：
 
-必要时，如果当前版本支持 reasoning effort，可对高复杂度任务选择更高推理级别，但不要仅因为“更强”就默认拉高所有任务成本。
+```text
+- 当前 repository root
+- 当前 branch
+- 一个目标仓库中的已知文件
+```
 
-## 5. 用 Task Contract 委派，而不是只丢一句自然语言
+必要时让它执行：
 
-每次正式委派给 AGY 的任务，应尽量包含以下结构：
+```bash
+git rev-parse --show-toplevel
+git branch --show-current
+```
+
+Codex 自己也核对同样信息。
+
+只有以下条件都满足才进入 `AGY_READY`：
+
+1. tty7 worker pane cwd 指向 `repo_root`；
+2. AGY 实际读到当前仓库中的已知内容；
+3. AGY repo root 与 Codex `repo_root` 一致；
+4. AGY branch 与当前任务目标一致；
+5. 没有旧项目/旧任务上下文串入的证据。
+
+如果不一致，停止编码并按 `resources/failure-modes.md` 的 context mismatch 流程处理。
+
+## 6. 根据任务复杂度选择 AGY 策略
+
+不要所有任务都使用同一模式。
+
+### 小型、边界清晰
+
+如单点 bug、字段调整、小范围测试补充。若当前 AGY 支持类似 `accept-edits` 的文件编辑模式，可用于减少 AGY 自身重复的 edit review；但不等于放开危险 shell、网络或外部权限。
+
+### 中型功能
+
+默认：Task Contract → AGY Implement → Codex Review → AGY Rework → Codex Verify。
+
+### 大型重构 / 跨模块改造
+
+若 AGY 支持 plan mode，先让 AGY 在只分析、不改文件的阶段出方案，Codex Review 通过后再进入 Implement。没有 plan mode 时，用 Task Contract 明确模拟同样的观察阶段。
+
+## 7. Task Contract + Run Policy
+
+正式委派尽量包含：
 
 ```text
 Goal
@@ -184,46 +218,126 @@ Scope
 - 允许修改哪些模块/目录/接口。
 
 Context
-- 当前架构、关键调用链、已有实现、基线改动。
+- 当前架构、关键调用链、baseline 中已有改动。
 
 Constraints
-- 项目规则、兼容性、禁止事项、不能破坏的行为。
+- 项目规则、兼容性、不能破坏的行为。
 
 Acceptance Criteria
-- 可被检查的完成条件。
+- 可由 Codex 检查的完成条件。
 
 Verification
 - AGY 应运行哪些针对性测试/检查。
 
-Forbidden Actions
-- 不 push / merge / deploy；不回滚用户已有改动；不扩大任务范围。
+Run Policy
+- AGY 是唯一主要 Writer。
+- 不 push / merge / deploy。
+- 不回滚 baseline 中用户已有改动。
+- 不扩大 Scope。
+- 高风险权限必须停下。
 
 Report
-- 完成后报告修改文件、关键设计、实际执行的测试及失败项。
+- 修改文件、关键实现、真实运行的测试及失败项。
+
+Completion Protocol
+- 当前 turn 完成并停止继续操作后，在最终回复末尾输出指定 TURN_COMPLETE nonce。
 ```
 
-Task Contract 的目的不是让提示词变长，而是降低“AGY 自己补全错误假设”的概率。
+Task Contract 降低 AGY 自己补全错误假设的概率；Run Policy 明确它在 tty7 worker 中的行为边界。
 
-## 6. 分阶段监督，而不是等最后一次性验收
+## 8. Turn Protocol：每轮都有唯一 Nonce
 
-任务较长时拆成可检查阶段，例如：
+一个监督任务由多个 worker turn 组成，例如：分析、实现、Review 返工、测试返工。
 
-1. 理解现状与实施方案；
-2. 核心实现；
-3. 边界和错误处理；
-4. 测试；
-5. 收尾。
+每次发送正式 Turn 前：
 
-每个重要阶段，包括 AGY 第一次说 `done` 之后，都执行同一个闭环：
+1. `tty7 capture "$PANE" --plain`，确认当前画面可安全接收输入；
+2. 生成新的短 nonce，例如 `A7F2E9`；
+3. 将本轮指令和 nonce 一起发送；
+4. 要求 AGY 最终单独输出：
 
-1. capture AGY 的实际终端输出，确认它声称做了什么；
-2. Codex 在自己的 shell 独立读取 repository state；
-3. 对照 Task Contract 和项目规则 Review；
-4. 通过才进入下一阶段；
-5. 有问题则把**带证据的返工意见**发回同一个 pane；
-6. AGY 修正后重新执行完整 Review 闭环。
+```text
+TURN_COMPLETE: A7F2E9
+```
 
-最低检查集合：
+**TURN_COMPLETE 不是验收证明。** 它只表示 AGY 声称当前 Supervisor Turn 已返回，下一步必须进入 Codex Review。
+
+完整 Run/Turn 状态见 `resources/run-lifecycle.md`。
+
+## 9. 等待与观察：Native Status 优先，Fallback 可用
+
+### A. tty7 对 AGY 提供 native status 时
+
+发送 Turn 后：
+
+```bash
+tty7 wait "$PANE" --until waiting,done --changed --timeout 1800
+```
+
+`--changed` 是必须的，因为 tty7 agent state 是 level，不是 event；上一轮 `done` 可能仍站着。
+
+- `waiting`：先 capture 看它需要什么，再按权限边界决定回答或交给用户。
+- `done`：capture 最新输出并进入 Review。
+- `124`：timeout 不是失败证明，进入诊断。
+- `1`：pane 已退出，进入 worker failure 诊断。
+
+### B. AGY 没有 tty7 status hook 时（当前必须支持的 fallback）
+
+不要等待不存在的 `done`。使用有界观察：
+
+```bash
+tty7 agents --json
+tty7 capture "$PANE" --plain
+```
+
+将当前画面分类为 observation：
+
+- `AGY_PRESENT`
+- `TUI_ACTIVE`
+- `INPUT_REQUIRED`
+- `TURN_MARKER_SEEN`
+- `ERROR_VISIBLE`
+- `PROMPT_READY`
+- `UNKNOWN`
+
+看到当前 nonce 的 `TURN_COMPLETE`，或从画面明确判断该 turn 已返回后，进入 Review。
+
+`UNKNOWN` 是合法状态：继续观察，不要猜成成功，不要盲目 Enter，不要重复发送同一 Task Contract。
+
+## 10. Read Before Send
+
+任何对 worker pane 的写操作之前必须重新 capture 当前画面，包括：
+
+- 新 prompt
+- Enter
+- permission/menu 按键
+- Escape
+- Ctrl-C
+
+固定顺序：
+
+```text
+CAPTURE
+  ↓
+CLASSIFY
+  ↓
+DECIDE
+  ↓
+SEND
+```
+
+这条规则防止根据几秒前的界面状态把按键发送到已经变化的 TUI。
+
+## 11. Codex Review：从 Git 收交付，不从 Screen 收交付
+
+AGY screen 用于：
+
+- 观察它在做什么；
+- 判断权限/问题/错误；
+- 收到 Turn marker；
+- 诊断中断。
+
+真正交付必须从 repository state 获取：
 
 ```bash
 git status --short
@@ -232,66 +346,63 @@ git diff --check
 git diff
 ```
 
-必要时再用：
+必要时：
 
 ```bash
 rg <symbol-or-pattern>
 ```
 
-检查调用链、重复实现、遗漏分支、错误处理、权限、时区、持久化、API 契约、生成物和测试覆盖。
+检查 Task Contract、调用链、架构、边界、错误处理、API/Schema、测试和生成物。完整 Gate 见 `resources/review-gates.md`。
 
-完整 Review Gate 见 `resources/review-gates.md`。
+### Scope Drift Guard
 
-## 7. 返工意见必须可执行、可验证
+将当前变更与 baseline 对比，识别 AGY 本轮新增 changed paths。若超出 Task Contract Scope：
 
-不要只发送：
+1. 判断是否为满足需求所必需；
+2. 没有充分依据则 `REWORK`；
+3. 只要求 AGY 撤销它自己本轮引入的越界改动；
+4. 不误伤 baseline 中用户已有改动。
 
-```text
-这里有问题，请修复。
-```
+## 12. Evidence-driven Rework + Rework Budget
 
-优先包含：
-
-- 文件路径和行号（若能确定）；
-- Codex 实际观察到的行为；
-- 它违反的需求 / 项目规则 / contract；
-- 期望行为；
-- 建议关注的调用链或边界；
-- 修正后必须重跑的测试。
-
-示例结构：
+Review 不通过时，通过同一 `$PANE` 发送精确返工：
 
 ```text
 Issue
-- services/foo/...: 当前 XXX 在 YYY 情况下会返回 ZZZ。
+- <文件/位置/行为>
 
 Evidence
-- diff 中新增逻辑只处理了 A，没有处理 B；现有测试也未覆盖 B。
+- <diff / test / 调用链证据>
 
 Expected
-- A/B 两种输入都应遵循同一个 contract。
+- <应该是什么>
 
 Rework
-- 修正实现并补一个 B 场景测试；完成后重跑 <command>，把真实结果告诉我。
+- <AGY 要做的具体改动>
+
+Re-run
+- <AGY 本轮应重跑的针对性验证>
 ```
 
-Codex 之后仍要自己重跑验证，不能把 AGY 的复测结果直接当成验收结果。
+发送前仍然执行 Read Before Send，并生成新 Turn nonce。
 
-## 8. 独立构建、测试和最终验收
+默认 **3 个完整 Review → Rework → Re-review 周期为 soft limit**。达到 soft limit 时必须重新评估是否存在需求不清、根因判断错误、架构冲突、环境问题或修复震荡；不能静默无限返工。必要时进入 `BLOCKED` 并报告用户。
 
-实现稳定后，Codex 自己运行仓库规定的质量门禁；AGY 跑过的命令不算独立验证。
+## 13. Codex Independent Verification
 
-优先级：
+实现 Review 稳定后，Codex 自己运行仓库要求的质量门禁。AGY 运行过的命令不算独立验证。
 
-1. 仓库 `AGENTS.md` / README / CI 明确规定的命令；
-2. 与改动直接相关的 targeted tests；
+优先：
+
+1. 仓库明确规定的命令；
+2. targeted tests；
 3. lint / typecheck / unit tests；
-4. integration / package / build；
-5. 必要的配置校验。
+4. integration / build / package；
+5. contract/schema/config 校验。
 
-若某项门禁不适用，要说明原因；若失败，保留失败证据并通过 tty7 交给 AGY 修正，然后由 Codex 独立重跑。
+失败则保留真实失败证据，重新进入 Evidence-driven Rework；修复后由 Codex 再独立重跑。
 
-最终再做一次：
+最终再检查：
 
 ```bash
 git status --short
@@ -300,55 +411,53 @@ git diff --check
 git diff
 ```
 
-确认没有：
+确认没有临时文件、debug、无关格式化、生成物、baseline 覆盖和越界修改。
 
-- 临时文件；
-- debug 输出；
-- 无关格式化；
-- 意外生成物；
-- 用户基线改动被覆盖；
-- 超出 Task Contract 的改动。
+只有需求、架构、边界、独立门禁、最终 diff 和外部副作用边界全部满足，Supervisor State 才能进入 `ACCEPTED`。
 
-验收完成的必要条件：
+## 14. Worker Error / Crash Recovery
 
-- 需求逐项满足；
-- 关键边界已审查；
-- 项目架构/契约未被破坏；
-- 独立门禁通过或失败项已明确解释；
-- 最终 diff 可解释；
-- 没有未经授权的外部副作用。
+遇到 API error、连接中断、turn 被切断时：
 
-任何关键项不满足，都不能把任务标记为完成。
+1. 先 capture 当前画面；
+2. 检查 repository state；
+3. 若 AGY TUI 仍活着且已经回到可输入状态，优先在同一 pane 内要求基于已有修改继续；
+4. 不因为状态显示异常就立即创建第二个 AGY 同时写同一 checkout。
 
-## 9. 故障和阻塞处理
+若 pane 真正退出：
 
-遇到以下情况，不要盲目重复发送命令：
+1. 先 Review 当前 Git state，保留已经产生的有效工作；
+2. 不自动假设全部重来；
+3. 只有确实需要继续时才创建 replacement worker；
+4. 若掌握经过验证的 AGY conversation id，可按当前版本支持的 `--conversation` 恢复；否则不猜 session id，使用 Task Contract + 当前 diff 重新建立上下文。
 
-- AGY 启动失败；
-- AGY 没有新输出；
-- AGY 停在 trust / auth / permission；
-- workspace/context 疑似串项目；
-- AGY 进程退出；
-- 长任务 timeout；
-- AGY 声称完成但 repository 没有对应改动；
-- 测试失败；
-- AGY 反复修不好同一个问题。
+具体分类见 `resources/failure-modes.md`。
 
-先 capture/procs/真实 Git state 定位，再按 `resources/failure-modes.md` 的分类处理。
+## 15. tty7 Cleanup
 
-## 10. 结束和汇报
+正常完成后，优先清理本 Skill 创建的整个 worker workspace：
 
-任务完成后，只清理本 Skill 创建的 pane。若用户要求保留终端供后续跟进，则保留并明确 pane 地址。
+```bash
+tty7 ws rm "$WS"
+```
+
+不要操作其他 workspace/pane，不使用全局 orphan cleanup。
+
+如果用户明确希望保留 AGY 终端继续查看/接管，则保留，并在最终汇报中给出稳定的 workspace id 和 pane id。
+
+## 16. 最终汇报
 
 最终中文汇报至少包含：
 
 - AGY 完成了什么；
 - 修改了哪些核心文件；
-- Codex 独立 Review 发现了什么问题；
-- 进行了哪些返工，以及返工结果；
-- Codex 实际运行了哪些构建/测试及结果；
-- 当前 AGY 版本/能力是否影响了执行策略；
+- Codex Review 发现了什么问题；
+- 发生了多少轮返工，以及结果；
+- Codex 独立运行了哪些构建/测试及结果；
+- 本次 tty7 使用 native status 还是 AGY fallback observation；
+- 当前 AGY/tty7 capability 是否影响了执行策略；
+- 是否保留或清理了本次 workspace/pane；
 - 仍存在的风险、未覆盖项或待办；
-- 明确说明是否执行过 push / merge / deploy（默认应为没有）。
+- 明确说明是否执行过 push / merge / deploy（默认没有）。
 
-最终汇报要基于真实 repository state 和命令结果，而不是复述 AGY 的总结。
+最终结论必须基于真实 repository state 和命令结果，而不是复述 AGY 的总结。
