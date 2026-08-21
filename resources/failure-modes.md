@@ -297,6 +297,8 @@ git diff
 
 Worker failure 不等于 Run progress 丢失。
 
+若已经 `CODE_VERIFIED`，replacement worker 应优先使用 final diff + Closeout Contract 继续知识收尾，不无证据重做已验证实现。
+
 ---
 
 ## 16. 长时间 `UNKNOWN`
@@ -317,11 +319,54 @@ AGY 无 hook 的 fallback 模式可能出现 screen 难以判断。
 
 常见：build output、coverage、log、临时 patch、debug 文件、IDE metadata、意外 lockfile。
 
-先确认是否是项目应提交产物。若不是，让 AGY 清理它本次生成的文件，再 Review Git state。
+先确认是否是项目应提交产物，并区分来源：
+
+- **能明确证明由本轮 AGY 生成，且按项目惯例属于可安全移除的临时/构建残留**：可要求 AGY 清理，再 Review Git state；
+- **来源、唯一性或用途不明确**：不要因“收尾”直接删除，列为 `deletion-candidate` 并报告；
+- **baseline 已存在**：不得当成本轮 residue 回滚或删除。
 
 ---
 
-## 18. 外部副作用请求
+## 18. Closeout 发现文档与代码冲突
+
+### 例子
+
+- README 仍写旧 CLI 参数；
+- API 文档与最终 response schema 不一致；
+- `AGENTS.md` 指向已经退役的目录；
+- 配置说明仍把旧环境变量标为现役；
+- 示例与测试证明的默认行为相反。
+
+### 处理
+
+1. 先确定 Source of Truth：final diff、当前代码/schema/config/tests 和 Codex 已验证结果；
+2. 如果最终实现明确，形成 `CLOSEOUT REWORK` Evidence，让同一 AGY worker 就地同步现役知识面；
+3. 如果冲突暴露的是实际代码缺陷，退回实现 Review / Verification；
+4. 不允许只改文档去掩盖错误代码，也不允许为了迎合旧文档改坏已验证实现；
+5. 修复后重新做 stale-reference search 和 Gate 12 Review。
+
+---
+
+## 19. Closeout 无法裁决 / 跨项目影响
+
+### 情况
+
+- 两个现役文档互相冲突，当前代码不足以判断产品预期；
+- 公共 Contract 改动影响另一个仓库，但当前任务没有跨项目写权限；
+- 需要 production/live evidence 才能确认“已上线”；
+- 需要删除、重命名或外部权限才能完成知识统一。
+
+### 处理
+
+- 标记对应知识面 `pending` 或 `out-of-scope`；
+- 保留双方证据和当前安全状态；
+- 不把无法验证的结论写成“已完成”；
+- 不因为 Closeout 自动扩大 memory、deploy、跨项目或删除权限；
+- 必要时进入 `CLOSEOUT BLOCKED` 并明确 `Decision needed`。
+
+---
+
+## 20. 外部副作用请求
 
 AGY 若准备：
 
@@ -335,9 +380,11 @@ AGY 若准备：
 
 默认停止并交由用户决定。监督开发默认止于本地 repository 可验收状态。
 
+Knowledge Closeout 不改变这条边界；“为了验证文档”也不能擅自 deploy 或改远端资源。
+
 ---
 
-## 19. Cleanup 风险
+## 21. Cleanup 风险
 
 正常仅清理当前 Run 创建的 workspace：
 
@@ -353,5 +400,7 @@ tty7 server stop
 tty7 server restart
 关闭其他 workspace/pane
 ```
+
+Knowledge Closeout 报告的用户文件、计划文档、backup、历史资料等 `deletion-candidate` 不属于 tty7 cleanup。
 
 如果 `ws rm` 因状态异常需要进一步处理，先检查 ownership 和 pane 内容，不要扩大清理范围。
