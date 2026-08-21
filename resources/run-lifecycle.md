@@ -1,6 +1,6 @@
 # Supervisor Run Lifecycle
 
-本文件定义 v2.1 的监督状态、Turn 协议和返工预算。这里描述的是 **Codex Supervisor 能确认的状态**，不是假装知道 AGY 内部每一刻在做什么。
+本文件定义 v2.1 的监督状态、Turn 协议、返工预算和 Knowledge Closeout 状态。这里描述的是 **Codex Supervisor 能确认的状态**，不是假装知道 AGY 内部每一刻在做什么。
 
 ## 1. Run Context
 
@@ -25,6 +25,9 @@ supervisor_state
 turn_seq
 current_nonce
 rework_count
+
+closeout_level = lightweight | full
+knowledge_surface_status
 ```
 
 其中稳定 identity 是 `tty7_workspace_id + tty7_pane_id`，不是 tab ordinal。
@@ -58,6 +61,15 @@ REVIEWING
 VERIFYING
   ├────────→ REWORK_REQUIRED
   ↓
+CODE_VERIFIED
+  ↓
+CLOSEOUT
+  ↓
+CLOSEOUT_REVIEW
+  ├────────→ REWORK_REQUIRED
+  │               ↓
+  │            TURN_SENT
+  ↓
 ACCEPTED
 ```
 
@@ -69,6 +81,18 @@ ACCEPTED
 
 如果未来 native status 可用，它用于提高 observation 精度，不改变 Supervisor 状态语义。
 
+### 为什么增加 `CODE_VERIFIED`
+
+`VERIFYING` 通过只说明代码和测试已经达到可接受状态，不保证 README、Agent rules、Contract、配置说明等知识面已经同步。
+
+因此代码验证通过后先进入：
+
+```text
+CODE_VERIFIED
+```
+
+随后基于**最终实现**执行 Closeout，而不是在实现仍反复变化时同步中间态文档。
+
 ## 3. Turn
 
 一个 Run 由多个 Turn 构成，例如：
@@ -78,9 +102,13 @@ Turn 1  现状分析 / plan
 Turn 2  实现
 Turn 3  Review rework
 Turn 4  verification rework
+Turn 5  knowledge closeout
+Turn 6  closeout rework（若需要）
 ```
 
 每次正式向 AGY 派一个可结束的动作，就递增 `turn_seq`。
+
+Closeout 仍然是普通 Supervisor Turn：继续使用同一个 worker pane、Read Before Send、native-status/capture-fallback 和 Turn Nonce，不引入第二套 AGY 生命周期。
 
 ## 4. Turn Nonce
 
@@ -110,6 +138,7 @@ TURN_COMPLETE: A7F2E9
 - 代码正确；
 - 测试通过；
 - Task Contract 已满足；
+- 文档/规则已经对齐；
 - 没有越界修改。
 
 因此：
@@ -118,7 +147,7 @@ TURN_COMPLETE: A7F2E9
 TURN_COMPLETE != ACCEPTED
 ```
 
-看到当前 nonce 后，状态只能从 `OBSERVING` 进入 `TURN_RETURNED`，然后必须 `REVIEWING`。
+看到当前 nonce 后，状态只能从 `OBSERVING` 进入 `TURN_RETURNED`，然后必须进入对应的 Review。
 
 ## 5. Read Before Send Boundary
 
@@ -176,11 +205,19 @@ git diff --check
 git diff
 ```
 
-Review 结论：
+实现阶段 Review 结论：
 
 - `PASS` → 进入下一阶段或 `VERIFYING`
 - `REWORK` → `REWORK_REQUIRED` → 新 Turn
 - `BLOCKED` → 等用户/环境决策
+
+独立 Verification 通过后：
+
+```text
+VERIFYING → CODE_VERIFIED
+```
+
+然后必须进入 Knowledge Closeout，不直接进入 `ACCEPTED`。
 
 ## 8. Rework Budget
 
@@ -209,6 +246,8 @@ Review → Rework → Re-review
 
 soft limit 可以在明确新证据下继续，但必须显式说明理由；不能静默无限循环。
 
+Closeout rework 也计入该 Run 的返工观察，但应区分代码返工和知识返工；若 Closeout 发现真实实现缺陷，应退回代码 Review/Verification，而不是只改文档掩盖代码问题。
+
 ## 9. Scope Drift
 
 每次 Review 将当前 changed paths 与 baseline + Task Contract Scope 对比。
@@ -226,7 +265,41 @@ current changes
 3. 要求 AGY 只撤销自己产生的越界改动；
 4. 重新检查 baseline integrity。
 
-## 10. Worker Failure Does Not Erase Run Progress
+Knowledge Closeout 修改 README/docs/rules 时，如果这些文件是本次最终实现的直接知识面，视为可解释的 closeout scope；仍必须证明关联性，不能借收尾顺手重写无关文档。
+
+## 10. Knowledge Closeout Transition
+
+`CODE_VERIFIED` 后，Codex 根据 final diff 判断：
+
+```text
+closeout_level = lightweight | full
+```
+
+详细标准见 `closeout-governance.md`。
+
+固定流程：
+
+```text
+CODE_VERIFIED
+  ↓
+Knowledge Impact Scan
+  ↓
+CLOSEOUT
+  ↓
+AGY updates affected knowledge surfaces (only if needed)
+  ↓
+CLOSEOUT_REVIEW
+```
+
+Closeout Review 结论：
+
+- `PASS` → 可以进入最终 Acceptance 判断；
+- `REWORK` → 同一 AGY worker 新 Turn 修正；
+- `BLOCKED` → 保留当前安全状态并报告 pending/out-of-scope/decision needed。
+
+每次开发都执行 Scan，但允许零文档 diff。`verified-current` 本身就是有效结果。
+
+## 11. Worker Failure Does Not Erase Run Progress
 
 AGY process / pane 失败时，Run 不自动重置为 INIT。
 
@@ -234,7 +307,9 @@ AGY process / pane 失败时，Run 不自动重置为 INIT。
 
 只有用户任务本身被取消，或者当前变更无法安全识别/继续，才结束 Run。
 
-## 11. Session Resume
+如果 worker 在 `CODE_VERIFIED` 之后、Closeout 之前失败，也不要重做已经独立验证通过的实现；replacement worker 应以 final diff + Closeout Contract 重建收尾上下文。
+
+## 12. Session Resume
 
 如果存在经过验证的真实 AGY conversation id，且当前 AGY capability 支持恢复，可用对应 resume 能力。
 
@@ -246,21 +321,25 @@ Do not guess a session id.
 
 replacement worker 使用：
 
-- 原 Task Contract
-- 当前 repository diff
-- 剩余 Review evidence
+- 原 Task Contract；
+- 当前 repository diff；
+- 剩余 Review evidence；
+- 当前 `CODE_VERIFIED` / Closeout 状态（若已经到该阶段）。
 
 重新建立任务上下文即可。
 
-## 12. Acceptance
+## 13. Acceptance
 
 只有 Codex 可以进入 `ACCEPTED`，且必须满足：
 
 - Task Contract 覆盖完成；
-- Review Gates 相关项 PASS；
-- 独立 Verification 完成；
+- Review Gates 相关代码项 PASS；
+- Codex Independent Verification 完成并进入 `CODE_VERIFIED`；
+- Knowledge Impact Scan 已执行；
+- Gate 12 Knowledge & Documentation Alignment PASS；
 - final diff 可解释；
 - baseline 完整；
-- 无未经授权外部副作用。
+- `pending` / `out-of-scope` / deletion candidates 已如实报告；
+- 无未经授权外部副作用或破坏性清理。
 
-AGY 是否说 `done` 与最终 Acceptance 没有直接等价关系。
+AGY 是否说 `done`、测试是否绿色、甚至代码是否已经 `CODE_VERIFIED`，都与最终 Acceptance 不直接等价。最终条件是：**代码已验证 + 知识已对齐 + 边界可解释**。
