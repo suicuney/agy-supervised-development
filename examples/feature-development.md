@@ -1,4 +1,4 @@
-# Example: 中型功能开发（v2.1）
+# Example: 中型功能开发（v2.1.1）
 
 场景：给现有服务增加“按状态过滤”的查询能力并补测试，不改变现有默认行为。
 
@@ -206,9 +206,94 @@ git diff --check
 git diff
 ```
 
-只有真实 repository state、需求覆盖和独立测试都满足，Supervisor 才进入 `ACCEPTED`。
+真实 repository state、需求覆盖和独立测试都满足后：
 
-## 11. Cleanup
+```text
+Supervisor State = CODE_VERIFIED
+```
+
+这里还不能直接 `ACCEPTED`。
+
+## 11. Knowledge Impact Scan
+
+本例新增了 API 查询参数，因此不是纯内部实现变化，应该执行 Full Closeout。
+
+Codex 根据 final diff 先判断知识面：
+
+```text
+README / usage       ?
+AGENTS / CLAUDE      ?
+API Contract         affected
+config/runtime       not-applicable
+workspace residue    ?
+```
+
+并搜索旧接口说明或示例：
+
+```bash
+rg "status|<query-route>|<request-model>" README.md docs/ .
+```
+
+如果 README 只做项目入口、不描述 API 参数，可以是 `verified-current`；不要为了“留痕”硬改。
+
+## 12. AGY Closeout Turn
+
+先 Read Before Send，生成新 nonce `E63A91`，向同一 `$PANE` 发送：
+
+```text
+Closeout Goal
+- 根据最终实现同步本次 status 过滤能力相关的现役知识面。
+
+Source of Truth
+- final diff、当前 API contract、tests 和 Supervisor 已验证结果。
+
+Required
+- 对 README / rules / API Contract / runtime docs / residue 做 Knowledge Impact Scan。
+- 只修改真正受影响的知识文件。
+- API Contract / examples 中新增可选 status 参数，并明确缺省行为保持不变。
+- 不把本轮开发过程写进 README 或 rules。
+- 未验证内容标 pending。
+- 不删除 residue，不 push / merge / deploy。
+
+Report
+- surface / status / evidence / changed files / pending / out-of-scope / deletion-candidate
+
+Completion Protocol
+- 完成本轮后输出 TURN_COMPLETE: E63A91
+```
+
+AGY 返回后，Codex 仍然从 Git 收交付。
+
+## 13. Codex Closeout Review
+
+```bash
+git status --short
+git diff --stat
+git diff --check
+git diff
+rg "status|<query-route>|<request-model>" README.md docs/ .
+```
+
+示例结果：
+
+```text
+README              verified-current
+AGENTS / CLAUDE     verified-current
+API Contract        changed-and-verified
+API Example         changed-and-verified
+Runtime Config      not-applicable
+Residue             verified-current
+```
+
+确认文档描述的是最终接口，而不是某个中间实现；没有旧示例仍暗示“接口不接受 status”。
+
+只有 Closeout Review PASS 后：
+
+```text
+Supervisor State = ACCEPTED
+```
+
+## 14. Cleanup
 
 如果用户没有要求保留 AGY：
 
@@ -217,3 +302,5 @@ tty7 ws rm "$WS"
 ```
 
 如果用户希望继续观察/接管，则保留并汇报稳定 `WS` / `PANE`。
+
+如果 Closeout 发现 `PLAN.md`、backup 或调试脚本等 residue，但用户没有明确授权删除，只在最终汇报列为 `deletion-candidate`，不要混入 tty7 workspace cleanup。
