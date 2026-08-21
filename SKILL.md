@@ -1,7 +1,7 @@
 ---
 name: agy-supervised-development
-description: Use Codex as supervisor/reviewer and AGY (Antigravity CLI) as the primary implementer in a dedicated tty7 workspace, with tty7-native pane ownership, AGY capability detection, fallback turn completion markers, evidence-based review, rework loops, and independent acceptance.
-version: 2.1.0
+description: Use Codex as supervisor/reviewer and AGY (Antigravity CLI) as the primary implementer in a dedicated tty7 workspace, with tty7-native pane ownership, AGY capability detection, fallback turn completion markers, evidence-based review, rework loops, independent verification, and mandatory code-to-knowledge closeout before acceptance.
+version: 2.1.1
 ---
 
 # AGY 监督开发
@@ -10,17 +10,18 @@ version: 2.1.0
 
 核心角色固定为：
 
-- **Codex = Supervisor / Reviewer / QA**：理解需求、建立 Git baseline、创建和管理本次 tty7 worker workspace、委派 AGY、审查真实 repository state、驱动返工、独立验证并最终验收。
+- **Codex = Supervisor / Reviewer / QA**：理解需求、建立 Git baseline、创建和管理本次 tty7 worker workspace、委派 AGY、审查真实 repository state、驱动返工、独立验证、审查 Knowledge Closeout 并最终验收。
 - **tty7 = Worker Runtime**：提供持久 PTY、独立 workspace/pane、agent detection、send/capture/wait 等运行时能力；不要在 Skill 内重复造进程管理器。
-- **AGY = Implementer / Sole Primary Writer**：主要负责实现生产代码、补测试、执行针对性验证和按证据返工。
+- **AGY = Implementer / Sole Primary Writer**：主要负责实现生产代码、补测试、执行针对性验证、按证据返工，并在代码稳定后同步受影响的项目知识面。
 - **Repository state = 真相来源**：AGY 的 `done`、总结、测试自述和 turn marker 都不是完成证明。
 
-本 Skill 只定义监督编排主流程。AGY 运行时见 `resources/agy-runtime.md`；tty7 操作协议见 `resources/tty7-supervision.md`；监督状态与 Turn 协议见 `resources/run-lifecycle.md`；故障见 `resources/failure-modes.md`；审查门禁见 `resources/review-gates.md`。
+本 Skill 只定义监督编排主流程。AGY 运行时见 `resources/agy-runtime.md`；tty7 操作协议见 `resources/tty7-supervision.md`；监督状态与 Turn 协议见 `resources/run-lifecycle.md`；故障见 `resources/failure-modes.md`；审查门禁见 `resources/review-gates.md`；开发完成后的代码/文档/规则对齐见 `resources/closeout-governance.md`。
 
 ## 不可违反的边界
 
 - 只有 Codex 可以把任务判定为 `ACCEPTED`。AGY 的 `done` 或 `TURN_COMPLETE` 最多表示当前 worker turn 返回。
-- 主要生产代码由 AGY 修改。Codex 负责监督、Review、验证和返工；仅在 AGY 无法继续、用户明确要求或极小的监督性修补时例外，并在最终汇报说明。
+- 代码通过 Review / test / build 只允许进入 `CODE_VERIFIED`，不能直接 `ACCEPTED`；实际开发任务必须再完成 Knowledge Impact Scan 和 Closeout Review。
+- 主要生产代码和受影响知识文件由 AGY 修改。Codex 负责监督、Review、验证和返工；仅在 AGY 无法继续、用户明确要求或极小的监督性修补时例外，并在最终汇报说明。
 - 每个监督任务创建独立 tty7 workspace + pane。只操作本次任务保存的稳定 workspace id 和 pane id；已有用户 pane、其他 agent pane 和其他 workspace 一律只读。
 - 不缓存 `@N` 作为 worker identity；tab 序号会漂移。优先保存 `tty7 new --json` 返回的 workspace id 和 pane id。
 - 不执行 `tty7 server stop`、`tty7 server restart`、`tty7 pane close --orphans`，不清理不是本 Skill 创建的资源。
@@ -31,6 +32,7 @@ version: 2.1.0
 - 不执行 push、merge、release、deploy、远端历史修改等外部操作，除非用户明确授权。
 - 不默认使用全局跳过权限确认的危险模式；权限、账号、联网、破坏性操作和跨范围访问必须可审计。
 - 尊重仓库已有改动：先记录 baseline，不得为了“清理”回滚、覆盖或删除用户已有改动。
+- Knowledge Closeout 默认只同步当前项目直接受影响的 README/docs/rules/Contract/config 等知识面，不因为“收尾”自动获得 memory、跨项目写入、发布或破坏性清理权限。
 - 不因为 tty7 pane 的 cwd 正确，就假设 AGY 的内部 workspace/context 一定正确；必须显式绑定或验证。
 
 ## 1. 建立任务范围和 Git Baseline
@@ -200,11 +202,13 @@ Codex 自己也核对同样信息。
 
 ### 中型功能
 
-默认：Task Contract → AGY Implement → Codex Review → AGY Rework → Codex Verify。
+默认：Task Contract → AGY Implement → Codex Review → AGY Rework → Codex Verify → AGY Closeout → Codex Accept。
 
 ### 大型重构 / 跨模块改造
 
 若 AGY 支持 plan mode，先让 AGY 在只分析、不改文件的阶段出方案，Codex Review 通过后再进入 Implement。没有 plan mode 时，用 Task Contract 明确模拟同样的观察阶段。
+
+大型改造完成代码 Verification 后默认执行 Full Closeout，按最终 diff 搜索被改名、退役或改变语义的 API/schema/config/module symbol，避免旧文档继续冒充现役答案。
 
 ## 7. Task Contract + Run Policy
 
@@ -245,9 +249,11 @@ Completion Protocol
 
 Task Contract 降低 AGY 自己补全错误假设的概率；Run Policy 明确它在 tty7 worker 中的行为边界。
 
+初始 Task Contract 不要求 AGY 预先猜所有文档改动；Knowledge Closeout 应在最终代码稳定后按 final diff 决定真实影响面。
+
 ## 8. Turn Protocol：每轮都有唯一 Nonce
 
-一个监督任务由多个 worker turn 组成，例如：分析、实现、Review 返工、测试返工。
+一个监督任务由多个 worker turn 组成，例如：分析、实现、Review 返工、测试返工、Knowledge Closeout。
 
 每次发送正式 Turn 前：
 
@@ -260,7 +266,7 @@ Task Contract 降低 AGY 自己补全错误假设的概率；Run Policy 明确�
 TURN_COMPLETE: A7F2E9
 ```
 
-**TURN_COMPLETE 不是验收证明。** 它只表示 AGY 声称当前 Supervisor Turn 已返回，下一步必须进入 Codex Review。
+**TURN_COMPLETE 不是验收证明。** 它只表示 AGY 声称当前 Supervisor Turn 已返回，下一步必须进入 Codex 对应阶段的 Review。
 
 完整 Run/Turn 状态见 `resources/run-lifecycle.md`。
 
@@ -413,9 +419,84 @@ git diff
 
 确认没有临时文件、debug、无关格式化、生成物、baseline 覆盖和越界修改。
 
-只有需求、架构、边界、独立门禁、最终 diff 和外部副作用边界全部满足，Supervisor State 才能进入 `ACCEPTED`。
+代码层全部通过后，Supervisor State 进入 `CODE_VERIFIED`，**不要直接进入 `ACCEPTED`**。下一步固定执行 Knowledge Closeout。
 
-## 14. Worker Error / Crash Recovery
+## 14. AGY Knowledge Closeout
+
+每次实际开发完成后都执行 Knowledge Impact Scan。详细协议见 `resources/closeout-governance.md`。
+
+### 14.1 先判断影响，不机械改文档
+
+对以下知识面按项目实际存在情况判断：
+
+- README / usage；
+- `AGENTS.md` / `CLAUDE.md` / project rules；
+- API / Schema / CLI / shared Contract；
+- env / config / provider / service / deploy / job 说明；
+- 本轮明显 workspace residue。
+
+每个相关面标记：
+
+```text
+verified-current
+changed-and-verified
+pending
+out-of-scope
+not-applicable
+```
+
+允许全部是 `verified-current` / `not-applicable`，此时不产生文档 diff。**每次开发都 Scan，不是每次开发都改 README。**
+
+### 14.2 Lightweight / Full Closeout
+
+普通内部实现变化默认 Lightweight Closeout。
+
+出现 API、schema、CLI、env/config、用户流程、模块边界、部署、后台任务、重命名/退役或跨项目协议变化时升级 Full Closeout，并搜索旧 symbol / route / env / field / service 的非历史引用。
+
+### 14.3 委派同一个 AGY Worker
+
+进入 `CODE_VERIFIED` 后，先 Read Before Send，再向同一 `$PANE` 发新的 Closeout Turn nonce。推荐指令：
+
+```text
+Closeout Goal
+- 根据最终 repository state 完成本次开发的知识收尾。
+
+Source of Truth
+- final diff、当前代码/schema/config/tests、Supervisor 已验证结果。
+
+Required
+- 先做 Knowledge Impact Scan。
+- 只修改受最终实现影响的知识面。
+- 过期现役描述就地更新，不创建第二份权威答案。
+- 不把开发过程流水账写进 README / rules。
+- 未验证事实标 pending，不写成完成。
+- residue 只列 deletion-candidate；没有明确授权不要删除。
+- 不 push / merge / deploy，不扩大范围。
+
+Report
+- surface / status / evidence / changed files / pending / out-of-scope / deletion-candidate
+```
+
+AGY 完成 Closeout Turn 后，Codex 从 Git state Review，不接受 AGY 自述作为证据。
+
+### 14.4 Gate 12 — Knowledge & Documentation Alignment
+
+Codex 至少确认：
+
+- 受影响文档与最终代码事实一致；
+- Agent rules 没有过期，也没有膨胀成第二份 README；
+- API/schema/config/examples 没有互相冲突；
+- 退役 symbol 没有继续残留在现役知识面；
+- 没有为形式制造无意义文档 diff；
+- pending / out-of-scope / deletion candidates 已明确；
+- 没有未经授权删除或跨项目写入；
+- Closeout 修改仍满足 baseline integrity 和 Scope Drift Guard。
+
+Closeout 不通过时继续使用 Evidence-driven Rework，通过同一个 AGY worker 修复。若 Closeout 暴露的是实际代码缺陷，退回实现 Review / Verification，不允许只改文档掩盖代码问题。
+
+只有代码 Gates PASS、Independent Verification 完成、Knowledge Closeout PASS，Supervisor State 才能进入 `ACCEPTED`。
+
+## 15. Worker Error / Crash Recovery
 
 遇到 API error、连接中断、turn 被切断时：
 
@@ -431,11 +512,13 @@ git diff
 3. 只有确实需要继续时才创建 replacement worker；
 4. 若掌握经过验证的 AGY conversation id，可按当前版本支持的 `--conversation` 恢复；否则不猜 session id，使用 Task Contract + 当前 diff 重新建立上下文。
 
+如果代码已经进入 `CODE_VERIFIED` 才发生 worker failure，replacement worker 只需基于 final diff + Closeout Contract 重建知识收尾上下文，不要无证据重复修改已经验证通过的代码。
+
 具体分类见 `resources/failure-modes.md`。
 
-## 15. tty7 Cleanup
+## 16. tty7 Cleanup
 
-正常完成后，优先清理本 Skill 创建的整个 worker workspace：
+正常完成并且 Closeout Review PASS 后，优先清理本 Skill 创建的整个 worker workspace：
 
 ```bash
 tty7 ws rm "$WS"
@@ -443,21 +526,26 @@ tty7 ws rm "$WS"
 
 不要操作其他 workspace/pane，不使用全局 orphan cleanup。
 
+Knowledge Closeout 中发现的用户文件、计划文档、备份或其他 residue 不属于 tty7 workspace cleanup；除非已有明确授权，否则只报告 deletion candidates，不擅自删除。
+
 如果用户明确希望保留 AGY 终端继续查看/接管，则保留，并在最终汇报中给出稳定的 workspace id 和 pane id。
 
-## 16. 最终汇报
+## 17. 最终汇报
 
 最终中文汇报至少包含：
 
 - AGY 完成了什么；
-- 修改了哪些核心文件；
+- 修改了哪些核心代码文件；
 - Codex Review 发现了什么问题；
 - 发生了多少轮返工，以及结果；
 - Codex 独立运行了哪些构建/测试及结果；
+- Knowledge Closeout 使用 Lightweight 还是 Full；
+- 哪些知识面是 `changed-and-verified` / `verified-current`；
+- 是否存在 `pending` / `out-of-scope` / deletion candidates；
 - 本次 tty7 使用 native status 还是 AGY fallback observation；
 - 当前 AGY/tty7 capability 是否影响了执行策略；
 - 是否保留或清理了本次 workspace/pane；
 - 仍存在的风险、未覆盖项或待办；
 - 明确说明是否执行过 push / merge / deploy（默认没有）。
 
-最终结论必须基于真实 repository state 和命令结果，而不是复述 AGY 的总结。
+最终结论必须基于真实 repository state、Independent Verification 和 Closeout Review，而不是复述 AGY 的总结。
