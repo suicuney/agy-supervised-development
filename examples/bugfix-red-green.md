@@ -1,8 +1,12 @@
-# Example: Bugfix RED → GREEN（v2.1.2）
+# Example — Bugfix RED → GREEN with Pi Harness
 
 场景：`CacheService` 在空 key 时仍访问 backend，导致异常；现有 contract 要求空 key 返回 empty result。
 
+---
+
 ## 1. Task Contract
+
+Codex 先定义：
 
 ```text
 Goal
@@ -18,7 +22,7 @@ Acceptance Criteria
 
 Completeness
 - 搜索同类 cache entry points / sibling methods 是否共享同一缺陷。
-- 不把缓存模块顺手重构成新 abstraction。
+- 不顺手重构整个缓存模块。
 
 Test Strategy
 - Unit: required
@@ -26,17 +30,30 @@ Test Strategy
 - E2E: not-applicable
 
 Regression Proof
-- required：该 bug 可确定性、无外部副作用地自动复现。
+- required：该 bug 可确定性、无外部副作用自动复现。
+
+Execution Policy
+- mode=implement
+- no push/merge/deploy
 ```
 
-## 2. 先证明 Bug
+---
 
-要求 AGY **先写 regression test，不先改 production code**：
+## 2. Pi Worker 先建立 RED evidence
+
+Codex 发 `implement` operation，但 Contract 明确要求：**先写 regression test，再改 production code**。
 
 ```text
-Test
-- null key returns empty and never calls backend
-- blank key returns empty and never calls backend
+run_id = R-...
+operation_id = OP-001
+mode = implement
+```
+
+测试目标：
+
+```text
+null key returns empty and never calls backend
+blank key returns empty and never calls backend
 ```
 
 运行：
@@ -45,7 +62,7 @@ Test
 ./mvnw -Dtest=CacheServiceTest test
 ```
 
-必须观察到 unfixed behavior 下测试因为预期缺陷而失败：
+必须观察到 unfixed behavior 因目标缺陷而失败：
 
 ```text
 Regression proof
@@ -54,20 +71,20 @@ Regression proof
 - Evidence: backend interaction observed / expected empty result mismatch
 ```
 
-如果测试一开始就是 GREEN，说明它没有捕获原 bug：修正测试或重新确认复现，不允许把它直接算 regression proof。
+如果测试一开始就是 GREEN，说明测试没有捕获原 bug，不能算 regression proof。
 
-## 3. 修 Root Cause
+---
 
-AGY 现在才能修改 production code。
+## 3. Pi Worker 修 Root Cause
 
-Codex Review 要求说明：
+RED 成立后，Worker 修改 production code，并在 Evidence Bundle 中说明：
 
 ```text
 Symptom
 - null/blank key causes backend access
 
 Root cause
-- public service entry lacks the same empty-key guard used by sibling operation
+- public service entry lacks the empty-key guard used by sibling operation
 
 Same cause elsewhere
 - searched sibling cache methods; no other exposed path lacks the guard
@@ -76,37 +93,53 @@ Regression boundary
 - null + blank + normal key
 ```
 
-只在 UI/调用方拦住 null，而 backend/service 仍可被其他 caller 触发，不算 root-cause fix。
+只在 caller/UI 层拦 null，而 service 仍可被其他入口触发，不算 root-cause fix。
+
+---
 
 ## 4. GREEN
 
-AGY 运行相同测试：
+Pi Worker 运行同一测试：
 
 ```bash
 ./mvnw -Dtest=CacheServiceTest test
 ```
 
-记录：
+Evidence：
 
 ```text
+Before fix: FAIL
 After fix: PASS
 ```
 
-## 5. Completeness Sweep
+operation settle 后，状态只能到：
 
-Codex 搜索同类入口：
+```text
+OPERATION_SETTLED
+```
+
+不能直接 `CODE_VERIFIED`。
+
+---
+
+## 5. Codex Diff + Completeness Review
+
+Codex 自己检查：
 
 ```bash
+git diff --check
+git diff
+git status --short
 rg "CacheService|cache\.get|cache\.put" src test
 ```
 
 确认：
 
 - 所有 public caller 是否可能传空 key；
-- sibling method 是否已有/缺少同类 guard；
+- sibling method 是否缺少同类 guard；
 - error/fallback path 是否仍访问 backend；
 - 没有新增 dead workaround；
-- 测试覆盖 normal behavior，避免 guard 误伤正常 key。
+- 正常 key 行为仍有测试。
 
 示例：
 
@@ -114,6 +147,8 @@ rg "CacheService|cache\.get|cache\.put" src test
 Completeness Sweep: PASS
 Remainders: none
 ```
+
+---
 
 ## 6. Codex Independent Verification
 
@@ -123,15 +158,7 @@ Codex 自己重跑：
 ./mvnw -Dtest=CacheServiceTest test
 ```
 
-并检查最终 diff：
-
-```bash
-git diff --check
-git diff
-git status --short
-```
-
-最终证据：
+最终代码证据：
 
 ```text
 Unit: required → PASS
@@ -142,11 +169,17 @@ Codex re-run: PASS
 Completeness Sweep: PASS
 ```
 
-只有这些成立才进入 `CODE_VERIFIED`。
+只有这些成立才进入：
+
+```text
+VERIFYING → CODE_VERIFIED
+```
+
+---
 
 ## 7. Knowledge Closeout
 
-这是纯内部 bugfix，假设 README / public API / config 都未受影响：
+这是纯内部 bugfix，假设 README/public API/config 均未受影响：
 
 ```text
 README              verified-current
@@ -156,4 +189,10 @@ Runtime Config      not-applicable
 Residue             verified-current
 ```
 
-零文档 diff 是正确结果。Gate 13 PASS 后才进入 `ACCEPTED`。
+不需要为了制造 closeout diff 再启动写文档 operation。
+
+Codex 完成 Closeout Review 后才：
+
+```text
+ACCEPTED
+```
