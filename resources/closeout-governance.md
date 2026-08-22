@@ -1,11 +1,12 @@
 # Knowledge Closeout Governance
 
-本文件定义 AGY 完成实现、Codex 完成独立代码验证之后的**知识收尾协议**。目标不是“多写文档”，而是确保最终代码事实、项目文档、Agent 规则、外部 Contract 和可解释的工作区状态彼此一致，然后才允许 Supervisor 进入 `ACCEPTED`。
+本文件定义 AGY 完成实现、Codex 完成 **Diff Review + Completeness Review + Regression/Test Proof + Independent Verification** 之后的知识收尾协议。目标不是“多写文档”，而是确保最终代码事实、项目文档、Agent 规则、外部 Contract 和可解释的工作区状态彼此一致，然后才允许 Supervisor 进入 `ACCEPTED`。
 
-该阶段吸收 knowledge-governance 的思想，但保持本 Skill 的职责边界：
+该阶段保持本 Skill 的职责边界：
 
 - AGY 仍是 Sole Primary Writer，负责修改受影响的代码、测试和知识文件；
 - Codex 仍是 Supervisor / Reviewer / QA，负责判断影响面、审查修改和最终验收；
+- Completeness Review 负责“代码世界有没有漏改”；Closeout 负责“知识世界有没有同步”；
 - 不把本 Skill 扩张成通用 Memory、发布或 Workspace 管家；
 - repository state 仍是首要真相来源。
 
@@ -17,16 +18,22 @@
 TASK DONE
 =
 Implementation Verified
-+ Tests Verified
-+ Diff Verified
++ Change Propagation Complete
++ Test Strategy Verified
++ Regression Proof Verified / N/A
++ Independent Verification
 + Knowledge Aligned
 + Rules Aligned
 + No Unexplained Residue
 ```
 
-因此正常状态转换为：
+正常状态：
 
 ```text
+REVIEWING
+  ↓
+COMPLETENESS_REVIEW
+  ↓
 VERIFYING
   ↓
 CODE_VERIFIED
@@ -38,9 +45,34 @@ CLOSEOUT_REVIEW
 ACCEPTED
 ```
 
-`CODE_VERIFIED` 表示代码层已经稳定，可以开始根据**最终实现**做知识对齐；不要在代码仍反复返工时提前把中间态写成权威文档。
+`CODE_VERIFIED` 表示代码层已经稳定：当前 diff 正确、blast radius 已解释、测试层选择已满足、可复现 bug 的 regression proof 已成立、Codex 已独立验证。只有此时才根据**最终实现**同步权威知识面；不要把中间态提前写进文档。
 
-## 2. 每次开发都 Scan，不是每次开发都改文档
+## 2. Closeout 与 Completeness 的边界
+
+两者互补但不重复：
+
+```text
+Completeness Sweep
+- callers / consumers
+- types / enums / validation / serialization
+- schema / migration / existing data
+- sibling flows / jobs
+- reachable states / retry / fallback
+- dead/orphaned old path
+- tests
+
+Knowledge Closeout
+- README / usage
+- AGENTS / CLAUDE / project rules
+- API / schema / CLI / shared Contract docs
+- env / config / runtime / deploy docs
+- current-state examples
+- workspace residue
+```
+
+Completeness 可以在 `CODE_VERIFIED` 前标记 `Knowledge impact = affected`，但知识文件的最终修改优先放在 Closeout，基于 final implementation 执行。
+
+## 3. 每次开发都 Scan，不是每次开发都改文档
 
 所有实际开发任务在进入 `ACCEPTED` 前都执行 Knowledge Impact Scan。
 
@@ -66,32 +98,25 @@ Residue             verified-current
 
 这是合格的 Closeout，即使没有任何文档文件发生变化。
 
-## 3. Source of Truth 顺序
+## 4. Source of Truth 顺序
 
 Closeout 以最终状态裁决，不以开发过程裁决。证据优先级：
 
 1. 当前 branch / final diff；
 2. 当前代码、schema、配置和测试；
-3. Codex 已实际验证的 runtime / command result；
-4. 项目现役 Contract / generated schema；
-5. README / docs / rules；
-6. AGY 总结、旧计划、历史说明。
+3. Completeness / blast radius evidence；
+4. Codex 已实际验证的 runtime / command result；
+5. 项目现役 Contract / generated schema；
+6. README / docs / rules；
+7. AGY 总结、旧计划、历史说明。
 
-如果旧文档与最终代码冲突，以已验证的当前实现为准；若无法证明哪一边才是预期行为，标 `pending`，不要擅自把猜测写成权威事实。
+如果旧文档与最终代码冲突，以已验证的当前实现为准；若无法证明哪一边才是预期行为，标 `pending`，不要把猜测写成权威事实。
 
-## 4. 默认检查的知识面
-
-本 Skill 默认只管理与开发交付直接相关的知识面：
+## 5. 默认检查的知识面
 
 ### A. Usage / README
 
-检查用户或开发者实际如何：
-
-- 安装；
-- 启动；
-- 调用；
-- 配置；
-- 使用新功能或变化后的流程。
+检查用户或开发者实际如何安装、启动、调用、配置和使用变化后的能力。
 
 ### B. Agent Rules
 
@@ -105,29 +130,11 @@ Closeout 以最终状态裁决，不以开发过程裁决。证据优先级：
 
 ### C. Contract / Schema
 
-若本次涉及：
-
-- API / route / request / response；
-- database schema；
-- event/message schema；
-- CLI contract；
-- shared interface；
-
-必须核对项目中已有的权威 Contract、示例和 consumer-facing 文档。
+若本次涉及 API/route/request/response、database schema、event/message schema、CLI contract、shared interface，必须核对项目已有权威 Contract、示例和 consumer-facing 文档。
 
 ### D. Runtime / Configuration
 
-若本次涉及：
-
-- environment variables；
-- ports；
-- service names；
-- provider / model；
-- feature flags；
-- deploy / run commands；
-- cron / background jobs；
-
-必须核对已有配置说明、runbook 或示例配置。
+若本次涉及 environment variables、ports、service names、provider/model、feature flags、deploy/run commands、cron/jobs，必须核对已有配置说明、runbook 或示例配置。
 
 ### E. Workspace Residue
 
@@ -139,19 +146,20 @@ Closeout 以最终状态裁决，不以开发过程裁决。证据优先级：
 - 中间生成物；
 - 已被正式文档吸收的一次性说明。
 
-默认只列为 `deletion-candidate`，不要在 Closeout 中擅自删除。若 Task Contract 或用户已经对特定文件明确授权删除，可按原授权处理；不能把“开发完帮我清理一下”泛化成任意破坏性清场权限。
+默认只列为 `deletion-candidate`，不要在 Closeout 中擅自删除。若 Task Contract 或用户已经对特定文件明确授权删除，可按原授权处理。
 
-## 5. Lightweight Closeout 与 Full Closeout
+## 6. Lightweight Closeout 与 Full Closeout
 
 ### Lightweight Closeout — 默认每次开发执行
 
 至少：
 
 1. 读取 final diff / changed paths；
-2. 判断 README、rules、Contract、runtime/config、residue 是否受影响；
-3. 对每个相关面给出状态；
-4. 需要修改时由 AGY 在同一 worker pane 完成；
-5. Codex Review 修改后的 Git state。
+2. 读取 Completeness Review 的 `Knowledge impact`；
+3. 判断 README、rules、Contract、runtime/config、residue 是否受影响；
+4. 对每个相关面给出状态；
+5. 需要修改时由 AGY 在同一 worker pane 完成；
+6. Codex Review 修改后的 Git state。
 
 ### Full Closeout — 影响面较大时自动升级
 
@@ -167,18 +175,16 @@ Closeout 以最终状态裁决，不以开发过程裁决。证据优先级：
 - 退役 / 重命名 / 下线路由、字段、配置或服务；
 - 跨项目共享协议。
 
-完整路径除 Lightweight 内容外，还要：
+完整路径还要：
 
 1. 提取本次变化的旧/新 symbol；
 2. 用 `rg` 或项目等价搜索查找非历史 stale reference；
-3. 查项目已有文档索引和直接 consumer；
+3. 查项目已有文档索引和直接 consumer-facing knowledge；
 4. 就地更新现有权威文档，避免创建平行版本；
 5. 再搜索一次旧 symbol，确认没有漏掉现役引用；
 6. 对无法编辑的跨项目影响标 `out-of-scope` 并报告。
 
-## 6. Change → Knowledge Routing
-
-不要求创建固定文件名，以项目现有知识结构为准。
+## 7. Change → Knowledge Routing
 
 | 代码/运行变化 | 优先核对 |
 |---|---|
@@ -192,7 +198,7 @@ Closeout 以最终状态裁决，不以开发过程裁决。证据优先级：
 | job / scheduler | 调度说明、失败处理、告警/运维入口 |
 | rename / retirement | 搜旧 symbol 的现役引用、rules、consumer、examples |
 
-## 7. 单一权威事实
+## 8. 单一权威事实
 
 Closeout 修改遵循：
 
@@ -204,17 +210,16 @@ Closeout 修改遵循：
 - 规则文件只保留可复用约束，详细机制放 docs；
 - 不把 secret、token、个人信息或敏感完整配置复制进文档。
 
-## 8. AGY Closeout Turn 模板
+## 9. AGY Closeout Turn 模板
 
-Codex 在 `CODE_VERIFIED` 后，先执行 Read Before Send，再向同一 `$PANE` 发新的 Turn nonce。推荐委派：
+Codex 在 `CODE_VERIFIED` 后，先执行 Read Before Send，再向同一 `$PANE` 发新的 Turn nonce：
 
 ```text
 Closeout Goal
 - 根据最终 repository state 完成本次开发的知识收尾。
 
 Source of Truth
-- 以 final diff、当前代码/schema/config/tests 和 Supervisor 已验证结果为准。
-- 不以旧 README、旧计划或开发过程描述为准。
+- final diff、当前代码/schema/config/tests、Completeness evidence 和 Supervisor 已验证结果。
 
 Inspect
 - README / docs
@@ -227,7 +232,7 @@ Required
 1. 先做 Knowledge Impact Scan。
 2. 每个相关知识面标记 verified-current / changed-and-verified / pending / out-of-scope / not-applicable。
 3. 只有受最终实现影响的知识面才修改。
-4. 已过期的现役描述要就地更新，不创建第二份权威答案。
+4. 已过期现役描述就地更新，不创建第二份权威答案。
 5. 不把开发流水账写入 README / rules。
 6. residue 只列 deletion-candidate；没有明确授权不要删除。
 7. 不 push / merge / deploy，不扩大任务范围。
@@ -238,14 +243,11 @@ Report
 - evidence
 - changed files
 - pending / out-of-scope / deletion-candidate
-
-Completion Protocol
-- 完成本轮并停止后输出本轮 TURN_COMPLETE nonce。
 ```
 
 Closeout Turn 和实现 Turn 使用同一个 Turn Protocol：native status / capture fallback、Read Before Send、nonce 和 repository Review 都继续适用。
 
-## 9. Codex Closeout Review
+## 10. Codex Closeout Review
 
 AGY 返回后，Codex 不接受“文档已经同步”的口头结论。至少检查：
 
@@ -273,9 +275,9 @@ rg "<old-symbol|route|env|field|service>" .
 - residue 被如实报告且没有未经授权删除；
 - Closeout 修改没有覆盖 baseline 或制造新 scope drift。
 
-发现问题时仍使用 Evidence-driven Rework，通过同一 AGY pane 修复，再由 Codex 复查。
+如果 Closeout 发现某个“文档问题”其实证明代码传播没做完整，例如文档列出的 consumer 仍使用旧 contract，应退回 `COMPLETENESS_REVIEW` / `VERIFYING`，而不是只改文档遮住实现缺陷。
 
-## 10. Closeout 结论
+## 11. Closeout 结论
 
 ### PASS
 
@@ -308,9 +310,9 @@ CLOSEOUT BLOCKED
 - Decision needed: <需要用户决定什么>
 ```
 
-只有相关代码 Gates PASS、Independent Verification 完成且 Closeout PASS 后，Codex 才能进入 `ACCEPTED`。
+只有相关代码 Gates PASS、Gate 3 Completeness PASS、Gate 7 Regression/Test Proof 成立、Independent Verification 完成且 Gate 13 Closeout PASS 后，Codex 才能进入 `ACCEPTED`。
 
-## 11. 明确不默认纳入的范围
+## 12. 明确不默认纳入的范围
 
 以下能力不因为 Knowledge Closeout 自动获得权限：
 
