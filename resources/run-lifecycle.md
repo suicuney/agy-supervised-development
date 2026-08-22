@@ -1,36 +1,30 @@
-# Supervisor Run Lifecycle
+# Supervisor Run Lifecycle — v3.0.1
 
-本文件定义 v3.0 的 Codex Supervisor 状态、Pi Run/Operation 协议、返工预算、Completeness Review、Verification 和 Knowledge Closeout 状态。
-
-这里描述的是 **Codex 能证明的状态**。不要假装知道 Provider 内部 token-by-token 的真实意图，也不要把 Pi 的 `agent_settled` 直接等同于实现完成。
+本文件只定义 **Codex 的治理状态**。Pi 内部 agent loop、tool events、provider streaming 和 session persistence 由 Pi 自己管理；3.0.1 不再复制第二套 Run/Operation runtime state machine。
 
 ---
 
-## 1. Run Context
+## 1. Supervisor Context
 
-每个用户开发任务对应一个监督 Run。
-
-建议保存：
+每个开发任务建议保存：
 
 ```text
-run_id
 repo_root
 branch
 base_head
-baseline_status / baseline_diff fingerprint
 baseline_changed_paths
+baseline_diff_or_fingerprint
 
-task_contract_hash
-harness_version
+task_contract
 pi_session_id
-pi_session_file
-provider_id
-model_id
+pi_session_file = optional
+pi_session_cwd
+provider_id = observable | unknown
+model_id = observable | unknown
+workflow_extension = detected | absent | unknown
+workflow_mode = plan | build | review | debug | none
 
 supervisor_state
-operation_seq
-current_operation_id
-current_mode
 rework_count
 
 completeness_status = pending | pass | rework | blocked
@@ -47,13 +41,16 @@ closeout_level = lightweight | full
 knowledge_surface_status
 ```
 
-稳定 runtime identity 是：
+不要求：
 
 ```text
-run_id + pi_session_id + operation_id
+custom run_id
+custom operation_id
+harness_version
+custom durable Run Store
 ```
 
-不是 TUI 文本、最后一条模型消息或某个旧 process id。
+Pi session identity 使用 Pi 实际返回值，不自己发明。
 
 ---
 
@@ -64,29 +61,21 @@ INIT
   ↓
 BASELINED
   ↓
-HARNESS_PREFLIGHT
-  ├────────→ BLOCKED
+PI_READY
   ↓
-HARNESS_READY
+PLANNING              optional
   ↓
-OPERATION_SENT
-  ↓
-EXECUTING
-  ├────────→ BLOCKED
-  ├────────→ FAILED
-  ├────────→ CANCELLED
-  ↓
-OPERATION_SETTLED
+IMPLEMENTING
   ↓
 REVIEWING
   ├────────→ REWORK_REQUIRED
   │               ↓
-  │         OPERATION_SENT
+  │           REWORKING
+  │               ↓
+  │           REVIEWING
   ↓
 COMPLETENESS_REVIEW
   ├────────→ REWORK_REQUIRED
-  │               ↓
-  │         OPERATION_SENT
   ├────────→ BLOCKED
   ↓
 VERIFYING
@@ -99,170 +88,87 @@ CLOSEOUT
   ↓
 CLOSEOUT_REVIEW
   ├────────→ REWORK_REQUIRED
-  │               ↓
-  │         OPERATION_SENT
   ├────────→ BLOCKED
   ↓
 ACCEPTED
 ```
 
-`FAILED` 指当前 operation/runtime 失败；不自动代表整个 Run 的 repository progress 无效。
+任何阶段都可能因用户取消进入 `CANCELLED`，因不可恢复运行错误进入 `FAILED`。
 
 ---
 
-## 3. 为什么用 `OPERATION_SETTLED`
+## 3. `PI_READY`
 
-Pi 有完整 agent loop；模型可能多轮 tool call，甚至经历 compaction/retry/follow-up。
+`BASELINED → PI_READY` 之前确认：
 
-所以 Supervisor 不记录：
+- Pi executable/CLI capability；
+- `--mode json`；
+- session persistence/resume；
+- repo cwd；
+- Provider/model 可用性；
+- auth 状态；
+- workflow extension/mode 能力是否存在。
+
+缺失必需能力：
 
 ```text
-MODEL_WORKING
-MODEL_DONE
+→ BLOCKED
 ```
 
-而记录自己能证明的边界：
+默认不自动安装 Pi/Provider/Extension，也不自动 OAuth。
+
+---
+
+## 4. PLANNING 是可选治理阶段
+
+复杂任务可先让 Pi 做只读 plan/inspect。
+
+如果可信 `pi-agent-modes` 可用：
 
 ```text
-OPERATION_SENT
-EXECUTING
+PLANNING → --modes plan
+```
+
+否则可以使用普通 Pi + read-only Task Contract 做分析，但必须明确：
+
+```text
+programmatic read-only enforcement = unavailable
+```
+
+对于必须强制只读才安全的场景，缺失可信 policy extension 时应 BLOCK，而不是把 prompt 当 sandbox。
+
+Planning 不是所有小任务必经阶段。
+
+---
+
+## 5. IMPLEMENTING
+
+Codex 发 Task Contract，Pi 作为唯一主要 Writer 执行。
+
+推荐：
+
+```text
+Pi JSON mode
++ same repo cwd
++ new real session
++ build workflow mode if trusted extension is available
+```
+
+Pi JSON stream 的 `agent_end` / 正常进程退出只说明本次 turn 返回。
+
+不要额外建立：
+
+```text
 OPERATION_SETTLED
 ```
 
-Harness 使用 Pi SDK events 或 RPC event stream 判断 operation 不再自动继续。
-
-关键：
-
-```text
-OPERATION_SETTLED != REVIEW PASS
-```
-
-模型最终说“完成”不是 Git evidence。
+这样的治理状态。turn 返回后直接由 Codex进入 `REVIEWING`。
 
 ---
 
-## 4. Operation
+## 6. REVIEWING
 
-一个 Run 由多个顺序 operation 构成：
-
-```text
-op-001 inspect / optional plan
-op-002 implement
-op-003 rework
-op-004 verify-worker-side
-op-005 closeout
-op-006 closeout-rework
-```
-
-v3.0 默认：
-
-```text
-one Run
-→ one primary Pi session
-→ one active writer operation at a time
-```
-
-不默认并行启动第二个 Pi Writer。
-
-每个 operation 必须有真实 ID：
-
-```text
-operation_id
-operation_seq
-mode
-status
-```
-
-避免 stale output/event 被错配到新一轮。
-
----
-
-## 5. Harness Preflight Transition
-
-```text
-BASELINED → HARNESS_PREFLIGHT
-```
-
-确认：
-
-- Pi runtime/SDK/RPC capability；
-- Harness version/protocol；
-- repo/cwd binding；
-- session storage；
-- mode/tool policy；
-- Provider installed/configured；
-- auth usable；
-- model available + tool-capable。
-
-全部满足：
-
-```text
-HARNESS_PREFLIGHT → HARNESS_READY
-```
-
-否则：
-
-```text
-HARNESS_PREFLIGHT → BLOCKED
-```
-
-不要为了越过 Preflight 自动安装 Provider 或自动完成 OAuth。
-
----
-
-## 6. Dispatch Transition
-
-Codex 准备好 Task/Rework/Closeout Contract 后：
-
-```text
-HARNESS_READY / REWORK_REQUIRED / CLOSEOUT
-→ OPERATION_SENT
-```
-
-Harness 返回已接受的 `operation_id` 后进入：
-
-```text
-OPERATION_SENT → EXECUTING
-```
-
-如果请求在接受前就被拒绝，例如 contract schema 错误、repo mismatch、Provider 不可用：
-
-```text
-→ BLOCKED or FAILED
-```
-
-不要生成假的 operation completion。
-
----
-
-## 7. Settlement
-
-Harness 应通过 Pi session/runtime event 判断当前 operation settle，并生成 Evidence Bundle。
-
-```text
-EXECUTING → OPERATION_SETTLED
-```
-
-Settlement 至少说明：
-
-- 当前 operation 不再自动生成/调用工具；
-- 结果关联当前 operation ID；
-- status 是 settled / blocked / failed / aborted；
-- evidence 已落地或结构化返回。
-
-它不证明：
-
-- Task Contract 满足；
-- 代码正确；
-- Scope 完整；
-- tests strategy 合理；
-- Closeout 完成。
-
----
-
-## 8. Review Transition
-
-只要 operation 产生 repository 相关结果，Codex 必须重新读取 repository：
+Pi turn 返回后，Codex重新读取 repository：
 
 ```bash
 git status --short
@@ -271,25 +177,64 @@ git diff --check
 git diff
 ```
 
-然后：
+实现 Review 结论：
 
 ```text
-OPERATION_SETTLED → REVIEWING
+PASS    → COMPLETENESS_REVIEW
+REWORK  → REWORK_REQUIRED
+BLOCKED → BLOCKED
 ```
 
-实现阶段结论：
-
-- `REWORK` → `REWORK_REQUIRED`；
-- `BLOCKED` → `BLOCKED`；
-- `PASS` → `COMPLETENESS_REVIEW`。
-
-不能因为 Evidence Bundle 自报 `status=settled` 直接进入 Verification。
+Pi final answer、JSON `agent_end`、Provider completion 都不能直接 PASS。
 
 ---
 
-## 9. Completeness Transition
+## 7. REWORKING
 
-详细协议见 `completeness-regression.md`。
+Rework 固定使用：
+
+```text
+Issue
+Evidence
+Expected
+Required change
+Re-run
+Scope reminder
+```
+
+优先 resume 同一真实 Pi session：
+
+```text
+same pi_session_id
+new Pi invocation
+```
+
+如果 `pi-agent-modes` 可用：
+
+```text
+bug/root-cause rework → debug
+general structural rework → build
+```
+
+Rework 后回 `REVIEWING`。
+
+默认：
+
+```text
+soft_rework_limit = 3
+```
+
+计数单位是完整：
+
+```text
+Review → Rework → Re-review
+```
+
+达到 soft limit 后重新评估 Task Contract、根因、Provider/model、extension policy、环境和 completeness 边界，不静默无限循环，也不直接切 `yolo`。
+
+---
+
+## 8. COMPLETENESS_REVIEW
 
 固定检查：
 
@@ -297,22 +242,17 @@ OPERATION_SETTLED → REVIEWING
 changed symbol / behavior
 → direct callers
 → indirect callers / scripts / re-exports
-→ type / enum / validator / serializer
+→ types / enums / validators / serializers
 → schema / migration / existing data
 → sibling flows / jobs
-→ reachable states / retry / fallback / cache
+→ reachable error / empty / permission / retry / fallback
+→ cache / derived state / stale IDs
 → orphaned old path
 → tests
 → knowledge impact
 ```
 
-结论：
-
-- `PASS` → `VERIFYING`；
-- `REWORK` → `REWORK_REQUIRED`；
-- `BLOCKED` → one-way decision / unresolved external boundary。
-
-每个 remainder disposition：
+Remainder disposition：
 
 ```text
 fixed-in-run
@@ -321,37 +261,21 @@ out-of-scope-different-ticket
 blocked-decision-needed
 ```
 
----
-
-## 10. Rework Operation
-
-Codex 必须生成结构化 rework contract：
+结论：
 
 ```text
-Issue
-Evidence
-Expected
-Required change
-Re-run
+PASS    → VERIFYING
+REWORK  → REWORK_REQUIRED
+BLOCKED → BLOCKED
 ```
 
-优先 resume 同一个 Pi session：
-
-```text
-REWORK_REQUIRED
-→ same run_id
-→ same pi_session_id
-→ new operation_id
-→ mode=rework
-```
-
-Pi session history 只是上下文帮助；rework 仍必须带关键 evidence，不能只写“修一下刚才的问题”。
+Completeness 可以扩大“被证明为 unfinished”的实际文件传播面，但不能扩大到另一个 ticket。
 
 ---
 
-## 11. Test Strategy & Regression Proof
+## 9. VERIFYING
 
-进入 `VERIFYING` 前必须有：
+Codex 根据 Test Layer Decision 独立运行门禁。
 
 ```text
 Unit:        required | not-applicable
@@ -359,13 +283,7 @@ Integration: required | not-applicable
 E2E:         required | not-applicable | user-skipped
 ```
 
-可安全、确定性复现的 bug：
-
-```text
-regression_proof = required
-```
-
-证据链：
+可安全确定性复现的 bug 还要求：
 
 ```text
 unfixed → regression test RED
@@ -374,35 +292,26 @@ same test → GREEN
 Codex independent re-run
 ```
 
-Pi 可以产生 RED/GREEN evidence，但最终 Codex 仍独立检查关键命令和 repository state。
-
----
-
-## 12. Independent Verification Transition
-
-只有 Diff Review + Completeness PASS 才进入：
-
-```text
-VERIFYING
-```
-
-Codex 根据 Test Strategy 独立执行相关门禁。
-
-失败：
+Verification 失败：
 
 ```text
 VERIFYING → REWORK_REQUIRED
 ```
 
-全部相关门禁通过：
+全部相关门禁满足：
 
 ```text
 VERIFYING → CODE_VERIFIED
 ```
 
-进入 `CODE_VERIFIED` 前能够说明：
+---
+
+## 10. CODE_VERIFIED
+
+进入前至少能说明：
 
 ```text
+Diff Review = PASS
 Completeness Sweep = PASS
 Blast radius evidence
 Remainder dispositions
@@ -411,39 +320,91 @@ Regression Proof
 Codex independent commands/results
 ```
 
+`CODE_VERIFIED` 不是最终完成，随后必须做 Knowledge Impact Scan。
+
 ---
 
-## 13. Rework Budget
+## 11. CLOSEOUT
 
-默认：
-
-```text
-soft_rework_limit = 3
-```
-
-计数单位：
+Codex判断：
 
 ```text
-Review → Rework operation → Re-review
+closeout_level = lightweight | full
 ```
 
-达到 soft limit，Codex 重新评估：
+所有实际开发任务都 Scan。
 
-- 同一问题是否反复；
-- Task Contract 是否有歧义；
-- root cause 是否判断错误；
-- Provider/model 是否不适合；
-- Harness mode/tool guard 是否阻碍正确实现；
-- completeness 边界是否错；
-- 环境/依赖是否有系统故障。
+如果现有知识已经正确：
 
-有新证据可继续，但必须显式说明，不无限循环。
+```text
+verified-current
+```
+
+可以零文档 diff。
+
+需要修改时，resume 同一 Pi session。若 `pi-agent-modes` 可用，使用：
+
+```text
+build + strict Closeout Contract
+```
+
+不发明 `closeout` custom mode。
+
+Pi turn 返回后：
+
+```text
+CLOSEOUT → CLOSEOUT_REVIEW
+```
+
+Closeout 发现真实代码问题时退回代码 Review/Completeness/Verification，不通过改文档掩盖。
+
+---
+
+## 12. Session Resume
+
+只 resume 真实 Pi session：
+
+```text
+Do not guess session id/file.
+```
+
+同时验证：
+
+```text
+session cwd == repo_root
+```
+
+如果 session 丢失：
+
+- 保留 repository state；
+- 新建 replacement Pi session；
+- 输入原 Task Contract + current diff + Review/Completeness/Test evidence；
+- 不自动从头重写代码。
+
+如果已经 `CODE_VERIFIED`，replacement session 只继续 Closeout。
+
+---
+
+## 13. Provider Failure 不清空治理进度
+
+Auth/quota/transport/model failure 不自动重置：
+
+```text
+baseline
+repository progress
+Pi session if still valid
+review/completeness/test status
+```
+
+有限 safe retry 可以继续；Provider/model failover 不得静默发生。
+
+如果用户授权切换 Provider/model，记录变化后继续当前 repository state。
 
 ---
 
 ## 14. Scope Drift
 
-每次 Review：
+每轮 Review：
 
 ```text
 current changes
@@ -451,22 +412,18 @@ current changes
 = task-introduced changes
 ```
 
-若 task-introduced path 超 Scope：
+超 Scope path：
 
-1. 判断是否为当前需求必然传播面；
-2. 若不是 → REWORK；
-3. 只让 Pi 撤销它本 Run 引入的越界改动；
+1. 判断是否是本次改动必然 propagation；
+2. 是 → 纳入 completeness scope；
+3. 否 → REWORK，只撤销 Pi 本任务产生的越界修改；
 4. 不碰 baseline-owned changes。
-
-Completeness 可以合法发现初始 Scope 没列出的 caller/schema/test，但必须证明这是 unfinished remainder。
 
 ---
 
 ## 15. One-way Door
 
-普通可逆实现细节可按项目约定、安全更窄方案处理。
-
-以下默认需要用户明确决定：
+以下默认需要用户决定：
 
 - destructive/non-additive migration；
 - breaking public API；
@@ -477,119 +434,23 @@ Completeness 可以合法发现初始 Scope 没列出的 caller/schema/test，�
 - irreversible deletion；
 - push/merge/release/deploy。
 
-Harness 遇到这类 tool intent 应 fail closed，产生：
-
-```text
-blocked-decision-needed
-```
-
-Codex 把证据和选项呈现给用户。
+可信 policy extension 若能阻断是加分项；无论 extension 是否存在，Codex 都不能把这些行为默认为已授权。
 
 ---
 
-## 16. Knowledge Closeout Transition
+## 16. Cancel / Abort
 
-`CODE_VERIFIED` 后：
+用户停止任务时：
 
-```text
-Knowledge Impact Scan
-→ closeout_level = lightweight | full
-→ CLOSEOUT
-```
-
-需要修改知识文件时，Codex 创建新的：
-
-```text
-mode=closeout
-operation_id=<new>
-```
-
-同一个 Pi Run/session 执行。
-
-然后：
-
-```text
-OPERATION_SETTLED
-→ CLOSEOUT_REVIEW
-```
-
-结论：
-
-- PASS → 最终 Acceptance 判断；
-- REWORK → closeout rework operation；
-- BLOCKED → 保留 pending/out-of-scope evidence。
-
-Closeout 发现真实代码缺陷时，退回 `REVIEWING / COMPLETENESS_REVIEW / VERIFYING`，不能只改文档掩盖实现问题。
+- 停止当前 Pi invocation；
+- 若使用 RPC，调用 Pi 原生 abort；
+- 检查 repository partial progress；
+- 不自动 rollback；
+- 状态进入 `CANCELLED` 或风险情况下 `BLOCKED`。
 
 ---
 
-## 17. Runtime / Provider Failure 不清空 Run
-
-### Harness bridge crash
-
-先：
-
-- 读取 durable Run Store；
-- 检查 Pi session；
-- 检查 repository；
-- 检查最新 operation state。
-
-不能证明某个 repeat-sensitive effect 是否完成时，标 `recovery uncertainty`，不要无脑 replay。
-
-### Provider failure
-
-Provider auth/quota/transport failure不自动重置：
-
-```text
-run_id
-pi_session
-repository progress
-baseline
-review state
-```
-
-恢复后创建新 operation；如果换 Provider/model，必须显式记录。
-
----
-
-## 18. Session Resume
-
-只使用真实 Pi session identity。
-
-```text
-Do not guess session id/file.
-```
-
-如果 session 不可恢复，replacement session 使用：
-
-- 原 Task Contract；
-- current repository diff；
-- baseline；
-- Review/Completeness evidence；
-- Test Strategy/Regression state；
-- Closeout state（若适用）。
-
-Repository + contracts 可以重建 worker context。
-
----
-
-## 19. Cancel / Abort
-
-用户要求停止，或 Codex 判断当前 operation 有风险：
-
-```text
-Harness abort
-→ wait for abort settlement
-→ inspect repository
-→ record partial progress
-→ CANCELLED or BLOCKED
-```
-
-Abort 不等于 rollback。不要自动 `git reset --hard`。
-
----
-
-## 20. Acceptance
+## 17. Acceptance
 
 只有 Codex 可以：
 
@@ -602,10 +463,11 @@ CLOSEOUT_REVIEW → ACCEPTED
 - Task Contract 完成；
 - relevant Review Gates PASS；
 - Completeness PASS；
-- Test Strategy 完整；
-- Regression Proof 满足；
+- Test Strategy 满足；
+- Regression Proof 满足/N/A 合理；
 - Codex Independent Verification PASS；
 - Knowledge Closeout PASS；
-- baseline/user changes 未受破坏；
+- baseline/user changes 未被破坏；
+- Provider/session/extension facts 没有被伪造；
 - external side effects 符合授权；
 - final diff 可解释。
