@@ -1,15 +1,16 @@
-# Knowledge Closeout Governance
+# Knowledge Closeout Governance — v3.0.1
 
 本文件定义 Pi Worker 完成实现、Codex 完成 **Diff Review + Completeness Review + Regression/Test Proof + Independent Verification** 之后的知识收尾协议。
 
-目标不是“多写文档”，而是确保最终代码事实、项目文档、Agent 规则、外部 Contract 和可解释的工作区状态一致，然后才允许 Codex 进入 `ACCEPTED`。
+目标不是“多写文档”，而是确保最终代码事实、项目文档、Agent 规则、外部 Contract 和工作区状态一致，然后才允许 Codex 进入 `ACCEPTED`。
 
 ---
 
 ## 1. 职责边界
 
-- **Pi Worker**：在 `closeout` operation 中修改受最终实现直接影响的 README/docs/rules/Contract/config 等知识文件；
-- **Codex**：决定哪些知识面受影响、审查 Closeout diff、执行 stale-reference search，并最终验收；
+- **Pi Worker**：需要修改知识文件时，继续使用当前任务的真实 Pi session 完成 README/docs/rules/Contract/config 等受影响知识面更新；
+- **Codex**：决定哪些知识面受影响、生成 Closeout Contract、审查 Closeout diff、执行 stale-reference search，并最终验收；
+- **Existing Extension**：若使用 `pi-agent-modes` 等可信扩展，Closeout 使用其现有 writable mode（推荐 `build`）执行，不发明自定义 `closeout` mode；
 - **Provider**：只提供模型推理，不拥有知识权威或 Closeout 生命周期；
 - **Repository state**：首要真相来源。
 
@@ -32,7 +33,7 @@ Implementation Verified
 + No Unexplained Residue
 ```
 
-状态：
+治理状态：
 
 ```text
 REVIEWING
@@ -75,7 +76,7 @@ Knowledge Closeout
 - workspace residue
 ```
 
-Completeness 可以提前标 `Knowledge impact = affected`，真正的知识文件修改基于 final implementation 在 Closeout 执行。
+Completeness 可以提前标 `Knowledge impact = affected`；真正的知识修改基于 final verified implementation 执行。
 
 ---
 
@@ -91,7 +92,7 @@ out-of-scope
 not-applicable
 ```
 
-纯内部 bugfix 可能得到：
+纯内部 bugfix 可以得到：
 
 ```text
 README              verified-current
@@ -110,7 +111,7 @@ Residue             verified-current
 1. 当前 branch / final diff；
 2. 当前 code/schema/config/tests；
 3. Completeness / blast-radius evidence；
-4. Codex 已实际验证的 runtime/command result；
+4. Codex 已实际验证的 command/runtime result；
 5. 项目现役 Contract / generated schema；
 6. README/docs/rules；
 7. Pi Worker summary / 旧计划 / 历史说明。
@@ -151,10 +152,12 @@ env、ports、service names、provider/model、feature flags、deploy/run comman
 - 临时 debug script；
 - `*_old.*` / `*_backup.*`；
 - generated artifacts；
-- `.pi/supervised` runtime state 是否按约定 ignored；
-- Evidence Bundle 是否含敏感信息。
+- 意外写入仓库的 Pi runtime/session/log 文件；
+- credential/token 是否误入 prompt dump、日志或 diff。
 
 来源/安全性不明确的文件只列 `deletion-candidate`，不擅自删除。
+
+3.0.1 不要求 `.pi/supervised` 或任何 custom Run Store，所以它们若意外出现，必须先判断来源，不能把它们当正常必需产物。
 
 ---
 
@@ -166,7 +169,7 @@ env、ports、service names、provider/model、feature flags、deploy/run comman
 2. 读取 Completeness `Knowledge impact`；
 3. 判断 README/rules/Contract/runtime/config/residue；
 4. 分类每个知识面；
-5. 需要修改时由同一 Pi Run 创建 `mode=closeout` operation；
+5. 只有确实需要修改时才继续调用 Pi；
 6. Codex Review 新 diff。
 
 ### Full — 自动升级
@@ -224,24 +227,24 @@ env、ports、service names、provider/model、feature flags、deploy/run comman
 
 ## 10. Closeout Contract
 
-Codex 在 `CODE_VERIFIED` 后发给同一 Pi Run：
+Codex 在 `CODE_VERIFIED` 后，如果确实需要文档/规则变更，发送给**同一真实 Pi session**：
 
 ```text
-Mode
-- closeout
-
 Closeout Goal
-- 根据 final repository state 完成知识收尾。
+- 根据 final repository state 完成本次开发的知识收尾。
 
 Source of Truth
 - final diff、code/schema/config/tests、Completeness evidence、Codex verified results。
+
+Allowed
+- 仅受 final implementation 直接影响的 README/docs/rules/Contract/config 知识面。
 
 Inspect
 - README/docs
 - AGENTS.md / CLAUDE.md / project rules
 - API / Schema / Contract
 - config/env/CLI/runtime docs
-- workspace residue / runtime evidence hygiene
+- workspace residue / credential hygiene
 
 Required
 1. Knowledge Impact Scan。
@@ -252,23 +255,27 @@ Required
 6. residue 默认只报告 deletion-candidate。
 7. 不 push/merge/deploy，不扩大任务范围。
 
-Report
-- knowledge surface
-- status
-- evidence
-- changed files
-- pending/out-of-scope/deletion-candidate
+Forbidden
+- unrelated production-code redesign
+- dependency upgrade unrelated to closeout
+- destructive cleanup without authorization
 ```
 
-Harness `closeout` mode 应限制写入知识面，不能无约束重开 production code 修改。
+若使用 `pi-agent-modes`：
 
-如果 Closeout 发现生产实现真的有缺陷，operation 应返回 evidence，让 Codex 退回代码 rework。
+```bash
+pi --mode json --session <real-session> --modes build "<Closeout Contract>"
+```
+
+没有可信 mode extension 时省略 `--modes`，但不得宣称程序化 closeout path guard 已生效；Codex 仍通过 Git Review 约束范围。
 
 ---
 
-## 11. Codex Closeout Review
+## 11. Pi Turn 返回后的 Closeout Review
 
-Pi operation settled 后 Codex 自己：
+Pi JSON `agent_end` / 正常退出只表示 closeout turn 返回。
+
+Codex 自己：
 
 ```bash
 git status --short
@@ -290,14 +297,28 @@ rg "<old-symbol|route|env|field|service>" .
 - 没为形式制造无意义 Markdown diff；
 - rules 没膨胀成第二 README；
 - Contract/schema/examples 没冲突；
-- retired symbol 不再残留于现役面；
+- retired symbol 不残留于现役面；
 - residue 如实报告且无未经授权删除；
-- runtime state/credential 没意外进入 Git；
+- Pi session/log/credential 没意外进入 Git；
 - Closeout 修改没破坏 baseline 或 Scope Guard。
 
 ---
 
-## 12. Closeout 结论
+## 12. Closeout 发现代码缺陷
+
+如果文档审查揭示生产实现真的有问题：
+
+```text
+CLOSEOUT
+→ REWORK_REQUIRED
+→ REVIEWING / COMPLETENESS_REVIEW / VERIFYING
+```
+
+不能只改文档掩盖错误实现。
+
+---
+
+## 13. Closeout Verdict
 
 ### PASS
 
@@ -330,11 +351,11 @@ CLOSEOUT BLOCKED
 - Decision needed: <用户决定>
 ```
 
-只有相关 Review Gates、Completeness、Regression/Test Proof、Independent Verification、Harness Policy 和 Knowledge Closeout 都 PASS，Codex 才能 `ACCEPTED`。
+只有相关 Review Gates、Completeness、Regression/Test Proof、Independent Verification、Pi Runtime/Extension Hygiene 和 Knowledge Closeout 都 PASS，Codex 才能 `ACCEPTED`。
 
 ---
 
-## 13. 不默认纳入
+## 14. 不默认纳入
 
 Closeout 不自动获得：
 
