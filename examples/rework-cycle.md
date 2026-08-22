@@ -1,99 +1,117 @@
-# Example: Review → Rework → Re-review（v2.1.2）
+# Example — Review → Rework → Re-review with Pi Harness
 
-这个例子展示如何避免“AGY 说修好了，Codex 就结束”，以及为什么普通 Diff Review PASS 后还要进入 Completeness Review。
+这个例子展示如何避免“Pi Worker 说修好了，Codex 就结束”，以及为什么普通 Diff Review PASS 后还要进入 Completeness Review。
+
+---
 
 ## 初始状态
 
 ```text
 Supervisor State = REVIEWING
-Turn = 2
+Run = R-123
+Pi Session = S-456
+Last Operation = OP-002
 Rework count = 0
 ```
 
-Codex Review 发现：新增缓存逻辑没有处理 key 为空的场景，并且测试只覆盖 happy path。
+Codex Review 发现：新增缓存逻辑没有处理 key 为空的场景，测试只覆盖 happy path。
 
-## 1. 形成 Evidence
+---
+
+## 1. 形成 Evidence-driven Rework Contract
 
 ```text
 Issue
-- CacheService.java:87 在 key 为空时仍调用 map.get(key)。
+- CacheService.java:87 在 key 为空时仍访问 cache backend。
 
 Evidence
 - 当前 diff 没有 empty/null guard。
 - CacheServiceTest 只有正常 key 场景。
 
 Expected
-- 空 key 按现有 service contract 返回 empty result，不访问缓存 backend。
+- 空 key 按现有 service contract 返回 empty result，不访问 backend。
 
-Rework
-- 按现有参数校验模式增加 guard。
-- 如果 bug 可确定性复现，先建立 RED regression proof，再修 production code。
+Required change
+- 按项目现有 validation pattern 修 root cause。
+- 若 bug 可确定性复现，先证明 regression test 在 unfixed behavior 上 RED。
 - 增加 null/blank regression tests。
 
 Re-run
 - ./mvnw -Dtest=CacheServiceTest test
 ```
 
-Review 结论：`REWORK`。
-
-## 2. Read Before Send
-
-```bash
-tty7 capture "$PANE" --plain
-```
-
-确认 AGY 已结束上一 turn、当前界面可接收输入。permission/menu/error 要先处理，不能把返工 prompt 直接打进去。
-
-## 3. 新 Rework Turn
-
-生成新 nonce：
+Review 结论：
 
 ```text
-D4B821
+REWORK_REQUIRED
 ```
 
-发送 Evidence，并要求：
+---
+
+## 2. Resume 同一 Pi Run / Session
+
+Codex 不启动第二个并行 Writer，而是：
 
 ```text
-只处理上述 blocking issue 和它必然产生的 completeness remainder，不做无关重构。
-完成本轮后输出：
-TURN_COMPLETE: D4B821
+run_id = R-123
+pi_session_id = S-456
+operation_id = OP-003
+mode = rework
 ```
 
-更新：
+Pi session history 可以帮助理解上下文，但 Rework Contract 仍带完整 Issue/Evidence/Expected，不依赖“记得上一轮”。
+
+状态：
 
 ```text
-Supervisor State = TURN_SENT → OBSERVING
-Turn = 3
-Rework count = 1
+REWORK_REQUIRED
+→ OPERATION_SENT
+→ EXECUTING
 ```
 
-## 4. 观察
+---
 
-Native status：
+## 3. Harness Policy 继续生效
 
-```bash
-tty7 wait "$PANE" --until waiting,done --changed --timeout 1800
-```
+`rework` mode 仍必须：
 
-Fallback：
+- 只暴露当前允许工具；
+- `tool_call` 再检查 path/command；
+- 禁止 push/merge/deploy；
+- 阻止与 blocking issue 无关的重构；
+- 将被 block 的 tool call 写入 Evidence Bundle。
 
-```bash
-tty7 agents --json
-tty7 capture "$PANE" --plain
-```
+不能因为进入返工就临时切成全权限模式。
 
-看到当前 nonce 后：
+---
+
+## 4. Operation Settled
+
+Pi operation settle 后返回：
 
 ```text
-Supervisor State = TURN_RETURNED
+run_id: R-123
+operation_id: OP-003
+status: settled
+changed_paths: ...
+tests: ...
+policy_blocks: ...
+worker_summary: ...
 ```
 
-旧 nonce 不算。
+Codex 只把它当当前 operation 已返回：
+
+```text
+EXECUTING → OPERATION_SETTLED
+```
+
+不是 `PASS`。
+
+---
 
 ## 5. Re-review
 
-Codex 不接受 AGY 的“已修复”描述，重新检查：
+Codex 重新读取 repository：
 
 ```bash
 git diff --check
@@ -103,22 +121,21 @@ git status --short
 
 ### 情况 A：Diff Review 通过
 
-不是直接 `VERIFYING`，而是：
+进入：
 
 ```text
-PASS
-→ COMPLETENESS_REVIEW
+REVIEWING → COMPLETENESS_REVIEW
 ```
 
-Codex 继续搜索：
+继续搜索：
 
 ```bash
 rg "CacheService|cache\.get|cache\.put" src test
 ```
 
-确认 sibling method / caller 没有相同 root cause，tests 覆盖 regression boundary。
+确认 sibling method/caller 没有相同 root cause，tests 覆盖 regression boundary。
 
-Completeness PASS 后才进入：
+Completeness PASS 后才：
 
 ```text
 VERIFYING
@@ -126,13 +143,20 @@ VERIFYING
 
 ### 情况 B：同一问题仍存在
 
-再次形成 Evidence，`rework_count=2`，新 nonce，新 Turn。
+形成新的 Evidence Contract：
+
+```text
+operation_id = OP-004
+rework_count = 2
+```
+
+继续同一 Run/session。
 
 ### 情况 C：修 A 坏 B
 
-记录新问题，同时检查是否开始 repair oscillation。
+记录新 evidence，并判断是否出现 repair oscillation。
 
-### 情况 D：当前 fix 正确，但同根因在 sibling site 仍存在
+### 情况 D：当前 fix 正确，但同一 root cause 在 sibling site 仍存在
 
 这是 Completeness REWORK：
 
@@ -141,11 +165,13 @@ COMPLETENESS_REVIEW
 → REWORK_REQUIRED
 ```
 
-不能因为原文件的 targeted test 已绿就继续 Verification。
+不能因为原 targeted test 已绿继续 Verification。
 
-## 6. Regression Proof
+---
 
-如果该 bug 可安全、确定性自动复现：
+## 6. RED → GREEN
+
+若 bug 可安全、确定性复现：
 
 ```text
 Before fix: regression test RED
@@ -153,7 +179,7 @@ After fix: same test GREEN
 Codex re-run: PASS
 ```
 
-如果无法安全/稳定复现，明确：
+若不适用：
 
 ```text
 Regression proof: not-applicable
@@ -161,35 +187,37 @@ Reason: ...
 Alternative evidence: ...
 ```
 
-不要把“修完后才写的 green test”包装成 RED→GREEN。
+“修完以后补了一个 green test”不能包装成完整 RED→GREEN proof。
 
-## 7. Soft Limit
+---
 
-如果已经完成三轮：
+## 7. Soft Rework Limit
+
+默认最多观察 3 个完整：
 
 ```text
-Review → Rework → Re-review
+Review → Rework operation → Re-review
 ```
 
-仍有 blocking issue，不直接继续第四轮。
+达到 soft limit 后重新评估：
 
-重新评估：
-
-- Task Contract 是否不清；
-- Codex 根因判断是否错；
-- Completeness 边界是否错；
-- AGY 是否反复修坏别处；
-- 是否环境/测试问题；
+- Task Contract 是否有歧义；
+- Codex root-cause 判断是否错误；
+- completeness 边界是否错；
+- Provider/model 是否不适合；
+- Harness Tool Guard 是否误杀正确实现；
+- 是否环境/测试故障；
 - 是否触发 one-way decision。
+
+不要静默进入第四、第五轮，也不要直接切 YOLO。
 
 必要时：
 
 ```text
 BLOCKED
 - 当前安全 repository state
-- 已发生 3 轮返工
-- 仍未解决的问题
-- 需要用户决定的下一步
+- 已发生的 rework cycles
+- remaining blocking issues
+- provider/harness evidence
+- user decision needed
 ```
-
-这样避免 Supervisor 和 Implementer 无限互修。
