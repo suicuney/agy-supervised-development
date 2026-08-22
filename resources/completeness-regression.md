@@ -1,6 +1,6 @@
-# Completeness & Regression Proof
+# Completeness & Regression Proof — v3.0.1
 
-本文件定义 v3.0 的两个代码交付门禁：**Change Completeness Sweep** 与 **Regression/Test Proof**。
+本文件定义两个代码交付门禁：**Change Completeness Sweep** 与 **Regression/Test Proof**。
 
 它们解决两个不同问题：
 
@@ -134,7 +134,14 @@ Completeness Sweep
 - 顺便设计全站新架构是 different ticket；
 - existing data 必须变更才能被新代码正确读取通常是 completeness。
 
-v3 Pi Path Guard 不应设计成静态 file whitelist。若 Worker 发现新的传播 path，应返回 evidence；Codex 判断为 unfinished remainder 后再授权新 operation 修改。
+3.0.1 不要求自研静态 Path Guard。若 Pi/Review 发现新的 propagation path：
+
+1. Codex 用调用链/contract evidence 判断它是不是 unfinished；
+2. 如果是，更新 Rework Contract 的有效 scope；
+3. resume 同一真实 Pi session 继续修改；
+4. 如果只是邻近优化，则保持 different ticket。
+
+如果当前安装的可信 Extension 提供 path/tool policy，可以作为附加防护，但 Skill 不假装它一定存在。
 
 ---
 
@@ -158,7 +165,13 @@ v3 Pi Path Guard 不应设计成静态 file whitelist。若 Worker 发现新的�
 - production mutation；
 - irreversible deletion。
 
-Harness 应 fail closed；Codex 将 remainder 标 `blocked-decision-needed`。
+可信 Extension 若能程序化 block 是加分项；无论 Extension 是否存在，Codex 都必须把未授权 one-way remainder 标：
+
+```text
+blocked-decision-needed
+```
+
+并请求用户决策。
 
 ---
 
@@ -197,7 +210,7 @@ After fix: PASS
 Codex re-run: PASS | FAIL
 ```
 
-Pi Worker 可以生成 before/after evidence，但 Codex 必须检查 Git history/current patch 能否解释该 RED，并独立重跑最终 test。
+Pi Worker 可以生成 before/after evidence，但 Codex 必须判断证据确实对应目标 bug，并独立重跑最终 test。
 
 ### 允许 `not-applicable`
 
@@ -302,7 +315,7 @@ teardown
 
 ## 10. Task Contract 字段
 
-v3 Task Contract 应包含：
+Task Contract 应包含：
 
 ```text
 Completeness
