@@ -2,6 +2,42 @@
 
 All notable changes to this Skill are documented here.
 
+## [2.1.2] - 2026-08-22
+
+### Added
+
+- Change Completeness Contract distinguishing `unfinished` remainder from `different ticket` so completeness does not become scope expansion.
+- Explicit `COMPLETENESS_REVIEW` Supervisor state between normal code Review and Independent Verification.
+- `resources/completeness-regression.md` covering blast-radius evidence, propagation checks, RED→GREEN bugfix proof, Test Layer Decision, and one-way-door boundaries.
+- Gate 3 — Change Propagation & Blast Radius, requiring review of both the current diff and the missing diff.
+- Gate 7 — Tests, Test Layers & Regression Proof with explicit Unit / Integration / E2E applicability.
+- Deterministic bugfix regression protocol: unfixed behavior RED → root-cause fix → same test GREEN → Codex independent re-run.
+- `examples/bugfix-red-green.md` showing a complete supervised regression-proof flow.
+- `evals/README.md` and `evals/scenarios.json` for behavioral regression tests of the Skill itself.
+- Eval cases for dirty baseline, false done, missing tty7 hook, scope drift, hidden callers, RED→GREEN, E2E applicability, stale docs, zero-doc-diff closeout, and one-way decisions.
+
+### Changed
+
+- Upgraded Task Contract with `Completeness`, `Test Strategy`, and `Regression Proof` fields.
+- Changed Review ordering to `Diff Review → Completeness Review → Verification → CODE_VERIFIED`.
+- Changed `CODE_VERIFIED` requirements so tests being green is insufficient without blast-radius evidence and explicit test-layer decisions.
+- Renumbered Review Gates after inserting the new completeness gate: Knowledge & Documentation Alignment is now Gate 13.
+- Clarified that `user-skipped` E2E is a deliberate trade-off and must not be reported as `not-applicable`.
+- Clarified that a post-fix-only green regression test is not equivalent to observed RED→GREEN proof.
+- Extended Knowledge Closeout to consume final Completeness/Blast Radius evidence and send implementation defects back to `COMPLETENESS_REVIEW` instead of hiding them with documentation edits.
+- Updated the feature-development example to include completeness propagation and Test Layer Decision.
+
+### Preserved
+
+- Codex as Supervisor / Reviewer / QA and sole final Acceptance authority.
+- AGY as the sole primary writer.
+- tty7 as the worker runtime rather than a second orchestrator.
+- Current checkout + Git baseline protection as the default single-writer topology.
+- Native-status / capture-fallback Turn observation.
+- Knowledge Closeout as a mandatory post-`CODE_VERIFIED` stage.
+- No push / merge / deploy or destructive external actions by default.
+- No multi-agent wave/worktree orchestration in the v2.1 line.
+
 ## [2.1.1] - 2026-08-21
 
 ### Added
