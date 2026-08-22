@@ -1,33 +1,31 @@
-# Provider Boundary
+# Provider Boundary — v3.0.1
 
-AGY Supervised Development 3.0 把 **Pi Harness** 与 **模型 Provider** 明确拆开。
+AGY Supervised Development 3.0.1 把 **Pi Native Harness** 与 **模型 Provider** 明确拆开：
 
 ```text
 Codex App
   ↓
-Pi Harness
+Pi Native Harness
   ↓
-Pi Provider API
+Pi Provider abstraction
   ↓
 Antigravity / OpenAI / Anthropic / other
 ```
 
-Provider 负责模型推理；Harness 负责工具、状态、scope、evidence；Codex 负责监督和最终验收。
+Provider 负责模型推理；Pi 负责 agent loop/tools/session；Codex 负责监督和最终验收。
 
 ---
 
-## 1. 为什么必须拆开
-
-v2.1.x 使用 AGY CLI 时，模型、Harness、工具循环和 conversation runtime 被绑定在同一个外部 CLI 中。v3.0 的关键改进是：
+## 1. 核心边界
 
 ```text
-Model intelligence != Worker Harness
+Model intelligence != Coding Harness != Supervisor
 ```
 
 因此：
 
 - Provider 可以替换；
-- Harness policy 不随模型供应商重写；
+- Pi session/tool behavior 不随模型供应商重写；
 - Codex Review Contract 不随 Provider 改变；
 - Provider outage 不等于 repository failure；
 - credential 不进入监督协议。
@@ -36,24 +34,17 @@ Model intelligence != Worker Harness
 
 ## 2. 默认目标：Antigravity Provider
 
-用户当前设计目标是：
+目标可以是：
 
 ```text
 Pi
-  ↓ Google OAuth
+  ↓ user-selected Provider / Google OAuth
 Antigravity
 ```
 
 再由 Pi 自己提供 coding harness。
 
-Pi 社区已经存在多种 Antigravity Provider extension，典型实现会：
-
-- 注册 `antigravity` 或 `google-antigravity` provider；
-- 使用 Google OAuth；
-- 将 Gemini / Claude / GPT-OSS 等 runtime model 映射成 Pi Model；
-- 使用 Pi 原生 provider streaming，而不是 shell out 到 `agy` CLI。
-
-v3 Skill **不绑定某个第三方包名**。原因：这些扩展更新快、实现边界和风险提示不同。
+v3.0.1 **不绑定具体第三方包名或模型列表**。Provider 扩展更新快，风险声明和 model routing 也可能变化。
 
 ---
 
@@ -63,38 +54,37 @@ v3 Skill **不绑定某个第三方包名**。原因：这些扩展更新快、�
 
 必须明确：
 
-- 某些 Provider 作者明确提示可能违反 Google Terms of Service；
-- 不同实现对账号风险判断并不一致；
-- endpoint/model routing/OAuth compatibility 可能随 Google 变化；
-- 账号、订阅、quota、模型可用性都可能改变。
+- 某些实现作者可能提示 Terms of Service / account suspension 风险；
+- 不同实现判断可能不同；
+- endpoint/model routing/OAuth compatibility 会变化；
+- quota、subscription、model availability 会变化。
 
-因此本 Skill 不把以下陈述当事实：
+Skill 不把以下说法当事实：
 
 ```text
-"Pi Antigravity OAuth 是 Google 官方支持方式"
-"使用第三方 Provider 没有账号风险"
-"某个 Provider endpoint 会长期稳定"
+"第三方 Pi Antigravity OAuth 是 Google 官方支持方式"
+"没有账号风险"
+"当前 endpoint/model 会长期稳定"
 ```
 
-Codex 在首次启用或 Provider 明显更新后，应提醒用户审查 Provider source / README / license / risk note。
+首次启用或 Provider 大版本变化后，应审查当前 source/README/license/risk note。
 
 ---
 
 ## 4. Credential Ownership
 
-Credential 只能由 Pi/Provider 自己的 credential store 管理。
+Credential 只由 Pi/Provider 自己的 store 管理。
 
-Harness / Skill 不得：
+Skill/Codex 不得：
 
 - 读取并复制 access token；
 - 读取并复制 refresh token；
 - 打印 Authorization header；
-- 将 credential 写进 `.pi/supervised`；
-- 将 auth 文件 commit；
-- 把 token 放进 Evidence Bundle；
+- commit auth 文件；
+- 把 token 写进 Task Contract/Review evidence；
 - 模拟登录完成状态。
 
-可以记录的仅是：
+允许记录：
 
 ```text
 auth_status = usable | missing | expired | error
@@ -104,15 +94,15 @@ model_id
 
 ---
 
-## 5. 安装与登录边界
+## 5. 安装 / 登录边界
 
-Preflight 发现 Provider 缺失：
+Provider 缺失：
 
 ```text
 BLOCKED: provider-missing
 ```
 
-发现未登录：
+未登录/过期：
 
 ```text
 BLOCKED: auth-required
@@ -122,123 +112,81 @@ BLOCKED: auth-required
 
 ```bash
 pi install npm:<provider>
-/login <provider>
 ```
 
-除非用户明确要求安装/登录。
+也不自动完成 OAuth。
 
-OAuth 浏览器授权、账号选择、条款接受由用户自己完成。
+用户明确要求安装时再按当前 Provider 文档执行；OAuth 浏览器授权、账号选择、条款接受由用户完成。
 
 ---
 
-## 6. Provider Capability Contract
+## 6. Provider Capability
 
-Harness 只要求 Provider 满足：
+Codex/Pi 只需要确认当前 Provider 满足：
 
 ```text
-model discoverable
+provider/model discoverable
 credential usable
-text/tool-capable generation
-stream/result can settle
-abort/error can surface
-usage metadata optional
+tool-capable generation
+errors can surface
 ```
 
 Provider 不需要知道：
 
-- Task Contract；
 - baseline；
-- review gates；
-- closeout state；
-- final acceptance。
-
-这些属于 Harness/Codex。
+- Task Contract governance；
+- Review Gates；
+- Completeness；
+- Closeout；
+- final Acceptance。
 
 ---
 
-## 7. Model Selection
+## 7. Model Selection / Failover
 
-Model selection 可以由用户或 Codex Task Contract 指定，但 Harness 不应在失败时静默升级/降级模型。
+Model selection 由用户、当前 Pi config 或 Task Contract 决定。
 
-例如：
+失败时不得静默：
 
 ```text
-requested: antigravity/<model-A>
-actual:    antigravity/<model-B>
+requested provider/model A
+→ silently continue with B
 ```
 
-只有以下情况才能发生：
+只在：
 
-- 用户明确选择；
-- Task Contract 允许 fallback；
-- Provider 自己的 documented internal routing 不改变公开 model contract。
+- 用户明确要求；或
+- Task Contract 明确允许 fallback
 
-所有可观察的 Provider/model transition 写入 Evidence Bundle。
+时切换，并记录可观察的 requested/actual transition。
+
+Provider 自己 documented 的内部 routing 若仍保持同一个公开 model contract，不必假装知道不可观察内部细节。
 
 ---
 
 ## 8. Provider Error 分类
 
-不要把所有 Provider error 都归成 worker failure。
-
-### Authentication
-
 ```text
-401 / invalid_grant / expired credential / login required
+401 / invalid auth
 → PROVIDER_AUTH_BLOCKED
-```
 
-### Quota / Rate limit
-
-```text
-429 / quota exhausted / subscription limit
+429 / quota exhausted
 → PROVIDER_CAPACITY_BLOCKED
-```
 
-### Transport
-
-```text
-timeout / 5xx / connection reset
+timeout / 5xx / reset
 → PROVIDER_TRANSIENT_FAILURE
-```
 
-### Model unavailable
-
-```text
-unknown model / removed routing / unsupported tool call
+unknown/removed/unsupported model
 → PROVIDER_CAPABILITY_FAILURE
 ```
 
-### Harness policy block
+不要把这些直接归成 code failure。
 
-这不是 Provider error：
-
-```text
-tool denied / path denied / one-way decision
-→ HARNESS_POLICY_BLOCKED
-```
-
-分类必须进入 evidence，方便 Codex 判断是否重试、换模型还是向用户求助。
+有限 transient retry 可以接受；不无限重试。
 
 ---
 
-## 9. Retry / Failover
-
-Provider transient error 可以有**有限、可观察** retry。
-
-规则：
-
-- 不无限 retry；
-- 遵守 Provider retry-after；
-- operation ID 不因为内部 safe retry 随意改变；
-- 如果 crash/retry 可能重复 tool effect，先进入 recovery analysis；
-- model/provider failover 默认需要 Task Contract 授权。
-
-不要因为 Provider 断线就重新跑全部实现步骤。
-
----
-
-## 10. Antigravity 与 `agy` CLI 的关系
+## 9. Antigravity 与 `agy` CLI
 
 v3 主链路：
 
@@ -252,108 +200,90 @@ Pi Provider → Antigravity
 Pi → agy CLI → AGY Harness → Antigravity
 ```
 
-因此 v3 主流程不需要：
+所以主流程不需要：
 
 - `command -v agy`；
 - `agy --help`；
 - `agy --conversation`；
 - tty7；
-- AGY conversation DB；
-- AGY status hook；
-- AGY permission TUI。
+- AGY conversation DB/status hook/permission TUI。
 
-如果用户未来明确要求官方 AGY CLI fallback，它应被设计成**单独 Adapter**，不能偷偷混回 v3 主链路。
+未来用户若明确需要官方 AGY CLI fallback，应作为独立可选路径，不偷偷混入 Pi Native 主链路。
 
 ---
 
-## 11. Provider 替换性
+## 10. Provider Replaceability
 
-Harness 代码不要出现这种耦合：
-
-```text
-if provider == antigravity:
-    task lifecycle = ...
-```
-
-应该：
+3.0.1 不存在自研 Harness 代码，因此更简单：
 
 ```text
-Harness lifecycle
+Codex Skill
   ↓
-Pi Model/Provider abstraction
+Pi Native Harness
+  ↓
+Pi configured Provider
 ```
 
-Provider-specific code只存在于 Provider extension 自己内部，或极薄 diagnostics adapter。
+Provider-specific transport/auth 只留在 Provider extension 自己内部。
 
-这样未来可以：
+未来可以替换：
 
 ```text
-Pi Harness + Antigravity
-Pi Harness + Codex subscription
-Pi Harness + Anthropic
-Pi Harness + local model
+Pi + Antigravity
+Pi + Codex/OpenAI
+Pi + Anthropic
+Pi + local/other Provider
 ```
 
-而监督规则不变。
+监督规则不变。
 
 ---
 
-## 12. Provider Health Evidence
+## 11. Provider Health Evidence
 
-Harness `doctor` 可以输出：
+3.0.1 不要求自定义 `doctor` JSON schema。
 
-```json
-{
-  "provider": "antigravity",
-  "installed": true,
-  "auth": "usable",
-  "model": "...",
-  "modelAvailable": true,
-  "toolCapable": true
-}
+只记录从当前 Pi/Provider 可观察到的最小事实：
+
+```text
+provider registered/configured
+provider/model selected if observable
+auth usable/missing/error
+actual invocation success/error class
 ```
 
-不得输出：
+不得记录：
 
 ```text
 accessToken
 refreshToken
 clientSecret
 Authorization
-credential path content
-full OAuth response
+credential file contents
+full OAuth payload
 ```
 
 ---
 
-## 13. 更新策略
+## 12. 更新策略
 
-第三方 Provider 更新快。v3 不在 Skill 里 hard-code 当前模型列表和 endpoint。
+第三方 Provider 更新快，因此：
 
-Preflight 读取**当前实际 Provider catalog**。
-
-只有 Harness compatibility 需要 pin：
-
-```text
-Pi major/minor capability range
-Harness extension API expectations
-Evidence schema version
-```
-
-Provider/model catalog 运行时发现。
+- 不 hard-code current model list；
+- 不 hard-code internal endpoint；
+- 运行时通过当前 Pi/provider capability 发现；
+- 文档只保留稳定边界。
 
 ---
 
-## 14. 推荐的安全姿势
+## 13. 推荐姿势
 
-对于 Antigravity Provider：
+1. 用户选择/审查 Provider；
+2. 用户安装；
+3. 用户完成登录；
+4. Codex 只确认“可用/不可用”；
+5. Provider 只向 Pi 提供 model intelligence；
+6. Pi tools 修改 repository；
+7. Codex最终独立 Review/Verify。
 
-1. 用户自己选择并审查 Provider；
-2. 用户自己安装；
-3. 用户自己完成 `/login`；
-4. Harness 只读取“是否可用”的能力状态；
-5. Provider 只给 Pi 提供 model stream；
-6. Pi Tools 执行所有 repository 操作；
-7. Codex 最终独立验证。
-
-这样可以最大程度把第三方 Provider 风险限制在**模型传输层**，而不让它接管 Harness、文件权限或最终验收。
+这样第三方 Provider 风险被限制在模型/传输层，不接管文件权限、Harness lifecycle 或 Acceptance。
