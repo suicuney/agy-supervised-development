@@ -1,6 +1,6 @@
 # Supervisor Run Lifecycle
 
-本文件定义 v2.1 的监督状态、Turn 协议、返工预算和 Knowledge Closeout 状态。这里描述的是 **Codex Supervisor 能确认的状态**，不是假装知道 AGY 内部每一刻在做什么。
+本文件定义 v2.1.2 的监督状态、Turn 协议、返工预算、Completeness Review 和 Knowledge Closeout 状态。这里描述的是 **Codex Supervisor 能确认的状态**，不是假装知道 AGY 内部每一刻在做什么。
 
 ## 1. Run Context
 
@@ -25,6 +25,16 @@ supervisor_state
 turn_seq
 current_nonce
 rework_count
+
+completeness_status = pending | pass | rework | blocked
+blast_radius_evidence
+remainder_dispositions
+
+test_strategy:
+  unit = required | not-applicable
+  integration = required | not-applicable
+  e2e = required | not-applicable | user-skipped
+regression_proof = required | red-green-pass | not-applicable
 
 closeout_level = lightweight | full
 knowledge_surface_status
@@ -58,6 +68,11 @@ REVIEWING
   │               ↓
   │            TURN_SENT
   ↓
+COMPLETENESS_REVIEW
+  ├────────→ REWORK_REQUIRED
+  │               ↓
+  │            TURN_SENT
+  ↓
 VERIFYING
   ├────────→ REWORK_REQUIRED
   ↓
@@ -77,21 +92,39 @@ ACCEPTED
 
 ### 为什么不定义 `AGY_WORKING` / `AGY_DONE`
 
-当 tty7 没有 AGY status hook 时，Supervisor 无法可靠知道 AGY 内部状态。v2.1 记录的是自己能证明的状态：我已经发送了 Turn、我正在观察、我看到了返回证据、我正在 Review。
+当 tty7 没有 AGY status hook 时，Supervisor 无法可靠知道 AGY 内部状态。Skill 记录的是自己能证明的状态：我已经发送了 Turn、我正在观察、我看到了返回证据、我正在 Review。
 
-如果未来 native status 可用，它用于提高 observation 精度，不改变 Supervisor 状态语义。
+如果 native status 可用，它用于提高 observation 精度，不改变 Supervisor 状态语义。
 
-### 为什么增加 `CODE_VERIFIED`
+### 为什么增加 `COMPLETENESS_REVIEW`
 
-`VERIFYING` 通过只说明代码和测试已经达到可接受状态，不保证 README、Agent rules、Contract、配置说明等知识面已经同步。
+普通 `REVIEWING` 主要回答：
 
-因此代码验证通过后先进入：
+> 当前 diff 里的实现是否正确？
+
+`COMPLETENESS_REVIEW` 额外回答：
+
+> 是否还有本来应该出现在 diff 中、却被漏掉的 caller / consumer / data / state / test 传播面？
+
+所以：
 
 ```text
-CODE_VERIFIED
+Diff Review != Missing Diff Review
 ```
 
-随后基于**最终实现**执行 Closeout，而不是在实现仍反复变化时同步中间态文档。
+只有两者都 PASS，才进入独立 Verification。
+
+### 为什么保留 `CODE_VERIFIED`
+
+`VERIFYING` 通过说明：
+
+- 代码实现正确；
+- completeness / blast radius 已解释；
+- Test Layer Decision 已满足；
+- 可复现 bug 的 Regression Proof 已成立；
+- Codex 已独立运行相关门禁。
+
+但它仍不保证 README、Agent rules、Contract、配置说明等知识面已经同步，因此先进入 `CODE_VERIFIED`，再根据最终实现做 Knowledge Closeout。
 
 ## 3. Turn
 
@@ -100,15 +133,15 @@ CODE_VERIFIED
 ```text
 Turn 1  现状分析 / plan
 Turn 2  实现
-Turn 3  Review rework
-Turn 4  verification rework
+Turn 3  Review / completeness rework
+Turn 4  verification / regression rework
 Turn 5  knowledge closeout
 Turn 6  closeout rework（若需要）
 ```
 
 每次正式向 AGY 派一个可结束的动作，就递增 `turn_seq`。
 
-Closeout 仍然是普通 Supervisor Turn：继续使用同一个 worker pane、Read Before Send、native-status/capture-fallback 和 Turn Nonce，不引入第二套 AGY 生命周期。
+Completeness、Verification Rework、Closeout 都继续使用同一个 worker pane、Read Before Send、native-status/capture-fallback 和 Turn Nonce，不引入第二套 AGY 生命周期。
 
 ## 4. Turn Nonce
 
@@ -136,7 +169,9 @@ TURN_COMPLETE: A7F2E9
 它不证明：
 
 - 代码正确；
-- 测试通过；
+- blast radius 完整；
+- 测试层选择正确；
+- Regression Proof 成立；
 - Task Contract 已满足；
 - 文档/规则已经对齐；
 - 没有越界修改。
@@ -207,19 +242,106 @@ git diff
 
 实现阶段 Review 结论：
 
-- `PASS` → 进入下一阶段或 `VERIFYING`
-- `REWORK` → `REWORK_REQUIRED` → 新 Turn
-- `BLOCKED` → 等用户/环境决策
+- `REWORK` → `REWORK_REQUIRED` → 新 Turn；
+- `BLOCKED` → 等用户/环境决策；
+- `PASS` → 进入 `COMPLETENESS_REVIEW`，而不是直接 Verification。
 
-独立 Verification 通过后：
+## 8. Completeness Review Transition
+
+详细协议见 `completeness-regression.md`。
+
+固定检查：
+
+```text
+changed symbol / behavior
+→ direct callers
+→ indirect callers / scripts / re-exports
+→ type / enum / validator / serializer
+→ schema / migration / existing data
+→ sibling flows / jobs
+→ reachable states / retry / fallback / cache
+→ orphaned old path
+→ tests
+```
+
+Completeness Review 结论：
+
+- `PASS` → `VERIFYING`；
+- `REWORK` → `REWORK_REQUIRED` → 同一 AGY worker 新 Turn；
+- `BLOCKED` → one-way decision / 跨范围依赖需要用户判断。
+
+每个 remainder 必须有明确 disposition：
+
+```text
+fixed-in-run
+not-applicable
+out-of-scope-different-ticket
+blocked-decision-needed
+```
+
+Completeness 与 Scope Drift 必须同时成立：不允许漏做，也不允许借完整性做另一个 ticket。
+
+## 9. Test Strategy & Regression Proof
+
+在进入 `VERIFYING` 前，Run Context 应已有明确 Test Layer Decision：
+
+```text
+Unit:        required | not-applicable
+Integration: required | not-applicable
+E2E:         required | not-applicable | user-skipped
+```
+
+对于可安全、确定性自动复现的 bug：
+
+```text
+regression_proof = required
+```
+
+并形成：
+
+```text
+unfixed → regression test RED
+fix root cause
+same test → GREEN
+Codex independent re-run
+```
+
+无法安全/稳定自动复现时可 `not-applicable`，但必须记录原因和替代证据。
+
+## 10. Independent Verification Transition
+
+只有实现 Review + Completeness Review 都 PASS 才进入：
+
+```text
+VERIFYING
+```
+
+Codex 根据 Test Layer Decision 独立运行仓库门禁。AGY 的运行结果只是线索。
+
+Verification 失败：
+
+```text
+VERIFYING → REWORK_REQUIRED
+```
+
+全部通过后：
 
 ```text
 VERIFYING → CODE_VERIFIED
 ```
 
+进入 `CODE_VERIFIED` 前必须能够说明：
+
+- Completeness Sweep = PASS；
+- blast radius evidence；
+- remainder dispositions；
+- Test Layer Decision；
+- Regression Proof = RED→GREEN 或 not-applicable；
+- Codex independent commands + results。
+
 然后必须进入 Knowledge Closeout，不直接进入 `ACCEPTED`。
 
-## 8. Rework Budget
+## 11. Rework Budget
 
 默认：
 
@@ -241,14 +363,15 @@ Review → Rework → Re-review
 - AGY 是否修 A 坏 B，形成震荡；
 - Task Contract 是否不清；
 - Codex 根因判断是否错；
+- completeness 边界是否判断错误；
 - 是否存在架构冲突；
 - 是否是环境/依赖失败。
 
 soft limit 可以在明确新证据下继续，但必须显式说明理由；不能静默无限循环。
 
-Closeout rework 也计入该 Run 的返工观察，但应区分代码返工和知识返工；若 Closeout 发现真实实现缺陷，应退回代码 Review/Verification，而不是只改文档掩盖代码问题。
+Closeout rework 也计入该 Run 的返工观察，但应区分代码返工和知识返工；若 Closeout 发现真实实现缺陷，应退回代码 Review / Completeness / Verification，而不是只改文档掩盖代码问题。
 
-## 9. Scope Drift
+## 12. Scope Drift
 
 每次 Review 将当前 changed paths 与 baseline + Task Contract Scope 对比。
 
@@ -265,9 +388,29 @@ current changes
 3. 要求 AGY 只撤销自己产生的越界改动；
 4. 重新检查 baseline integrity。
 
+Completeness 发现的“本次改动必然需要传播”的 caller / data / test 可以属于任务 Scope，即使初始文件列表没有逐个枚举；必须能证明它们是 unfinished remainder，而不是 another ticket。
+
 Knowledge Closeout 修改 README/docs/rules 时，如果这些文件是本次最终实现的直接知识面，视为可解释的 closeout scope；仍必须证明关联性，不能借收尾顺手重写无关文档。
 
-## 10. Knowledge Closeout Transition
+## 13. One-way Door
+
+Completeness 不能让 Codex/AGY 擅自跨越不可逆决策。
+
+普通可逆实现细节可按项目约定和更窄/更安全方案自行裁决。
+
+以下默认需要明确授权或用户判断：
+
+- destructive / non-additive migration；
+- breaking public API；
+- auth / tenancy boundary relaxation；
+- money / billing semantics；
+- secrets / credentials；
+- production mutation；
+- irreversible data deletion。
+
+此时尽量完成不依赖该决定的安全部分，把 remainder 标为 `blocked-decision-needed`。
+
+## 14. Knowledge Closeout Transition
 
 `CODE_VERIFIED` 后，Codex 根据 final diff 判断：
 
@@ -299,7 +442,7 @@ Closeout Review 结论：
 
 每次开发都执行 Scan，但允许零文档 diff。`verified-current` 本身就是有效结果。
 
-## 11. Worker Failure Does Not Erase Run Progress
+## 15. Worker Failure Does Not Erase Run Progress
 
 AGY process / pane 失败时，Run 不自动重置为 INIT。
 
@@ -309,7 +452,7 @@ AGY process / pane 失败时，Run 不自动重置为 INIT。
 
 如果 worker 在 `CODE_VERIFIED` 之后、Closeout 之前失败，也不要重做已经独立验证通过的实现；replacement worker 应以 final diff + Closeout Contract 重建收尾上下文。
 
-## 12. Session Resume
+## 16. Session Resume
 
 如果存在经过验证的真实 AGY conversation id，且当前 AGY capability 支持恢复，可用对应 resume 能力。
 
@@ -323,23 +466,27 @@ replacement worker 使用：
 
 - 原 Task Contract；
 - 当前 repository diff；
-- 剩余 Review evidence；
+- 剩余 Review / Completeness evidence；
+- Test Strategy / Regression Proof 状态；
 - 当前 `CODE_VERIFIED` / Closeout 状态（若已经到该阶段）。
 
 重新建立任务上下文即可。
 
-## 13. Acceptance
+## 17. Acceptance
 
 只有 Codex 可以进入 `ACCEPTED`，且必须满足：
 
 - Task Contract 覆盖完成；
-- Review Gates 相关代码项 PASS；
+- Gate 0–12 中所有相关代码项 PASS；
+- Change Completeness / Blast Radius PASS；
+- Test Layer Decision 已完成；
+- 可复现 bug 的 Regression Proof 已完成或有合理 `not-applicable`；
 - Codex Independent Verification 完成并进入 `CODE_VERIFIED`；
 - Knowledge Impact Scan 已执行；
-- Gate 12 Knowledge & Documentation Alignment PASS；
+- Gate 13 Knowledge & Documentation Alignment PASS；
 - final diff 可解释；
 - baseline 完整；
-- `pending` / `out-of-scope` / deletion candidates 已如实报告；
-- 无未经授权外部副作用或破坏性清理。
+- remainder / `pending` / `out-of-scope` / deletion candidates 已如实报告；
+- 无未经授权外部副作用、one-way decision 或破坏性清理。
 
-AGY 是否说 `done`、测试是否绿色、甚至代码是否已经 `CODE_VERIFIED`，都与最终 Acceptance 不直接等价。最终条件是：**代码已验证 + 知识已对齐 + 边界可解释**。
+AGY 是否说 `done`、测试是否绿色、甚至代码是否已经 `CODE_VERIFIED`，都与最终 Acceptance 不直接等价。最终条件是：**代码正确 + 改动传播完整 + 测试证据成立 + 知识对齐 + 边界可解释**。
