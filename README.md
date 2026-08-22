@@ -2,7 +2,7 @@
 
 一个面向 **Codex + tty7 + Antigravity CLI (`agy`)** 的监督式开发 Skill。
 
-它不是 AGY CLI 百科，也不是通用多 Agent Framework。v2.1 系列专门把这一条链路做稳；v2.1.1 在代码验收之后补上 Knowledge Closeout，让“代码完成”和“项目知识完成”成为同一个 Definition of Done：
+它不是 AGY CLI 百科，也不是通用多 Agent Framework。v2.1 系列只把一条路径做扎实：
 
 ```text
 User Requirement
@@ -11,66 +11,60 @@ Codex Supervisor
       ↓
 tty7 Worker Runtime
       ↓
-AGY Interactive Implementer
+AGY Sole Primary Writer
       ↓
 Repository Changes
       ↓
-Codex Independent Review
-   ↙                 ↘
-Rework → AGY       PASS → Independent Verification
-                         ↓
-                    CODE_VERIFIED
-                         ↓
-                  AGY Knowledge Closeout
-                         ↓
-                  Codex Closeout Review
-                    ↙              ↘
-               Rework → AGY      ACCEPTED
+Codex Diff Review
+      ↓
+Change Completeness / Blast Radius Review
+   ↙                         ↘
+Rework → AGY                PASS
+                              ↓
+                    Independent Verification
+                              ↓
+                         CODE_VERIFIED
+                              ↓
+                    AGY Knowledge Closeout
+                              ↓
+                    Codex Closeout Review
+                       ↙             ↘
+                  Rework → AGY     ACCEPTED
 ```
 
 ## 核心原则
 
-- Codex 负责主控、Review、QA、Knowledge Closeout Review 和最终验收。
+- Codex 负责主控、Review、Completeness / Blast Radius、QA、Knowledge Closeout Review 和最终验收。
 - AGY 是唯一主要 Writer，负责实现、测试、返工，以及同步受最终实现影响的项目知识文件。
-- tty7 负责持久 PTY、独立 workspace/pane 和可观察运行时，不在 Skill 里重复造进程管理器。
-- 不相信 AGY 自己的 `done` / `TURN_COMPLETE`，只相信真实 repository state。
+- tty7 只负责持久 PTY、独立 workspace/pane 和可观察运行时，不在 Skill 里重复造进程管理器。
+- Repository state 是交付真相；`done` / `TURN_COMPLETE` 只是 Turn 返回证据。
 - 每次任务先建立 Git baseline，保护用户已有改动。
 - 每个任务创建独立 tty7 workspace + pane，只操作自己创建的稳定 ID。
-- 不使用会漂移的 `@N` 作为 worker identity。
 - AGY 必须显式验证 repo root / branch，不能只相信 pane CWD。
 - AGY/tty7 能力按当前安装版本实时检测。
-- 代码通过测试只进入 `CODE_VERIFIED`；实际开发任务还必须完成 Knowledge Impact Scan。
+- Review 不只看“改了什么”，还检查“本来应该改但漏掉了什么”。
+- Completeness 不等于 Scope Expansion：unfinished 必须收完，different ticket 保持 out-of-scope。
+- 每个任务明确 Unit / Integration / E2E 的 applicability。
+- 可安全、确定性复现的 bug 默认要求 regression test **RED → fix root cause → GREEN**。
+- 代码层全部通过只进入 `CODE_VERIFIED`；实际开发任务还必须完成 Knowledge Impact Scan。
 - 每次开发都做 Closeout Scan，但只有真正受影响的知识面才修改文档。
-- 默认不 push / merge / deploy，不默认全局跳过权限，也不借“收尾”扩大破坏性清理权限。
+- 默认不 push / merge / deploy，也不借“完整性/收尾”扩大 destructive / one-way 权限。
 
-## v2.1 的关键变化
+## v2.1 基础能力
 
-### 1. tty7-native Worker Lifecycle
-
-统一通过：
+### tty7-native Worker Lifecycle
 
 ```bash
 tty7 new --json "$repo_root"
 ```
 
-保存稳定：
+保存稳定 workspace id + pane id，正常结束只清理本次 workspace。
 
-```text
-workspace id
-pane id
-```
+### Launch Proof
 
-正常结束清理本次 workspace，而不是碰用户其他终端。
+新 pane 第一次 `send --enter` 可能被 shell startup 吞掉。启动 AGY 后立刻 `capture`，确认命令真的执行；必要时只补一次 Enter。
 
-### 2. Launch Proof
-
-新 pane 第一次 `send --enter` 可能因 shell 启动脚本吞掉 Enter。
-
-v2.1 强制启动 AGY 后立刻 `capture`，确认命令真的离开 shell prompt；必要时只补一次 Enter。
-
-### 3. Native Status / Capture Fallback 双路径
-
-Codex 先通过 `tty7 doctor` / `tty7 agents --json` 判断当前 AGY 是否拥有 tty7 status hook。
+### Native Status / Capture Fallback
 
 ```text
 native status available
@@ -80,11 +74,11 @@ status hook unavailable
 → tty7 agents + capture + Turn Nonce
 ```
 
-因此 Skill 不依赖某个固定 tty7 版本是否已经给 Antigravity 增加 hook。
+Skill 不假设固定 tty7 版本一定已经给 Antigravity 增加 hook。
 
-### 4. Supervisor State，而不是伪造 AGY 内部状态
+### Supervisor State
 
-v2.1.1 记录 Codex 能证明的状态：
+v2.1.2 只记录 Codex 能证明的状态：
 
 ```text
 INIT
@@ -96,6 +90,7 @@ INIT
 → OBSERVING
 → TURN_RETURNED
 → REVIEWING
+→ COMPLETENESS_REVIEW
 → VERIFYING
 → CODE_VERIFIED
 → CLOSEOUT
@@ -105,7 +100,7 @@ INIT
 
 `TURN_COMPLETE != ACCEPTED`，`CODE_VERIFIED != ACCEPTED`。
 
-### 5. Read Before Send
+### Read Before Send
 
 任何 prompt、Enter、菜单按键、Escape、Ctrl-C 之前重新 capture 当前 pane：
 
@@ -113,17 +108,21 @@ INIT
 CAPTURE → CLASSIFY → DECIDE → SEND
 ```
 
-避免把几秒前应答 permission 的按键发进已经变化的 TUI。
+### Evidence-driven Rework
 
-### 6. Evidence-driven Rework + Soft Budget
+每轮返工包含：
 
-每轮返工必须包含 Issue / Evidence / Expected / Rework / Re-run。
+```text
+Issue
+Evidence
+Expected
+Rework
+Re-run
+```
 
-默认 3 个完整 `Review → Rework → Re-review` 周期为 soft limit；达到后必须重新评估根因，不能两个 Agent 无限互修。
+默认 3 个完整 `Review → Rework → Re-review` 周期为 soft limit。
 
-### 7. Scope Drift Guard
-
-Review 不只看当前 diff，还要区分：
+### Scope Drift Guard
 
 ```text
 current changes - baseline changes = task-introduced changes
@@ -133,11 +132,9 @@ AGY 新增的超 Scope path 必须有需求依据，否则返工。
 
 ## v2.1.1 — Knowledge Closeout
 
-v2.1.1 不改变 Codex / AGY / tty7 的核心角色，只补齐开发任务最后一段。
+v2.1.1 补齐“代码完成后项目知识是否仍然正确”。
 
-### 每次开发都做 Knowledge Impact Scan
-
-默认检查：
+每次开发做 Knowledge Impact Scan：
 
 ```text
 README / usage
@@ -147,7 +144,7 @@ config / env / provider / service / deploy / job docs
 workspace residue
 ```
 
-每个相关知识面标记：
+状态：
 
 ```text
 verified-current
@@ -157,56 +154,132 @@ out-of-scope
 not-applicable
 ```
 
-因此纯内部 bug 修复可能完全不产生文档 diff，只要相关知识面已经 `verified-current`。
+普通内部变化默认 Lightweight Closeout；API/schema/CLI/env/用户流程/架构/部署/job/rename/cross-project contract 等自动升级 Full Closeout。
 
-### Lightweight / Full Closeout
+纯内部 bugfix 可以零文档 diff，只要相关知识面已经 `verified-current`。
 
-普通内部改动默认 Lightweight Closeout。
+## v2.1.2 — Completeness & Regression Proof
 
-以下变化自动升级 Full Closeout：
+v2.1.2 补的是 `CODE_VERIFIED` 之前的代码交付完整性。
 
-- API / public Contract；
-- schema / migration；
-- CLI；
-- env / provider / model / feature flag；
-- 用户流程、权限、导航；
-- 模块职责、重大重构；
-- 服务、部署、端口、后台任务；
-- rename / retirement；
-- 跨项目共享协议。
+### 1. Change Completeness Sweep
 
-Full Closeout 会根据 final diff 搜索旧 symbol / route / env / field / service 等 stale reference，再由 AGY 就地更新现有权威知识文件。
+对于每一个语义变化，不只检查 changed files，还追踪：
 
-### 不把 Closeout 变成第二套框架
+```text
+Changed Symbol / Behavior
+→ Direct Callers
+→ Indirect Callers / Re-exports / Scripts
+→ Types / Enums / Validation / Serialization
+→ Schema / Migration / Existing Data
+→ Sibling Paths / Jobs / Flows
+→ Error / Empty / Permission / Retry / Fallback
+→ Cache / Derived State / Stale IDs
+→ Dead / Orphaned Old Path
+→ Tests
+→ Knowledge Impact Handoff
+```
 
-默认不纳入：
+核心判断：
 
-- Agent memory 写入；
-- production deploy / live verification；
-- remote branch / PR / release cleanup；
-- 跨项目写入；
-- 未授权删除用户文件或历史资料。
+> 现在交付时，Reviewer 会称剩余项为 **unfinished**，还是 **a different ticket**？
 
-这些动作只有原 Task Contract 或用户明确授权时才执行。
+unfinished 必须本次完成；different ticket 不借 completeness 扩张 Scope。
 
-## 为什么不默认 Worktree
+### 2. Blast Radius 成为正式 Gate
 
-tty7 的通用多 Agent delegation 很适合“一任务一 worktree”。但这个 Skill 的默认拓扑是：
+`resources/review-gates.md` 现在把 Change Propagation & Blast Radius 作为 Gate 3。
+
+Review 从：
+
+```text
+Review current diff
+```
+
+升级为：
+
+```text
+Review current diff
++
+Review missing diff
+```
+
+### 3. Test Layer Decision
+
+每个任务明确：
+
+```text
+Unit:        required | not-applicable
+Integration: required | not-applicable
+E2E:         required | not-applicable | user-skipped
+```
+
+`user-skipped` 不能被包装成 `not-applicable`。
+
+跨边界真实流程如 UI→API→DB、service→service、CLI→filesystem 优先考虑 E2E；纯 helper/library 可明确 N/A。
+
+### 4. Bugfix RED → GREEN
+
+可安全、确定性复现的 bug 默认要求：
+
+```text
+Regression Test
+→ unfixed behavior 上 RED
+→ Fix Root Cause
+→ same test GREEN
+→ Codex Independent Re-run
+```
+
+无法安全/稳定复现时可以 `not-applicable`，但要记录原因和替代证据。
+
+### 5. One-way Door
+
+Completeness 不能自动授权：
+
+- destructive / non-additive migration；
+- breaking public API；
+- auth / tenancy relaxation；
+- money / billing semantics；
+- secrets / credentials；
+- production mutation；
+- irreversible data deletion。
+
+这类 remainder 标 `blocked-decision-needed`，由用户决定。
+
+### 6. Skill 自测 Evals
+
+新增 `evals/` 固定高风险场景：
+
+```text
+dirty baseline
+false done
+missing status hook
+scope drift
+hidden caller / partial propagation
+bugfix red-green
+wrong test layer
+stale docs
+zero-doc-diff closeout
+one-way decision
+```
+
+目标不是测试业务代码，而是测试 Supervisor 有没有提前 ACCEPT、漏 Gate、误删用户改动或把显式 trade-off 偷偷改写。
+
+## 为什么不默认 Worktree / Multi-Agent Wave
+
+这个 Skill 的默认拓扑仍然是：
 
 ```text
 AGY = sole primary writer
-Codex = read/review/verify
+Codex = supervisor / read / review / verify
+tty7 = runtime
 ```
 
-用户当前 checkout 的未提交改动又可能是任务上下文，因此 v2.1 默认继续使用当前 checkout + baseline protection。
+用户当前 checkout 的未提交改动可能是任务上下文，所以默认继续使用 current checkout + baseline protection。
 
-只有：
+只有多 Writer 并行、高风险隔离实验或用户明确要求时才优先 worktree。
 
-- 多 Writer 并行；
-- 高风险隔离实验；
-- 用户明确要求；
-
-才优先使用独立 worktree。
+alamops 风格的多 Agent wave/file partitioning 很有价值，但不在 v2.1.2 引入，避免把单 AGY Supervisor 变成另一套通用 orchestrator。
 
 ## 文件结构
 
@@ -220,53 +293,44 @@ agy-supervised-development/
 │   ├── tty7-supervision.md
 │   ├── run-lifecycle.md
 │   ├── failure-modes.md
+│   ├── completeness-regression.md
 │   ├── review-gates.md
 │   └── closeout-governance.md
-└── examples/
-    ├── feature-development.md
-    └── rework-cycle.md
+├── examples/
+│   ├── feature-development.md
+│   ├── bugfix-red-green.md
+│   └── rework-cycle.md
+└── evals/
+    ├── README.md
+    └── scenarios.json
 ```
 
-### `SKILL.md`
+### `resources/completeness-regression.md`
 
-Codex → tty7 → AGY 的监督主流程，包括代码 Verification 后的 Knowledge Closeout。
-
-### `resources/tty7-supervision.md`
-
-workspace/pane ownership、Launch Proof、native/fallback status、Read Before Send、crash recovery 和 cleanup。
-
-### `resources/run-lifecycle.md`
-
-Supervisor State、Run Context、Turn Nonce、Scope Drift、Rework Budget，以及 `CODE_VERIFIED → CLOSEOUT → ACCEPTED` 生命周期。
-
-### `resources/agy-runtime.md`
-
-监督流程需要的 AGY capability、workspace、execution mode、permission、conversation 等知识。
-
-### `resources/failure-modes.md`
-
-将启动失败、缺少 status hook、swallowed Enter、串项目、API error、worker exit、scope drift 等拆成证据驱动处理流程。
+定义 Completeness Contract、Blast Radius Evidence、Scope/Completeness 边界、RED→GREEN、Test Layer Decision 和 one-way door。
 
 ### `resources/review-gates.md`
 
-Codex 独立 Review 与 PASS / REWORK / BLOCKED / final Acceptance 规则，包含 Gate 12 Knowledge & Documentation Alignment。
+Gate 3 = Change Propagation & Blast Radius；Gate 7 = Tests/Test Layers/Regression Proof；Gate 13 = Knowledge & Documentation Alignment。
 
-### `resources/closeout-governance.md`
+### `evals/`
 
-定义每次开发后的 Knowledge Impact Scan、Lightweight / Full Closeout、变更到知识面的路由、AGY Closeout Turn 和 Codex Closeout Review。
+定义 Supervisor 行为回归场景，让 Skill 自己也具备可重复的验收契约。
 
-## v2 → v2.1 → v2.1.1
+## 版本演进
 
-v2 解决：
+```text
+v2
+→ Codex 怎样监督 AGY
 
-> Codex 应该怎样监督 AGY。
+v2.1
+→ Codex 怎样通过 tty7 可靠控制一个可观察/可返工 AGY worker
 
-v2.1 进一步解决：
+v2.1.1
+→ 代码验证后怎样把项目知识收尾到同一现役答案
 
-> Codex 怎样利用 tty7 可靠地控制一个可观察、可接管、可返工的 AGY worker，同时在 AGY 没有 tty7 native status hook 时仍然不误判状态。
+v2.1.2
+→ 怎样证明改动传播完整、测试层选择正确、bugfix 真有回归证据，并开始测试 Skill 自己
+```
 
-v2.1.1 再补齐：
-
-> 当代码已经验证完成后，怎样让 AGY 根据最终事实把 README、规则、Contract 和运行说明收尾到同一现役答案，再由 Codex 验收。
-
-v2.1 系列暂不抽象 Grok/Pi/Claude 通用 Adapter，也不做多 Worker orchestration。先把 `Codex → tty7 → AGY` 单 worker 路径和任务终态做稳定，再考虑后续泛化。
+v2.1 系列暂不抽象 Grok/Pi/Claude 通用 Adapter，也不做多 Worker orchestration。先把 `Codex → tty7 → AGY` 单 worker 的**正确性、完整性、可验证性和终态一致性**做稳。
