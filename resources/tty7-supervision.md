@@ -1,8 +1,8 @@
 # Legacy — tty7 Supervision (v2.1 only)
 
-> **v3.0 主流程不使用本文件。**
+> **v3.0.1 主流程不使用本文件。**
 
-AGY Supervised Development 3.0 已将 Worker Runtime 从：
+AGY Supervised Development 已从：
 
 ```text
 Codex → tty7 → AGY CLI
@@ -11,10 +11,16 @@ Codex → tty7 → AGY CLI
 迁移为：
 
 ```text
-Codex App → Pi Harness → Pi Provider
+Codex App
+  ↓
+Pi Native CLI / JSON Session
+  ↓
+Pi built-in Coding Harness
+  ↓
+Pi Provider
 ```
 
-因此下列 v2.1 机制在 v3.0 中不再是运行要求：
+因此下列 v2.1 机制在 3.0.1 中不再是运行要求：
 
 - tty7 workspace/pane ownership；
 - Launch Proof；
@@ -22,15 +28,24 @@ Codex App → Pi Harness → Pi Provider
 - AGY status hook / capture fallback；
 - Read Before Send；
 - Turn Nonce；
+- AGY conversation DB/resume；
 - AGY TUI permission interaction。
 
-v3.0 的等价职责已经迁移到：
+3.0.1 同样不再要求 v3.0.0 曾考虑的：
 
-- `pi-harness.md`：Pi session/operation、mode、Tool Guard、Evidence Bundle；
-- `run-lifecycle.md`：Run/Session/Operation 状态机；
-- `provider-boundary.md`：Provider/OAuth 边界；
-- `review-gates.md`：Harness Policy & Credential Hygiene Gate。
+- custom `pi-supervised-harness`；
+- `pi-supervisor` CLI；
+- custom Run Store；
+- `run_id + operation_id`；
+- custom Evidence Bundle。
 
-本文件仅保留为 v2.1 → v3.0 的历史迁移提示，**不得被 v3 Skill 当成 active runtime contract**。
+Active runtime contract：
 
-如需使用旧的 tty7 + AGY CLI 工作流，请切回 `codex/agy-supervised-v2.1` 分支。
+- `pi-interaction.md`：Codex↔Pi Native CLI/JSON/session；
+- `run-lifecycle.md`：Codex governance states；
+- `provider-boundary.md`：Provider/OAuth；
+- `review-gates.md`：Pi session/runtime/extension evidence gates。
+
+本文件仅用于说明 v2.1 → v3 的迁移，不得被 3.0.1 Skill 当成 active runtime contract。
+
+如需旧 tty7 + AGY CLI 工作流，请使用 `codex/agy-supervised-v2.1` 分支。
