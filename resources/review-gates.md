@@ -1,10 +1,8 @@
-# Repository Review Gates
+# Repository Review Gates — v3.0.1
 
-本文件定义 AGY Supervised Development 3.0 中 Codex 对 **Pi Worker 产出的 repository state** 做独立 Review 的维度。
+本文件定义 Codex 对 **Pi Native Worker 产出的真实 repository state** 做独立 Review 的维度。
 
-不是所有任务都机械执行所有项，但所有相关项必须有结论。
-
-Pi Evidence Bundle / worker summary 只用于诊断和定位；真正交付从 Git state 获取。
+Pi JSON events、session metadata、Provider/model 信息和 Worker summary 只用于诊断；真正交付从 Git state 获取。
 
 ---
 
@@ -13,9 +11,9 @@ Pi Evidence Bundle / worker summary 只用于诊断和定位；真正交付从 G
 确认：
 
 - 当前 branch / HEAD 已记录；
-- 任务开始前已有未提交改动已识别；
-- 没有为了“清理”误删/回滚用户改动；
-- 本 Run 新增改动可与 baseline 区分。
+- 任务前已有未提交改动已识别；
+- 没有为了“清理”回滚用户改动；
+- Pi 本任务新增改动可与 baseline 区分。
 
 ```bash
 git status --short
@@ -26,9 +24,7 @@ git diff --check
 核心：
 
 ```text
-current changes
-- baseline changes
-= task-introduced changes
+current changes - baseline changes = task-introduced changes
 ```
 
 ---
@@ -37,41 +33,38 @@ current changes
 
 检查：
 
-- 修改是否属于 Task Contract；
-- 是否顺手重构；
-- 是否无关格式化；
-- 是否新增不必要依赖；
-- 是否改无关 config/CI/deploy。
+- 修改属于 Task Contract；
+- 没有无关 refactor/format；
+- 没有无关 dependency/config/CI/deploy 变化。
 
-如果 Pi 新增 path 超初始 Scope：
+超初始 Scope 的 path：
 
-1. 判断是否为需求必然传播面；
-2. 有 blast-radius/completeness evidence 可以纳入；
-3. 没有充分证据 → REWORK；
-4. 只撤销本 Run 引入的越界修改；
-5. 不碰 baseline-owned changes。
+1. 是需求必然 propagation → 可以纳入 completeness scope；
+2. 无充分证据 → REWORK；
+3. 只撤销 Pi 本任务引入的越界改动；
+4. 不碰 baseline-owned changes。
 
 ---
 
 ## Gate 2 — Requirement Coverage
 
-把需求拆成可验证条目，逐项对应：
+把需求逐项对应到：
 
-- 实现代码；
+- implementation；
 - API/schema/contract；
 - migration/data；
 - tests；
 - UI/caller（若适用）。
 
-不能用“Worker 说完成了”替代逐项覆盖。
+不能用 Pi “已完成”替代覆盖证明。
 
 ---
 
 ## Gate 3 — Change Propagation & Blast Radius
 
-本 Gate 同时 Review current diff 与 missing diff。详细协议见 `completeness-regression.md`。
+Review current diff + missing diff。
 
-每个语义变化追踪：
+追踪：
 
 - direct callers；
 - indirect callers / re-export / scripts；
@@ -82,7 +75,7 @@ current changes
 - cache / derived state / stale IDs；
 - orphaned old path / dead code；
 - tests；
-- Knowledge Closeout 影响面。
+- Knowledge Closeout impact。
 
 必要时：
 
@@ -91,7 +84,7 @@ rg "<changed-symbol>" .
 rg "<old-route|old-field|old-enum|old-config>" .
 ```
 
-每个 remainder 必须是：
+Remainder disposition：
 
 ```text
 fixed-in-run
@@ -100,21 +93,19 @@ out-of-scope-different-ticket
 blocked-decision-needed
 ```
 
-Completeness 不能成为 scope expansion 借口。
-
 ---
 
 ## Gate 4 — Architecture & Contract
 
 检查：
 
-- 遵守项目分层/模块边界；
-- 没有绕开已有抽象重复实现；
-- API contract 与 caller 同步；
-- DTO/model/entity 边界清晰；
-- DB schema/migration/persistence 一致；
-- config 遵循已有模式；
-- 没有为完成任务引入无依据的新架构。
+- 项目分层/模块边界；
+- 没绕开已有抽象；
+- API contract 与 caller 一致；
+- DTO/model/entity 边界；
+- schema/migration/persistence；
+- config convention；
+- 没有无依据架构扩张。
 
 ---
 
@@ -128,7 +119,7 @@ Completeness 不能成为 scope expansion 借口。
 - retry / idempotency；
 - timezone / locale；
 - concurrency / race；
-- transaction boundary；
+- transaction；
 - pagination / ordering；
 - authorization；
 - partial failure；
@@ -141,17 +132,17 @@ Completeness 不能成为 scope expansion 借口。
 检查：
 
 - exception 是否被吞；
-- HTTP/status/error code 是否正确；
+- status/error code；
 - log 是否泄漏敏感数据；
-- debug/临时输出是否残留；
-- 是否有足够定位上下文；
+- debug/临时输出；
+- 定位上下文；
 - retry 是否放大永久错误。
 
 ---
 
 ## Gate 7 — Tests, Test Layers & Regression Proof
 
-每个实际开发任务必须有：
+每个任务必须明确：
 
 ```text
 Unit:        required | not-applicable
@@ -159,82 +150,71 @@ Integration: required | not-applicable
 E2E:         required | not-applicable | user-skipped
 ```
 
-- 纯逻辑通常 unit；
-- module/DB/serialization/queue/adapter contract 考虑 integration；
-- UI→API→DB、service→service、CLI→filesystem 等真实边界流程优先 E2E；
-- `user-skipped` 不能改写成 `not-applicable`。
+- pure logic → unit；
+- module/DB/serialization/queue/adapter contract → integration；
+- UI→API→DB、service→service、CLI→filesystem 等真实边界 → 优先 E2E；
+- `user-skipped` 不得改写成 N/A。
 
 ### Bugfix RED → GREEN
 
-可安全、确定性自动复现的 bug 默认要求：
+可安全、确定性自动复现：
 
 ```text
-regression test
-→ unfixed behavior RED
-→ fix root cause
-→ same test GREEN
-→ Codex independent re-run
-```
-
-记录：
-
-```text
-Regression proof: required | not-applicable
-Before fix: FAIL evidence
-After fix: PASS
-Codex re-run: PASS | FAIL
+unfixed → regression test RED
+fix root cause
+same test → GREEN
+Codex independent re-run
 ```
 
 警惕：
 
-- 只改 assertion 迎合实现；
-- 删除测试；
-- 大面积 skip；
+- 只改 assertion；
+- 删/skip tests；
 - mock 掉真实 contract；
 - fix 后才补一个从没证明能 RED 的测试。
 
 ---
 
-## Gate 8 — Operation Evidence Integrity
+## Gate 8 — Pi Session / Turn Evidence Integrity
 
-Pi 的 `agent_settled` / RPC settled / Evidence Bundle 只说明当前 worker operation 返回。
+3.0.1 不要求 custom `run_id/operation_id`。
 
 确认：
 
-- Evidence 的 `run_id` 是当前 Run；
-- `operation_id` 与当前 operation 一致；
-- stale event 没有推进状态；
-- status 是 settled/blocked/failed/aborted 中的明确值；
-- Provider/model transition 已记录；
-- worker summary 与 Git state 明显冲突时以 Git 为准；
-- Evidence 没有 token/Authorization/secret。
+- Pi session id/file 来自真实 Pi 输出；
+- JSON session header 的 `cwd` 与 `repo_root` 一致；
+- resume 使用的是当前任务真实 session，而不是最近一个未知 session；
+- `agent_end` / 正常 process exit 只被解释为“Pi turn returned”；
+- JSON stream 截断时没有无脑 replay 可能产生写副作用的 turn；
+- Provider/model 切换若发生是显式、可解释的；
+- Worker summary 与 Git state 冲突时以 Git 为准。
 
 规则：
 
 ```text
-OPERATION_SETTLED != PASS
+Pi agent_end != PASS
 ```
 
 ---
 
 ## Gate 9 — Independent Verification
 
-Codex 必须自己执行相关命令。优先使用仓库约定，并服从 Gate 7 的 Test Layer Decision：
+Codex 必须自己执行相关门禁：
 
 ```text
 lint
 format/check
 typecheck
-unit test
-integration test
-e2e test（required 时）
+unit
+integration
+e2e（required 时）
 build/package
 contract/schema check
 ```
 
-Pi 报告“我跑过了”只能作为线索。
+Pi 报告“我跑过”只能作为线索。
 
-E2E required 时记录 command、startup/readiness、seed/fixture、account/sandbox 和 teardown。
+E2E required 时记录 command、startup/readiness、seed/fixture、account/sandbox、teardown。
 
 ---
 
@@ -252,19 +232,19 @@ git diff
 确认没有：
 
 - debug code；
-- 临时文件；
-- build artifact；
+- temp/build artifacts；
 - 意外 lockfile；
-- 无关 rename；
-- 大面积格式化；
+- unrelated rename/format；
 - sensitive information；
-- 超范围文档/config 修改。
+- 超范围 docs/config。
 
 ---
 
 ## Gate 11 — External Side Effects / One-way Door
 
-默认验收边界是“本地 repository 可交付”。确认没有未经授权：
+默认验收边界：本地 repository 可交付。
+
+未经授权不得：
 
 - push；
 - merge；
@@ -272,9 +252,9 @@ git diff
 - deploy；
 - production write；
 - remote delete；
-- cloud resource mutation。
+- cloud mutation。
 
-Completeness 也不能授权 Codex/Pi 擅自做：
+以下 decision 同样默认需要用户明确决定：
 
 - destructive/non-additive migration；
 - breaking public API；
@@ -283,49 +263,65 @@ Completeness 也不能授权 Codex/Pi 擅自做：
 - credential behavior；
 - irreversible data deletion。
 
-需要时标 `blocked-decision-needed`。
+标 `blocked-decision-needed`，不能借 completeness 自动授权。
 
 ---
 
-## Gate 12 — Harness Policy & Credential Hygiene
+## Gate 12 — Pi Runtime / Extension / Credential Hygiene
 
-v3 新增正式 Harness Gate。
+3.0.1 不再 Review 自研 Harness，而 Review **实际 Pi runtime 能力是否被如实使用和报告**。
 
-确认：
+### Native runtime
 
-### Mode policy
+- 使用 Pi 原生 session，而非伪造 session identity；
+- 不要求不存在的 custom daemon/Run Store；
+- JSON/RPC capability 使用前已由当前安装能力确认。
 
-- `inspect/verify` 没有写工具或 mutation escape；
-- `implement/rework` 写入受到 repo/scope guard；
-- `closeout` 没有借收尾重开生产代码范围。
+### Workflow extension
 
-### Tool policy
+如果报告 `read-only enforced`：
 
-- blocked tool call 有明确 reason；
-- dangerous command 没有绕过 hook；
-- custom tool 没有绕开 read-only mode；
-- Harness 没有为了成功临时进入 YOLO/全放行。
+- 必须确认可信 extension 已加载；
+- 当前 mode 必须是实际 read-only mode（如已验证的 `plan/review`）；
+- task-introduced mutation 与 read-only 声明不矛盾。
+
+如果 extension 不存在：
+
+```text
+mode_enforcement = unavailable/prompt-only
+```
+
+不得包装成程序化 Tool Guard。
+
+监督流程默认不使用 `yolo` 绕过阻塞。
 
 ### Provider boundary
 
-- Provider 只作为模型来源；
-- 未自动安装/登录未经用户确认的 Provider；
-- 没有提取 OAuth token/credential；
-- Provider error 与代码 error 分类清楚。
+- Provider 只作为 intelligence；
+- 没自动安装/登录未经用户确认的 Provider；
+- 没提取 OAuth token/credential；
+- auth/quota/model/transport error 与 code error 分类清楚；
+- provider/model failover 不静默。
 
-### Evidence hygiene
+### Credential hygiene
 
-- Run Store / Evidence Bundle 不含 access token、refresh token、Authorization header、secret value；
-- runtime-only state 没有意外进入 git diff；
-- session identity 只记录非敏感 ID/path reference。
+不得把：
 
-如果 Harness policy 本身失效，应先 BLOCK/修复 Harness，不继续相信后续 worker operation。
+```text
+access token
+refresh token
+Authorization header
+client secret
+credential file contents
+```
+
+写入 Task Contract、项目文件、最终报告或为了“留证”复制到仓库。
 
 ---
 
 ## Gate 13 — Knowledge & Documentation Alignment
 
-代码通过 Gate 0–12 的相关项和 Independent Verification 后执行 Knowledge Closeout。详见 `closeout-governance.md`。
+代码通过相关 Gate 和 Independent Verification 后执行 Knowledge Closeout。
 
 每个相关知识面标：
 
@@ -339,21 +335,21 @@ not-applicable
 
 检查：
 
-- README/usage 与最终实现一致；
-- `AGENTS.md` / `CLAUDE.md` / project rules 准确、精简；
+- README/usage 与 final implementation 一致；
+- `AGENTS.md` / `CLAUDE.md` / project rules 准确且不过度膨胀；
 - API/schema/CLI/shared Contract 与实现/示例/caller 一致；
 - env/config/provider/service/deploy/job docs 同步；
-- rename/retirement 没在现役文档留下 stale reference；
-- 没有多个文档声称同一事实都是权威来源；
-- 没把一次性开发流水账写入长期规则；
-- 未验证行为没被写成“已完成/已上线”；
-- residue 已如实报告且无未经授权删除。
+- rename/retirement 无 stale current-state reference；
+- 没有多个文档争夺同一事实权威；
+- 没把开发流水账写进长期规则；
+- 未验证行为没写成“已完成/已上线”；
+- residue 如实报告且未未经授权删除。
 
-原则：每次开发都 Scan，不是每次开发都必须改 Markdown。
+每次开发都 Scan，不是每次都必须修改 Markdown。
 
 ---
 
-# Review 结论模板
+# Review Verdict
 
 ## PASS
 
@@ -363,7 +359,7 @@ PASS
 - Baseline 完整，无无依据 scope drift。
 - Completeness/blast radius 已检查。
 - 相关代码/测试证据成立。
-- Harness operation/evidence identity 正确。
+- Pi session/runtime evidence 与 repository 不冲突。
 - 可以进入下一阶段。
 ```
 
@@ -371,21 +367,21 @@ PASS
 
 ```text
 REWORK
-- Issue: <具体问题>
-- Evidence: <文件/diff/测试/调用链/operation evidence>
-- Expected: <期望行为>
-- Required change: <Pi Worker 要修改什么>
-- Re-run: <修复后应跑什么>
+- Issue: <问题>
+- Evidence: <file/diff/test/call-chain/Pi session evidence>
+- Expected: <期望>
+- Required change: <Pi 要修改什么>
+- Re-run: <命令>
 ```
 
 ## BLOCKED
 
 ```text
 BLOCKED
-- Blocker: <环境/Provider/权限/one-way decision/需求缺失/Harness defect>
+- Blocker: <环境/Provider/权限/one-way decision/session/extension capability>
 - Evidence: <实际证据>
-- Safe state: <当前 repository/run 状态>
-- Decision needed: <需要用户决定什么>
+- Safe state: <repository / governance state>
+- Decision needed: <用户决定>
 ```
 
-只有相关 Gates PASS 才进入下一重要阶段。最终 `ACCEPTED` 必须同时经过 Completeness、Test/Regression Proof、Codex Independent Verification、Harness Policy Gate 和 Knowledge Closeout Review。
+最终 `ACCEPTED` 必须同时经过 Completeness、Test/Regression Proof、Codex Independent Verification、Pi Runtime/Extension Hygiene 和 Knowledge Closeout Review。
