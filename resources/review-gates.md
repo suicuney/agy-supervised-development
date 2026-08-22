@@ -31,7 +31,7 @@ git diff --check
 - 是否新增不必要依赖；
 - 是否改动无关配置、CI、部署文件。
 
-v2.1 强制区分：
+强制区分：
 
 ```text
 current changes
@@ -58,7 +58,40 @@ current changes
 
 不能用“总体看起来完成了”代替逐项覆盖。
 
-## Gate 3 — Architecture & Contract
+## Gate 3 — Change Propagation & Blast Radius
+
+本 Gate 不只检查“改了什么”，还检查“**本来应该改但漏掉了什么**”。详细协议见 `completeness-regression.md`。
+
+对每个有语义变化的 symbol / contract / state 追踪：
+
+- direct callers；
+- indirect callers、re-export/barrel、scripts；
+- types / enums / validation / serialization；
+- schema / migration / existing data；
+- sibling handlers / jobs / flows；
+- error / empty / permission / retry / fallback states；
+- cache / derived state / stale IDs；
+- orphaned old path / dead code；
+- tests；
+- 后续 Knowledge Closeout 影响面。
+
+必要时：
+
+```bash
+rg "<changed-symbol>" .
+rg "<old-route|old-field|old-enum|old-config>" .
+```
+
+每个发现的 remainder 必须得到一种明确处置：
+
+- `fixed-in-run`；
+- `not-applicable`；
+- `out-of-scope-different-ticket`；
+- `blocked-decision-needed`。
+
+规则：Completeness 不能成为 scope expansion 的借口；判断标准是“现在交付会被 Reviewer 称为 unfinished，还是另一个 ticket”。前者必须收完，后者留在 Scope 外。
+
+## Gate 4 — Architecture & Contract
 
 检查：
 
@@ -70,15 +103,9 @@ current changes
 - 配置是否遵循已有方式；
 - 是否引入架构方向偏离。
 
-必要时：
+Completeness 发现的传播面不能用破坏架构边界的方式补齐。
 
-```bash
-rg "<symbol>" .
-```
-
-追踪调用链和同类实现。
-
-## Gate 4 — Correctness & Edge Cases
+## Gate 5 — Correctness & Edge Cases
 
 按任务相关性检查：
 
@@ -94,7 +121,7 @@ rg "<symbol>" .
 - partial failure；
 - backward compatibility。
 
-## Gate 5 — Error Handling & Observability
+## Gate 6 — Error Handling & Observability
 
 检查：
 
@@ -105,24 +132,66 @@ rg "<symbol>" .
 - 是否有足够上下文定位问题；
 - retry 是否放大永久错误。
 
-## Gate 6 — Tests
+## Gate 7 — Tests, Test Layers & Regression Proof
 
-测试必须验证真实需求，而不是只为了绿色：
+测试必须验证真实需求，而不是只为了绿色。
+
+### Test Layer Decision
+
+每个实际开发任务都要有明确结论：
+
+```text
+Unit:        required | not-applicable
+Integration: required | not-applicable
+E2E:         required | not-applicable | user-skipped
+```
+
+- 纯逻辑通常由 unit 覆盖；
+- 跨 module / DB / serialization / queue / adapter contract 时考虑 integration；
+- UI→API→DB、service→service、CLI→filesystem 等真实跨边界流程优先考虑 E2E；
+- 用户明确跳过 E2E 时必须记为 `user-skipped`，不能伪装成 `not-applicable`。
+
+### Bugfix Red → Green
+
+可安全、确定性自动复现的 bug 默认要求：
+
+```text
+regression test
+→ 在 unfixed behavior 上 RED
+→ fix root cause
+→ 同一 test GREEN
+→ Codex independent re-run
+```
+
+记录：
+
+```text
+Regression proof: required | not-applicable
+Before fix: FAIL evidence
+After fix: PASS
+Codex re-run: PASS | FAIL
+```
+
+`not-applicable` 必须有原因和替代证据，不能只是“没写 regression test”。
+
+同时检查：
 
 - happy path；
 - 关键 failure path；
-- bug regression case；
 - 重要边界；
-- contract / integration（若相关）。
+- contract / integration；
+- 可达的 error/empty/permission state；
+- bug root cause 是否在 sibling site 仍存在。
 
 警惕：
 
 - 只改 assertion 迎合错误实现；
 - 删除测试；
 - 大面积 skip；
-- mock 掉真正需要验证的逻辑。
+- mock 掉真正需要验证的逻辑；
+- 修复后才补一个从未证明会失败的“回归测试”。
 
-## Gate 7 — Turn Evidence Integrity
+## Gate 8 — Turn Evidence Integrity
 
 `TURN_COMPLETE:<nonce>` 或 tty7 native `done` 只说明当前 worker turn 返回。
 
@@ -135,9 +204,9 @@ Review 必须确认：
 
 此 Gate 不决定代码正确性，只保证 Supervisor 没有读错轮次。
 
-## Gate 8 — Independent Verification
+## Gate 9 — Independent Verification
 
-Codex 必须自己执行相关命令。优先使用仓库约定：
+Codex 必须自己执行相关命令。优先使用仓库约定，并服从 Gate 7 的 Test Layer Decision：
 
 ```text
 lint
@@ -145,13 +214,16 @@ format/check
 typecheck
 unit test
 integration test
+e2e test（required 时）
 build/package
 contract/schema check
 ```
 
 AGY 报告“我跑过了”只能作为线索，不能代替独立验证。
 
-## Gate 9 — Diff Hygiene
+如果 E2E required，应记录 command、startup/readiness、seed/fixture、test account/sandbox 和 teardown；仓库没有 E2E harness 时，不擅自为小任务引入大型基础设施，按 Task Contract 决策。
+
+## Gate 10 — Diff Hygiene
 
 最终检查：
 
@@ -173,7 +245,7 @@ git diff
 - 敏感信息；
 - 超范围文档/配置变化。
 
-## Gate 10 — External Side Effects
+## Gate 11 — External Side Effects / One-way Door
 
 默认验收边界是“本地 repository 可交付”。确认没有未经授权：
 
@@ -185,7 +257,16 @@ git diff
 - remote delete；
 - cloud resource mutation。
 
-## Gate 11 — tty7 Ownership / Cleanup
+Completeness 也不能授权 Supervisor/AGY 擅自做 one-way decision。以下默认需要明确授权/用户判断：
+
+- destructive / non-additive migration；
+- breaking public API；
+- auth / tenancy boundary relaxation；
+- money / billing semantics；
+- secrets / credentials；
+- irreversible data deletion。
+
+## Gate 12 — tty7 Ownership / Cleanup
 
 确认：
 
@@ -195,9 +276,9 @@ git diff
 - 若任务完成且用户未要求保留，清理的是本次创建的 workspace；
 - 若保留 worker，最终汇报提供稳定 workspace/pane id。
 
-## Gate 12 — Knowledge & Documentation Alignment
+## Gate 13 — Knowledge & Documentation Alignment
 
-代码通过独立 Verification 后必须执行 Knowledge Closeout。详细协议见 `closeout-governance.md`。
+代码通过 Gate 0–12 的相关项和 Independent Verification 后必须执行 Knowledge Closeout。详细协议见 `closeout-governance.md`。
 
 先做 Knowledge Impact Scan；每个相关事实面必须标成：
 
@@ -234,6 +315,7 @@ git diff
 PASS
 - 当前 Task Contract 阶段满足。
 - Baseline 完整，未发现无依据的 scope drift。
+- Completeness / blast radius 相关项已检查。
 - 相关代码/测试证据成立。
 - 可以进入下一阶段或独立 Verification。
 ```
@@ -243,7 +325,7 @@ PASS
 ```text
 REWORK
 - Issue: <具体问题>
-- Evidence: <文件/diff/测试证据>
+- Evidence: <文件/diff/测试/调用链证据>
 - Expected: <期望行为>
 - Required change: <需要 AGY 做什么>
 - Re-run: <修复后 AGY 应跑什么>
@@ -253,10 +335,10 @@ REWORK
 
 ```text
 BLOCKED
-- Blocker: <环境/权限/外部依赖/需求缺失>
+- Blocker: <环境/权限/外部依赖/one-way decision/需求缺失>
 - Evidence: <实际证据>
 - Safe state: <当前 repository / worker 状态>
 - Decision needed: <需要用户决定什么>
 ```
 
-只有相关代码 Gate PASS 才进入下一重要阶段。最终 `ACCEPTED` 必须同时经过 Codex Independent Verification 和 Gate 12 Knowledge Closeout Review。
+只有相关代码 Gate PASS 才进入下一重要阶段。最终 `ACCEPTED` 必须同时经过 Change Completeness、Test/Regression Proof、Codex Independent Verification 和 Gate 13 Knowledge Closeout Review。
