@@ -2,6 +2,62 @@
 
 All notable changes to this Skill are documented here.
 
+## [3.0.0] - 2026-08-22
+
+### Architecture
+
+- Kept **Codex App** as the sole master Supervisor / Reviewer / Final Acceptance authority.
+- Replaced the v2.1 `Codex → tty7 → AGY CLI` worker path with **`Codex App → Pi Harness → Pi Provider`**.
+- Defined **Pi Harness** as the sole primary Writer / Worker Runtime responsible for session, operation state, tool policy, scope guard and evidence.
+- Defined **Provider** as intelligence-only. The default target can be an Antigravity Pi provider chosen and authenticated by the user, but the Skill no longer binds worker lifecycle to AGY CLI.
+- Kept **repository state** as the final source of truth.
+
+### Added
+
+- `resources/pi-harness.md` defining the v3 worker harness contract, SDK/RPC integration, Run/Session/Operation identities, durable state, worker modes, defense-in-depth Tool Guard, Evidence Bundle, recovery and harness testing.
+- `resources/provider-boundary.md` defining Provider/OAuth ownership, Antigravity third-party integration risk, credential redaction, provider health/failure classification and provider replaceability.
+- Explicit Worker modes: `inspect`, `implement`, `rework`, `verify`, `closeout`.
+- Three-layer Tool Guard: tool visibility + `tool_call` policy + per-operation system policy injection.
+- Structured Evidence Bundle with run/operation/session identity, provider/model, repository evidence, tests, policy blocks, scope findings and unresolved items.
+- New Gate 12 — Harness Policy & Credential Hygiene.
+- v3 failure modes for provider auth/quota/transport/capability errors, stale operation results, harness bridge crash, read-only policy escape, credential leakage and non-silent provider failover.
+- v3 eval cases for provider auth, stale operation correlation, read-only blocking, provider failover and credential redaction.
+
+### Changed
+
+- Replaced tty7 workspace/pane + Turn Nonce identity with **`run_id + pi_session_id + operation_id`**.
+- Replaced AGY turn states with `HARNESS_PREFLIGHT → HARNESS_READY → OPERATION_SENT → EXECUTING → OPERATION_SETTLED`.
+- Changed worker completion semantics to `OPERATION_SETTLED != PASS`; Codex must still independently inspect Git.
+- Moved runtime enforcement from prompt-heavy instructions into a programmable Pi Harness contract.
+- Changed Provider auth handling so the user/Provider owns install/login/credentials; the Harness records only sanitized availability/health status.
+- Updated Review, Completeness, RED→GREEN, Independent Verification and Knowledge Closeout to operate on Pi Worker output.
+- Updated examples and Skill evals to the Pi Harness architecture.
+
+### Removed from v3 mainline
+
+- `agy` CLI capability detection and runtime requirement.
+- tty7 workspace/pane lifecycle as a mandatory worker runtime.
+- Launch Proof, `tty7 send/capture/wait`, AGY status hook fallback, Read Before Send and Turn Nonce.
+- AGY conversation database/session resume requirements.
+- AGY CLI-specific runtime documentation (`resources/agy-runtime.md`).
+
+`resources/tty7-supervision.md` remains only as an explicit **legacy v2.1 migration note** and is not an active v3 runtime contract.
+
+### Preserved
+
+- Git baseline protection and respect for user-owned uncommitted changes.
+- Task Contract and Scope Drift Guard.
+- Repository state as the source of truth.
+- Evidence-driven Review → Rework → Re-review.
+- Change Completeness / Blast Radius Review and unfinished-vs-different-ticket boundary.
+- Explicit Unit / Integration / E2E Test Layer Decision.
+- Deterministic bugfix RED → root-cause fix → GREEN → Codex independent re-run.
+- Independent Codex Verification before `CODE_VERIFIED`.
+- Mandatory Knowledge Impact Scan / Closeout before `ACCEPTED`.
+- One-way-door and external-side-effect boundaries.
+- No push / merge / release / deploy by default.
+- Single-writer default; v3.0 intentionally does not become a general multi-agent DAG orchestrator.
+
 ## [2.1.2] - 2026-08-22
 
 ### Added
