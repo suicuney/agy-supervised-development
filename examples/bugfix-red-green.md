@@ -1,4 +1,4 @@
-# Example — Bugfix RED → GREEN with Pi Harness
+# Example — Bugfix RED → GREEN with Pi Native Harness (v3.0.1)
 
 场景：`CacheService` 在空 key 时仍访问 backend，导致异常；现有 contract 要求空 key 返回 empty result。
 
@@ -6,7 +6,7 @@
 
 ## 1. Task Contract
 
-Codex 先定义：
+Codex先定义：
 
 ```text
 Goal
@@ -33,21 +33,32 @@ Regression Proof
 - required：该 bug 可确定性、无外部副作用自动复现。
 
 Execution Policy
-- mode=implement
 - no push/merge/deploy
 ```
 
 ---
 
-## 2. Pi Worker 先建立 RED evidence
+## 2. 启动 Pi Session
 
-Codex 发 `implement` operation，但 Contract 明确要求：**先写 regression test，再改 production code**。
+如果 `pi-agent-modes` 已安装并验证：
 
-```text
-run_id = R-...
-operation_id = OP-001
-mode = implement
+```bash
+pi --mode json --modes build --name "agy:cache-null-key" "<Task Contract>"
 ```
+
+否则：
+
+```bash
+pi --mode json --name "agy:cache-null-key" "<Task Contract>"
+```
+
+Codex从 session header 保存真实 `pi_session_id` 和 `cwd`，确认 `cwd == repo_root`。
+
+Task Contract 明确要求：**先写 regression test，再改 production code。**
+
+---
+
+## 3. 先建立 RED Evidence
 
 测试目标：
 
@@ -56,7 +67,7 @@ null key returns empty and never calls backend
 blank key returns empty and never calls backend
 ```
 
-运行：
+Pi运行：
 
 ```bash
 ./mvnw -Dtest=CacheServiceTest test
@@ -71,13 +82,13 @@ Regression proof
 - Evidence: backend interaction observed / expected empty result mismatch
 ```
 
-如果测试一开始就是 GREEN，说明测试没有捕获原 bug，不能算 regression proof。
+如果测试一开始就是 GREEN，说明它没有捕获原 bug，不能算 regression proof。
 
 ---
 
-## 3. Pi Worker 修 Root Cause
+## 4. 修 Root Cause + GREEN
 
-RED 成立后，Worker 修改 production code，并在 Evidence Bundle 中说明：
+RED 成立后，Pi修改 production code，并说明：
 
 ```text
 Symptom
@@ -93,38 +104,26 @@ Regression boundary
 - null + blank + normal key
 ```
 
-只在 caller/UI 层拦 null，而 service 仍可被其他入口触发，不算 root-cause fix。
-
----
-
-## 4. GREEN
-
-Pi Worker 运行同一测试：
+然后运行同一测试：
 
 ```bash
 ./mvnw -Dtest=CacheServiceTest test
 ```
 
-Evidence：
+得到：
 
 ```text
 Before fix: FAIL
 After fix: PASS
 ```
 
-operation settle 后，状态只能到：
-
-```text
-OPERATION_SETTLED
-```
-
-不能直接 `CODE_VERIFIED`。
+Pi JSON `agent_end` / 正常进程退出只说明本次 turn 返回，不是 `CODE_VERIFIED`。
 
 ---
 
 ## 5. Codex Diff + Completeness Review
 
-Codex 自己检查：
+Codex自己：
 
 ```bash
 git diff --check
@@ -148,11 +147,19 @@ Completeness Sweep: PASS
 Remainders: none
 ```
 
+如果发现漏改，Codex形成完整 Rework Contract，并 resume 同一 session：
+
+```bash
+pi --mode json --session <pi-session> --modes debug "<Rework Contract>"
+```
+
+`debug` 不可用时使用已验证 writable mode 或省略 `--modes`，但不要虚构 enforcement。
+
 ---
 
 ## 6. Codex Independent Verification
 
-Codex 自己重跑：
+Codex独立重跑：
 
 ```bash
 ./mvnw -Dtest=CacheServiceTest test
@@ -169,7 +176,7 @@ Codex re-run: PASS
 Completeness Sweep: PASS
 ```
 
-只有这些成立才进入：
+只有这些成立才：
 
 ```text
 VERIFYING → CODE_VERIFIED
@@ -189,9 +196,9 @@ Runtime Config      not-applicable
 Residue             verified-current
 ```
 
-不需要为了制造 closeout diff 再启动写文档 operation。
+不需要为了制造 closeout diff 再调用 Pi 写文档。
 
-Codex 完成 Closeout Review 后才：
+Codex完成 Closeout Review 后：
 
 ```text
 ACCEPTED
