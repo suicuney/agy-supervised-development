@@ -1,360 +1,239 @@
-# AGY Supervised Development 3.0.1
+# AGY Supervised Development 3.1 — Workflow First
 
-一个以 **Codex App 为唯一主入口和最终 Supervisor、Pi 原生 Coding Harness 为唯一主要 Worker、Provider 为模型推理层** 的监督式开发 Skill。
+> 当前分支：`3.1.0-alpha.1`。本批次先落地 **Workflow Kernel**，后续再收敛 AGY Runtime 和三轴 Review。
 
-> **Codex owns supervision. Pi owns execution. Provider supplies intelligence. Repository owns truth.**
+这是一套面向个人日常软件开发的监督式流程：
 
-名称继续保留 `AGY Supervised Development` 作为项目连续性；v3 主链路不再依赖 `agy` CLI 或 tty7。
+> **Codex shapes and proves. AGY builds. Git tells the truth.**
+>
+> **Codex 想清楚、拆清楚、验清楚；AGY 负责实现；Git 负责作证。**
+
+3.1 不再把 Skill 的核心定义成“怎么控制某个 Harness”，而是定义一次开发应该如何从模糊需求走到可证明的交付。
 
 ---
 
-## 3.0.1 架构
+## 核心流程
 
 ```text
 User
-  ↓
+ ↓
 Codex App
-Master Supervisor / Reviewer / Final Acceptance
-  ↓ Task Contract / Rework Contract / Closeout Contract
-Pi Native CLI / JSON Session
-  ↓
-Pi built-in Coding Harness
-  ├─ native session persistence
-  ├─ read / edit / write / bash / search tools
-  ├─ existing trusted extensions (optional)
-  └─ configured Provider
-       ↓
-  Antigravity / other Provider
-  ↓
-Repository Changes
-  ↓
-Codex Diff Review
-  ↓
-Completeness / Blast Radius Review
-  ↓
-Codex Independent Verification
-  ↓
-CODE_VERIFIED
-  ↓
+ ↓
+SIZE
+Small / Medium / Large
+ ↓
+SHAPE
+Resolved / Open / Fog / Out-of-Scope
+ ↓
+SPEC
+Behavior / Decisions / Acceptance / Test Seams
+ ↓
+SLICE
+Vertical Slices or Expand→Migrate→Contract
+ ↓
+Primary Worker
+Target: Official AGY CLI
+ ↓
+Repository
+ ↓
+Codex Review / Rework
+ ↓
+Completeness / Blast Radius
+ ↓
+Independent Verification
+ ↓
 Knowledge Closeout
-  ↓
+ ↓
 ACCEPTED
 ```
 
-### 核心收敛
-
-3.0.0 曾考虑再开发：
-
-```text
-pi-supervised-harness
-pi-supervisor CLI
-custom Run Store
-run_id + operation_id
-custom Evidence Bundle
-```
-
-3.0.1 正式取消这些默认设计。
-
-原因很简单：**Pi 本身已经是 Harness**，已有 session、agent loop、tools、JSON/RPC、extensions 和 Provider abstraction。我们只需要把成熟能力组合起来，不重复造轮子。
+Workflow 与 Runtime 解耦：以后 AGY 使用 headless、tty7 交互 fallback，或者某个 specialist 工具，都不应该改变 Size / Shape / Spec / Slice / Review 的方法。
 
 ---
 
-# 三层职责
+# 第一批：Workflow Kernel
 
-### Codex App
+## 1. Task Sizing
 
-负责：
+见 `resources/task-sizing.md`。
 
-- Requirement / Task Contract；
-- Git baseline；
-- Architecture decisions；
-- Review / Rework direction；
-- Completeness / Blast Radius；
-- Test Layer Decision；
-- Independent Verification；
-- Knowledge Closeout Review；
-- Final `ACCEPTED`。
+不是所有任务都跑同样重的流程：
 
-### Pi Native Harness
+### Small
 
-负责：
+```text
+Compact Spec
+→ Implement
+→ Review
+→ Verify
+```
 
-- agent loop；
-- persistent session；
-- provider/model invocation；
-- read/edit/write/bash/search tools；
-- 实现、测试、返工、必要知识文件更新。
+适合明确局部 bug、小接口、小校验。
 
-### Existing Extensions / Provider
+### Medium
 
-- Mode/tool-policy 尽量复用成熟 Pi Extension；
-- 默认参考 `pi-agent-modes` 的 `plan/build/review/debug`；
-- Provider 只提供 intelligence；Antigravity 是目标 Provider 之一，不写死到 Skill 生命周期。
+```text
+Shape
+→ Spec
+→ 2–5 Vertical Slices
+→ Implement / Review per slice
+→ Global Verify
+```
+
+这是正常 Feature 的默认路径。
+
+### Large
+
+```text
+Destination
+→ Decision Map / Fog
+→ Resolve Decisions
+→ Spec
+→ Slice
+→ staged implementation
+```
+
+只有真正跨系统、大迁移、大重构、决策高度不确定时才使用重流程。
 
 ---
 
-# Codex → Pi：直接走原生 JSON
+## 2. Shaping
 
-默认 MVP 不需要 Adapter daemon。
+见 `resources/shaping.md`。
 
-新任务：
-
-```bash
-pi --mode json --name "agy:<task-name>" "<Task Contract>"
-```
-
-如果当前已安装、已验证 `pi-agent-modes`：
-
-```bash
-pi --mode json --modes build --name "agy:<task-name>" "<Task Contract>"
-```
-
-Pi JSON stream 的第一条 session header 提供真实 session identity 和 cwd。Codex 保存：
+Codex 不急着生成施工计划，而是先区分：
 
 ```text
-pi_session_id
-cwd
+Resolved Decisions
+Open Decisions
+Not Yet Specified
+Out of Scope
+One-way Decisions
 ```
 
-并验证：
+采用 `frontier` 思路：只处理前置决定已经解决的问题。
 
-```text
-cwd == repo_root
-```
+能从代码/文档查到的事实由 Codex 自己调查；真正需要产品/架构取舍的决定才交给用户。
 
-返工继续同一 session：
+关键规则：
 
-```bash
-pi --mode json --session <session> --modes debug "<Rework Contract>"
-```
-
-Closeout：
-
-```bash
-pi --mode json --session <session> --modes build "<Closeout Contract>"
-```
-
-详细见 `resources/pi-interaction.md`。
+> **看不清的问题先留在 Fog，不要提前制造假的 Ticket 精度。**
 
 ---
 
-# 为什么不用自研 Harness
+## 3. Spec Contract
 
-Pi 已经负责：
+见 `resources/spec-contract.md`。
 
-```text
-Agent Loop
-Session persistence
-Compaction
-Model / Provider
-Tool execution
-JSON events
-RPC
-Extensions
-Abort / continue / resume
-```
-
-如果再开发一层：
+Spec 固化已经做出的决定：
 
 ```text
-Codex
-→ custom harness
-→ Pi harness
+Problem
+Expected Behavior
+Scenarios
+Implementation Decisions
+Acceptance Criteria
+Verification Seams
+Test Strategy
+Out of Scope
+Constraints / One-way Decisions
 ```
 
-反而又形成第二套 runtime state、第二套 failure model、第二套维护成本。
+Spec 默认不写成逐文件施工单，也不依赖容易过期的行号/内部实现细节。
 
-3.0.1 的原则是：
+### Verification Seam
 
-> **监督逻辑留在 Skill，执行逻辑留给 Pi，策略能力优先复用 Extension。**
+3.1 在原来的 Unit / Integration / E2E 之外，新增一个重要概念：
+
+> **从哪个稳定公共边界观察这个行为？**
+
+例如：
+
+```text
+Primary Seam: POST /orders
+Integration: required
+E2E: required for checkout flow
+```
+
+优先复用已有的高层稳定 seam，避免测试绑定内部实现。
 
 ---
 
-# Existing Extension 策略
+## 4. Execution Slicing
 
-3.0.1 不把某个第三方 Extension 变成永久硬依赖，但默认优先参考成熟实现。
+见 `resources/execution-slicing.md`。
 
-当前推荐映射：
+Medium/Large Spec 不默认一次交给 Worker。
 
-| Skill Phase | `pi-agent-modes` | 写权限 |
-|---|---|---|
-| PLANNING | `plan` | read-only |
-| IMPLEMENTING | `build` | writable |
-| REWORKING | `debug` / `build` | writable |
-| SECONDARY REVIEW | `review` | read-only |
-| CLOSEOUT | `build` + Closeout Contract | writable, contract-limited |
-
-注意：
+### Vertical Slice / Tracer Bullet
 
 ```text
-pi --mode json
+input
+→ behavior
+→ persistence/integration
+→ observable output
+→ verification
 ```
 
-里的 `--mode` 是 Pi core 输出模式；而：
+每个 slice 应该窄、完整、可 Review、尽量可独立验证，并适合一个 fresh Worker context。
+
+不要默认这样水平切：
 
 ```text
-pi --modes build
+先所有 DB
+→ 再所有 API
+→ 再所有 UI
+→ 最后补测试
 ```
 
-是 `pi-agent-modes` 的 workflow mode。两者不是一回事。
+### Wide Refactor
 
-如果没有可信 mode extension，Skill **不能宣称 read-only/tool guard 已程序化生效**。此时仍可运行 Pi，但权限保证下降，必须显式记录并依赖 Codex baseline/scope/repository Review。
+共享字段、类型、签名等 blast radius 很大的机械迁移使用：
 
-监督模式不默认使用 `yolo`。
+```text
+EXPAND
+→ MIGRATE A
+→ MIGRATE B
+→ ...
+→ CONTRACT
+```
+
+旧 form 删除前要求 zero-consumer evidence。
 
 ---
 
-# Supervisor State 也被简化
+# 角色
 
-3.0.0 的 runtime-oriented states：
-
-```text
-HARNESS_PREFLIGHT
-HARNESS_READY
-OPERATION_SENT
-EXECUTING
-OPERATION_SETTLED
-```
-
-不再作为 Codex 的正式持久治理状态。
-
-3.0.1：
-
-```text
-INIT
-→ BASELINED
-→ PI_READY
-→ PLANNING          optional
-→ IMPLEMENTING
-→ REVIEWING
-→ COMPLETENESS_REVIEW
-→ VERIFYING
-→ CODE_VERIFIED
-→ CLOSEOUT
-→ CLOSEOUT_REVIEW
-→ ACCEPTED
-```
-
-异常：
-
-```text
-REWORK_REQUIRED
-BLOCKED
-FAILED
-CANCELLED
-```
-
-Pi 内部 `agent_start / tool_execution_* / agent_end` 由 Pi 自己管理。
-
-关键语义仍然不变：
-
-```text
-Pi agent_end != PASS
-PASS != CODE_VERIFIED
-CODE_VERIFIED != ACCEPTED
-```
+| 角色 | 3.1 职责 |
+|---|---|
+| User | 产品/架构/one-way 决策 |
+| Codex App | Shape、Spec、Slice、Review、Verification、Final Acceptance |
+| AGY CLI | Target Primary Implementer / Writer |
+| Pi | Optional Specialist，不要求进入主链 |
+| tty7 | Optional Interactive Runtime / fallback |
+| Git | Source of Truth |
 
 ---
 
-# 2.1.x 的核心资产全部保留
+# 3.1 保留的成熟资产
 
-3.0.1 只删除 runtime 重复建设，没有削弱监督标准：
+3.1 不推翻前几版已经成熟的后半段治理：
 
 - Git baseline protection；
 - repository state as source of truth；
-- Task Contract；
-- Scope Drift Guard；
 - Evidence-driven Rework；
 - Change Completeness / Blast Radius；
-- explicit Unit / Integration / E2E；
-- deterministic bugfix RED → GREEN；
+- unfinished vs different-ticket boundary；
+- Unit / Integration / E2E applicability；
+- deterministic bugfix RED → root-cause fix → GREEN；
 - Codex Independent Verification；
 - `CODE_VERIFIED != ACCEPTED`；
-- Knowledge Impact Scan / Closeout；
-- one-way-door / external-side-effect boundary；
-- Skill behavior evals。
+- Knowledge Closeout；
+- one-way-door / no push-merge-release-deploy by default。
 
 ---
 
-# Provider Boundary
-
-目标仍然允许：
-
-```text
-Pi
- ↓ Google OAuth through a user-selected Provider
-Antigravity
-```
-
-但：
-
-- Skill 不绑定具体 Antigravity package；
-- 不自动 `pi install`；
-- 不自动 OAuth；
-- 不读取 access/refresh token；
-- 不把 credential 放进 prompt/log/repo；
-- Provider auth/quota/transport failure 与代码失败分开；
-- Provider/model failover 不静默发生。
-
-第三方 Antigravity Provider 是非官方集成，启用前应审查当前实现的 source/README/license/risk note。
-
-详细见 `resources/provider-boundary.md`。
-
----
-
-# Completeness / Test / Closeout
-
-这些规则不因 Runtime 简化而改变。
-
-### Completeness
-
-```text
-Changed Symbol / Behavior
-→ Direct Callers
-→ Indirect Callers / Re-exports / Scripts
-→ Types / Enums / Validation / Serialization
-→ Schema / Migration / Existing Data
-→ Sibling Flows / Jobs
-→ Error / Empty / Permission / Retry / Fallback
-→ Cache / Derived State / Stale IDs
-→ Dead / Orphaned Old Path
-→ Tests
-→ Knowledge Impact
-```
-
-### Test Strategy
-
-```text
-Unit:        required | not-applicable
-Integration: required | not-applicable
-E2E:         required | not-applicable | user-skipped
-```
-
-### Bugfix
-
-```text
-Regression Test
-→ unfixed behavior RED
-→ Fix Root Cause
-→ same test GREEN
-→ Codex Independent Re-run
-```
-
-### Closeout
-
-每次开发都 Scan，但不是每次都修改文档：
-
-```text
-verified-current
-changed-and-verified
-pending
-out-of-scope
-not-applicable
-```
-
----
-
-# 文件结构
+# 当前 active files
 
 ```text
 agy-supervised-development/
@@ -362,43 +241,46 @@ agy-supervised-development/
 ├── README.md
 ├── CHANGELOG.md
 ├── resources/
-│   ├── pi-interaction.md          # 3.0.1 active runtime interaction
-│   ├── provider-boundary.md
-│   ├── run-lifecycle.md
-│   ├── failure-modes.md
+│   ├── task-sizing.md            # 3.1 new
+│   ├── shaping.md                # 3.1 new
+│   ├── spec-contract.md          # 3.1 new
+│   ├── execution-slicing.md      # 3.1 new
 │   ├── completeness-regression.md
-│   ├── review-gates.md
+│   ├── review-gates.md           # Phase 2 将升级三轴 Review
 │   ├── closeout-governance.md
-│   ├── pi-harness.md              # legacy 3.0.0 design note
-│   └── tty7-supervision.md        # legacy 2.1 note
+│   └── run-lifecycle.md
 ├── examples/
 └── evals/
 ```
 
+旧 `pi-interaction.md` / `provider-boundary.md` / `pi-harness.md` 目前保留用于历史迁移与后续整理，**不是 3.1 Workflow Kernel 的核心依赖**。
+
 ---
 
-# 版本演进
+# 下一批计划
+
+Alpha 2：
 
 ```text
-v2
-→ Codex 怎样监督 AGY
-
-v2.1
-→ Codex 怎样通过 tty7 可靠控制 AGY CLI
-
-v2.1.1
-→ Knowledge Closeout
-
-v2.1.2
-→ Completeness / Blast Radius / Test Layers / RED→GREEN / Evals
-
-v3.0
-→ 从 AGY CLI 切到 Pi Harness + Provider
-
-v3.0.1
-→ 取消自研 Harness/Bridge/Run Store；直接使用 Pi Native CLI/JSON/Session + Existing Extensions + Provider
+AGY Execution Adapter
+- Official AGY CLI as Primary Worker
+- headless-first
+- tty7 interactive fallback
+- runtime 与 Workflow 解耦
 ```
 
-最终形态：
+Alpha 3：
 
-> **Codex 决策，Pi 执行，Extension 约束，Provider 思考，Git 作证。**
+```text
+Three-Axis Review
+- Spec Fidelity
+- Engineering Quality
+- Completeness / Blast Radius
+
++ dedicated complex-bug workflow
++ examples
++ evals
++ legacy runtime cleanup
+```
+
+3.1 的长期目标不是做另一个 Orca/Maestro，而是形成稳定、轻量、适合个人长期使用的软件开发方法。
