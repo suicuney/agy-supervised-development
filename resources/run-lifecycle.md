@@ -1,12 +1,40 @@
-# Supervisor Run Lifecycle — v3.0.1
+# Supervisor Run Lifecycle — v3.1 Alpha 2
 
-本文件只定义 **Codex 的治理状态**。Pi 内部 agent loop、tool events、provider streaming 和 session persistence 由 Pi 自己管理；3.0.1 不再复制第二套 Run/Operation runtime state machine。
+本文件定义 **Codex 的治理生命周期**。AGY CLI 自己的内部 agent/tool/subagent 状态不复制成第二套 orchestration state machine。
+
+核心顺序：
+
+```text
+INTAKE
+→ SIZED
+→ SHAPING          # Medium/Large when needed
+→ SPEC_READY
+→ SLICED
+→ WORKER_READY
+→ IMPLEMENTING
+→ REVIEWING
+→ COMPLETENESS_REVIEW
+→ VERIFYING
+→ CODE_VERIFIED
+→ CLOSEOUT
+→ CLOSEOUT_REVIEW
+→ ACCEPTED
+```
+
+异常状态：
+
+```text
+REWORK_REQUIRED
+BLOCKED
+CANCELLED
+FAILED
+```
 
 ---
 
 ## 1. Supervisor Context
 
-每个开发任务建议保存：
+每个开发任务至少维护：
 
 ```text
 repo_root
@@ -15,29 +43,26 @@ base_head
 baseline_changed_paths
 baseline_diff_or_fingerprint
 
-task_contract
-pi_session_id
-pi_session_file = optional
-pi_session_cwd
-provider_id = observable | unknown
-model_id = observable | unknown
-workflow_extension = detected | absent | unknown
-workflow_mode = plan | build | review | debug | none
+task_size = small | medium | large
+shape_record
+approved_spec
+execution_units
+current_execution_unit
 
-supervisor_state
+test_strategy
+primary_verification_seam
+regression_proof_status
+
+agy_conversation_id = real | none
+agy_cwd
+agy_result_status
 rework_count
 
-completeness_status = pending | pass | rework | blocked
+completeness_status
 blast_radius_evidence
 remainder_dispositions
 
-test_strategy:
-  unit = required | not-applicable
-  integration = required | not-applicable
-  e2e = required | not-applicable | user-skipped
-regression_proof = required | red-green-pass | not-applicable
-
-closeout_level = lightweight | full
+closeout_level
 knowledge_surface_status
 ```
 
@@ -46,129 +71,158 @@ knowledge_surface_status
 ```text
 custom run_id
 custom operation_id
-harness_version
-custom durable Run Store
+custom daemon state
+custom worker database
 ```
-
-Pi session identity 使用 Pi 实际返回值，不自己发明。
 
 ---
 
-## 2. Supervisor State Machine
+## 2. INTAKE → SIZED
+
+先做 Task Sizing：
 
 ```text
-INIT
-  ↓
-BASELINED
-  ↓
-PI_READY
-  ↓
-PLANNING              optional
-  ↓
-IMPLEMENTING
-  ↓
-REVIEWING
-  ├────────→ REWORK_REQUIRED
-  │               ↓
-  │           REWORKING
-  │               ↓
-  │           REVIEWING
-  ↓
-COMPLETENESS_REVIEW
-  ├────────→ REWORK_REQUIRED
-  ├────────→ BLOCKED
-  ↓
-VERIFYING
-  ├────────→ REWORK_REQUIRED
-  ├────────→ BLOCKED
-  ↓
-CODE_VERIFIED
-  ↓
-CLOSEOUT
-  ↓
-CLOSEOUT_REVIEW
-  ├────────→ REWORK_REQUIRED
-  ├────────→ BLOCKED
-  ↓
-ACCEPTED
+Small
+Medium
+Large
 ```
 
-任何阶段都可能因用户取消进入 `CANCELLED`，因不可恢复运行错误进入 `FAILED`。
+详见 `task-sizing.md`。
+
+Size 不是永久标签。后续发现新的决策、blast radius 或 one-way door 时可以升级。
 
 ---
 
-## 3. `PI_READY`
+## 3. SHAPING
 
-`BASELINED → PI_READY` 之前确认：
-
-- Pi executable/CLI capability；
-- `--mode json`；
-- session persistence/resume；
-- repo cwd；
-- Provider/model 可用性；
-- auth 状态；
-- workflow extension/mode 能力是否存在。
-
-缺失必需能力：
+Small 可走 compact shaping；Medium/Large 正式维护：
 
 ```text
-→ BLOCKED
+Resolved Decisions
+Open Decisions
+Not Yet Specified
+Out of Scope
+One-way Decisions
 ```
 
-默认不自动安装 Pi/Provider/Extension，也不自动 OAuth。
+只有关键 Open Decisions 已解决、剩余 Fog 不阻塞当前实现时，进入 `SPEC_READY`。
+
+Worker 不负责替用户补齐未解决的产品/架构决策。
 
 ---
 
-## 4. PLANNING 是可选治理阶段
+## 4. SPEC_READY → SLICED
 
-复杂任务可先让 Pi 做只读 plan/inspect。
-
-如果可信 `pi-agent-modes` 可用：
+Codex 冻结 Spec：
 
 ```text
-PLANNING → --modes plan
+Problem
+Expected Behavior
+Scenarios
+Implementation Decisions
+Acceptance Criteria
+Verification Seams
+Test Strategy
+Out of Scope
 ```
 
-否则可以使用普通 Pi + read-only Task Contract 做分析，但必须明确：
+再判断 Change Shape：
 
 ```text
-programmatic read-only enforcement = unavailable
+Vertical Slice
+or
+Expand → Migrate → Contract
 ```
 
-对于必须强制只读才安全的场景，缺失可信 policy extension 时应 BLOCK，而不是把 prompt 当 sandbox。
-
-Planning 不是所有小任务必经阶段。
+生成 Execution Units。Medium/Large 默认不要一次把完整 Spec 交给 Worker。
 
 ---
 
-## 5. IMPLEMENTING
+## 5. Git Baseline
 
-Codex 发 Task Contract，Pi 作为唯一主要 Writer 执行。
+进入写实现前建立 baseline：
 
-推荐：
-
-```text
-Pi JSON mode
-+ same repo cwd
-+ new real session
-+ build workflow mode if trusted extension is available
+```bash
+git status --short
+git diff --stat
+git branch --show-current
+git rev-parse HEAD
 ```
 
-Pi JSON stream 的 `agent_end` / 正常进程退出只说明本次 turn 返回。
-
-不要额外建立：
+规则：
 
 ```text
-OPERATION_SETTLED
+current changes - baseline changes = task-introduced changes
 ```
 
-这样的治理状态。turn 返回后直接由 Codex进入 `REVIEWING`。
+不得为了“干净工作区”回滚用户已有改动。
 
 ---
 
-## 6. REVIEWING
+## 6. WORKER_READY — AGY Native Preflight
 
-Pi turn 返回后，Codex重新读取 repository：
+默认 Primary Worker 目标是官方 AGY CLI。
+
+确认：
+
+```bash
+command -v agy
+agy --version
+agy --help
+```
+
+至少要求：
+
+```text
+-p / --print
+--output-format stream-json
+--conversation
+correct repo cwd
+auth usable
+```
+
+如果 headless 能力不可用：
+
+- 可以选择受控 tty7 interactive fallback；
+- 或在确有需要时 `BLOCKED`；
+- 不静默改成第三方 Antigravity Provider。
+
+详见 `agy-execution.md`。
+
+---
+
+## 7. IMPLEMENTING
+
+Codex 只把**当前 Execution Unit**交给 AGY。
+
+默认：
+
+```bash
+cd "$repo_root"
+agy -p "<Execution Unit>" --output-format stream-json
+```
+
+读取真实 `init.conversation_id` 和 `init.cwd`，要求：
+
+```text
+agy_cwd == repo_root
+```
+
+本轮 terminal `result` 到达后：
+
+```text
+IMPLEMENTING → REVIEWING
+```
+
+无论 `result.status` 是否 `SUCCESS`，都不能直接进入 Verification/Acceptance。
+
+如果 run 异常中止，先检查 repository partial effects，再决定 resume / replacement conversation。
+
+---
+
+## 8. REVIEWING
+
+Codex 自己读取：
 
 ```bash
 git status --short
@@ -177,7 +231,15 @@ git diff --check
 git diff
 ```
 
-实现 Review 结论：
+当前 Alpha 2 继续复用现有 Review Gates；后续 Alpha 3 会升级为：
+
+```text
+Spec Fidelity
+Engineering Quality
+Completeness
+```
+
+本阶段结论：
 
 ```text
 PASS    → COMPLETENESS_REVIEW
@@ -185,11 +247,11 @@ REWORK  → REWORK_REQUIRED
 BLOCKED → BLOCKED
 ```
 
-Pi final answer、JSON `agent_end`、Provider completion 都不能直接 PASS。
+AGY final response、exit 0、`result.status=SUCCESS` 都不是 Review PASS。
 
 ---
 
-## 7. REWORKING
+## 9. REWORK_REQUIRED → REWORKING
 
 Rework 固定使用：
 
@@ -197,62 +259,50 @@ Rework 固定使用：
 Issue
 Evidence
 Expected
-Required change
+Required Change
 Re-run
-Scope reminder
+Scope Reminder
+Forbidden Actions
 ```
 
-优先 resume 同一真实 Pi session：
+优先 resume 同一真实 conversation：
+
+```bash
+agy -p "<Rework Contract>" \
+  --conversation "$agy_conversation_id" \
+  --output-format stream-json
+```
+
+自动化监督场景优先显式 `--conversation`，不要用 `-c` 猜“最近 conversation”。
+
+Rework 结束后回：
 
 ```text
-same pi_session_id
-new Pi invocation
+REVIEWING
 ```
 
-如果 `pi-agent-modes` 可用：
-
-```text
-bug/root-cause rework → debug
-general structural rework → build
-```
-
-Rework 后回 `REVIEWING`。
-
-默认：
-
-```text
-soft_rework_limit = 3
-```
-
-计数单位是完整：
-
-```text
-Review → Rework → Re-review
-```
-
-达到 soft limit 后重新评估 Task Contract、根因、Provider/model、extension policy、环境和 completeness 边界，不静默无限循环，也不直接切 `yolo`。
+默认 soft limit：3 个完整 `Review → Rework → Re-review` 周期。达到后重新评估 Spec、slice 边界、root cause、permissions 和环境，不无限循环。
 
 ---
 
-## 8. COMPLETENESS_REVIEW
+## 10. COMPLETENESS_REVIEW
 
-固定检查：
+固定做 Missing Diff Review：
 
 ```text
-changed symbol / behavior
-→ direct callers
-→ indirect callers / scripts / re-exports
-→ types / enums / validators / serializers
+changed behavior
+→ callers / consumers
+→ types / validators / serializers
 → schema / migration / existing data
 → sibling flows / jobs
-→ reachable error / empty / permission / retry / fallback
-→ cache / derived state / stale IDs
+→ error / retry / fallback
+→ cache / derived state
 → orphaned old path
 → tests
 → knowledge impact
 ```
 
-Remainder disposition：
+Remainder：
 
 ```text
 fixed-in-run
@@ -261,169 +311,181 @@ out-of-scope-different-ticket
 blocked-decision-needed
 ```
 
-结论：
+发现 unfinished：
 
 ```text
-PASS    → VERIFYING
-REWORK  → REWORK_REQUIRED
-BLOCKED → BLOCKED
+→ REWORK_REQUIRED
 ```
 
-Completeness 可以扩大“被证明为 unfinished”的实际文件传播面，但不能扩大到另一个 ticket。
+如果属于当前 slice 的真实传播面，Codex 可以扩充 Rework Contract；这不是 Scope Creep。
 
 ---
 
-## 9. VERIFYING
+## 11. VERIFYING
 
-Codex 根据 Test Layer Decision 独立运行门禁。
+只有 Review + Completeness PASS 才进入。
 
-```text
-Unit:        required | not-applicable
-Integration: required | not-applicable
-E2E:         required | not-applicable | user-skipped
-```
-
-可安全确定性复现的 bug 还要求：
+Codex 根据 Spec 的 Verification Seam 和 Test Strategy 独立运行：
 
 ```text
-unfixed → regression test RED
-fix root cause
-same test → GREEN
-Codex independent re-run
+lint / format-check
+typecheck
+unit
+integration
+e2e
+build/package
+schema/contract checks
 ```
 
-Verification 失败：
+Worker 自己声称测试通过不能替代这一阶段。
+
+特别注意：AGY headless 中某些 `Ask` command 可能被 soft-deny，但 run 仍可能 exit 0。因此 Codex 必须区分：
 
 ```text
-VERIFYING → REWORK_REQUIRED
+actually-run-and-pass
+blocked/not-run
+failed
 ```
 
-全部相关门禁满足：
+确定性 bug 还要满足 RED → root-cause fix → GREEN → Codex re-run。
+
+通过：
 
 ```text
 VERIFYING → CODE_VERIFIED
 ```
 
----
-
-## 10. CODE_VERIFIED
-
-进入前至少能说明：
+失败：
 
 ```text
-Diff Review = PASS
-Completeness Sweep = PASS
-Blast radius evidence
-Remainder dispositions
-Test Layer Decision
-Regression Proof
-Codex independent commands/results
+VERIFYING → REWORK_REQUIRED
 ```
-
-`CODE_VERIFIED` 不是最终完成，随后必须做 Knowledge Impact Scan。
 
 ---
 
-## 11. CLOSEOUT
+## 12. CODE_VERIFIED
 
-Codex判断：
+至少能说明：
 
 ```text
-closeout_level = lightweight | full
+Spec/Requirement Review = PASS
+Completeness = PASS
+Blast Radius evidence
+Verification Seam exercised
+Test Strategy satisfied
+Regression Proof satisfied/N/A
+Codex Independent Verification = PASS
 ```
 
-所有实际开发任务都 Scan。
+它仍不是最终完成。
 
-如果现有知识已经正确：
+---
+
+## 13. CLOSEOUT
+
+所有实际开发任务都做 Knowledge Impact Scan。
+
+若无需修改：
 
 ```text
 verified-current
 ```
 
-可以零文档 diff。
+可零文档 diff。
 
-需要修改时，resume 同一 Pi session。若 `pi-agent-modes` 可用，使用：
+需要修改时优先 resume 同一 AGY conversation，发送严格 Closeout Contract；如果 conversation 已丢失，则新建 conversation，但必须以 final verified repository state 为 Source of Truth。
 
-```text
-build + strict Closeout Contract
-```
-
-不发明 `closeout` custom mode。
-
-Pi turn 返回后：
-
-```text
-CLOSEOUT → CLOSEOUT_REVIEW
-```
-
-Closeout 发现真实代码问题时退回代码 Review/Completeness/Verification，不通过改文档掩盖。
+Closeout 不能重开新 Feature/架构范围。
 
 ---
 
-## 12. Session Resume
+## 14. CLOSEOUT_REVIEW → ACCEPTED
 
-只 resume 真实 Pi session：
+Codex 重新检查 Git、stale references、knowledge surfaces。
 
-```text
-Do not guess session id/file.
-```
-
-同时验证：
+只有满足：
 
 ```text
-session cwd == repo_root
+Spec satisfied
+Review PASS
+Completeness PASS
+Independent Verification PASS
+Knowledge Closeout PASS
+Baseline preserved
+No unauthorized one-way/external side effect
+Final diff explainable
 ```
 
-如果 session 丢失：
+才能：
 
-- 保留 repository state；
-- 新建 replacement Pi session；
-- 输入原 Task Contract + current diff + Review/Completeness/Test evidence；
-- 不自动从头重写代码。
-
-如果已经 `CODE_VERIFIED`，replacement session 只继续 Closeout。
+```text
+ACCEPTED
+```
 
 ---
 
-## 13. Provider Failure 不清空治理进度
+## 15. AGY Conversation Recovery
 
-Auth/quota/transport/model failure 不自动重置：
+### 已知真实 conversation id
 
-```text
-baseline
-repository progress
-Pi session if still valid
-review/completeness/test status
+继续：
+
+```bash
+agy -p "..." --conversation <id> --output-format stream-json
 ```
 
-有限 safe retry 可以继续；Provider/model failover 不得静默发生。
+### Conversation 丢失
 
-如果用户授权切换 Provider/model，记录变化后继续当前 repository state。
+不猜另一个 conversation。新开 AGY session，并输入：
+
+```text
+approved Spec
+current Execution Unit
+repo/branch/baseline
+current diff
+Review/Completeness findings
+verification status
+```
+
+Repository progress 不作废，也不默认从头重写。
 
 ---
 
-## 14. Scope Drift
+## 16. tty7 Fallback
 
-每轮 Review：
+只有需要 TUI 交互时使用：
 
 ```text
-current changes
-- baseline changes
-= task-introduced changes
+login/auth
+permissions manager
+manual approvals
+resume picker
+slash/TUI-only commands
+headless temporary incompatibility
 ```
 
-超 Scope path：
+进入 tty7 前保留当前 Spec/Execution Unit/baseline/conversation identity；退出后仍回 Codex Review。
 
-1. 判断是否是本次改动必然 propagation；
-2. 是 → 纳入 completeness scope；
-3. 否 → REWORK，只撤销 Pi 本任务产生的越界修改；
-4. 不碰 baseline-owned changes。
+**tty7 不拥有 Workflow state，也不拥有最终 Acceptance。**
 
 ---
 
-## 15. One-way Door
+## 17. Cancel / Interrupt
 
-以下默认需要用户决定：
+用户取消或 AGY 被中断：
+
+1. 停止当前 process / interactive action；
+2. 检查 repository partial progress；
+3. 不自动 rollback；
+4. 保存真实 conversation id（若已取得）；
+5. 报告当前安全状态；
+6. `CANCELLED`，存在风险未决时 `BLOCKED`。
+
+---
+
+## 18. One-way Door
+
+以下始终默认需要用户决定：
 
 - destructive/non-additive migration；
 - breaking public API；
@@ -434,40 +496,4 @@ current changes
 - irreversible deletion；
 - push/merge/release/deploy。
 
-可信 policy extension 若能阻断是加分项；无论 extension 是否存在，Codex 都不能把这些行为默认为已授权。
-
----
-
-## 16. Cancel / Abort
-
-用户停止任务时：
-
-- 停止当前 Pi invocation；
-- 若使用 RPC，调用 Pi 原生 abort；
-- 检查 repository partial progress；
-- 不自动 rollback；
-- 状态进入 `CANCELLED` 或风险情况下 `BLOCKED`。
-
----
-
-## 17. Acceptance
-
-只有 Codex 可以：
-
-```text
-CLOSEOUT_REVIEW → ACCEPTED
-```
-
-至少满足：
-
-- Task Contract 完成；
-- relevant Review Gates PASS；
-- Completeness PASS；
-- Test Strategy 满足；
-- Regression Proof 满足/N/A 合理；
-- Codex Independent Verification PASS；
-- Knowledge Closeout PASS；
-- baseline/user changes 未被破坏；
-- Provider/session/extension facts 没有被伪造；
-- external side effects 符合授权；
-- final diff 可解释。
+AGY permissions 是防护层，不替代用户授权语义。
