@@ -1,16 +1,18 @@
-# Completeness & Regression Proof — v3.1
+# Completeness & Regression Proof — v3.1 Alpha 3
 
-本文件定义进入 `CODE_VERIFIED` 前的两个核心门禁：
+本文件定义两件不同但互补的证据工作：
 
 ```text
-Change Completeness Sweep
+Axis C — Completeness / Missing Diff Review
 Regression / Test Proof
 ```
 
-它们回答两个不同问题：
+它们分别回答：
 
-- 当前 diff 里的东西是否正确；
-- 是否还有“本来应该改、却没有进入 diff”的传播面。
+- **Completeness**：还有没有本来应该改、却没有进入 diff 的传播面？
+- **Regression Proof**：对于 Bug，新的验证是否真的能抓住旧缺陷，并证明修复后恢复？
+
+Alpha 3 中，Completeness 已成为 Three-Axis Review 的 **Axis C**，不再是 Review 之后额外跑一次的独立治理状态。
 
 ---
 
@@ -34,7 +36,7 @@ Regression / Test Proof
 
 ---
 
-## 2. Missing Diff Review
+## 2. Axis C — Missing Diff Review
 
 对每一个语义变化追踪：
 
@@ -48,6 +50,8 @@ Indirect Callers / Re-exports / Scripts
 Types / Enums / Validation / Serialization
         ↓
 Schema / Migration / Existing Data
+        ↓
+Producer / Consumer
         ↓
 Sibling Paths / Jobs / Handlers
         ↓
@@ -89,7 +93,7 @@ rg "<old-route|old-field|old-enum|old-config>" .
 - sibling endpoint/platform；
 - retry/fallback/cache invalidation。
 
-Review 至少回答：
+Axis C 至少回答：
 
 ```text
 Changed surface:
@@ -108,6 +112,8 @@ not-applicable
 out-of-scope-different-ticket
 blocked-decision-needed
 ```
+
+发现当前任务必须补齐的 remainder，生成 `C*` finding。
 
 ---
 
@@ -133,7 +139,7 @@ Completeness Sweep
 若 AGY/Review 发现新的 propagation path：
 
 1. Codex 用调用链/contract evidence 判断是否 unfinished；
-2. 是 → 更新 `Rework Contract` 的有效 scope；
+2. 是 → 形成 `C*` finding，并更新 Rework Contract 的有效 scope；
 3. resume 当前真实 AGY conversation；
 4. 否 → 保持 different ticket。
 
@@ -141,19 +147,19 @@ Execution Unit 的初始文件范围不是永久静态 whitelist。
 
 ---
 
-## 5. 与 Vertical Slice / Wide Refactor 的关系
+## 5. Vertical Slice / Wide Refactor
 
 ### Vertical Slice
 
-每个 slice 的 Completeness 先保证：
+每个 slice 的 Axis C 先保证：
 
-> 这个 slice 自己交付的行为是完整的。
+> 这个 slice 自己声明交付的行为是完整的。
 
-多个 slice 完成后，再做一次 Global Completeness，防止跨 slice contract 漏传播。
+多个 slice 完成后，最终 Execution Unit / feature review 仍应做跨 slice propagation 检查，避免 contract 在 slice 边界漏掉。
 
 ### Expand → Migrate → Contract
 
-每个 migration batch 可以只完成一部分调用点，但必须符合已批准 migration sequence。
+每个 migration batch 可以只完成计划中的一部分调用点，但必须符合 approved migration sequence。
 
 最终 `CONTRACT` 前必须证明：
 
@@ -163,21 +169,23 @@ migration batches complete
 compatibility bridge can safely remove
 ```
 
-不要把计划内的 later migration batch误判成当前 batch 的 unfinished；同时也不能遗漏不在 migration plan 里的真实 caller。
+不要把计划内 later migration batch 误判成当前 batch 的 unfinished；同时也不能遗漏 migration plan 之外的真实 active caller。
 
 ---
 
 ## 6. One-way Door
 
-以下不能为了 completeness 擅自决定：
+以下不能为了 Completeness 擅自决定：
 
-- destructive/non-additive migration；
-- breaking public API；
-- auth/tenancy relaxation；
-- money/billing semantics；
-- credential behavior；
-- production mutation；
-- irreversible deletion。
+```text
+destructive/non-additive migration
+breaking public API
+auth/tenancy relaxation
+money/billing semantics
+credential behavior
+production mutation
+irreversible deletion
+```
 
 标：
 
@@ -189,9 +197,13 @@ AGY permission engine 是否允许执行，不改变用户授权要求。
 
 ---
 
-## 7. Bugfix Regression Proof：RED → GREEN
+# Regression / Bug Proof
 
-对于能够确定性、安全复现的 bug，默认要求：
+详细复杂 Bug 流程见 `resources/bugfix-workflow.md`。
+
+## 7. Simple Deterministic Bug：RED → GREEN
+
+对于能够确定性、安全复现的 Bug：
 
 ```text
 Reproduce
@@ -199,7 +211,7 @@ Reproduce
 → Run against unfixed behavior
 → RED for expected reason
 → Fix Root Cause
-→ Run same test
+→ Run same proof
 → GREEN
 → Codex Independent Re-run
 ```
@@ -216,19 +228,42 @@ After fix: PASS
 Codex re-run: PASS | FAIL
 ```
 
-AGY 可以提供 before/after worker evidence，但 Codex 必须判断它确实对应目标 bug，并独立重跑最终 test。
+AGY 可以提供 before/after worker evidence，但 Codex 必须判断它确实对应目标 Bug，并独立重跑最终 proof。
 
 ---
 
-## 8. 允许 Regression Proof N/A
+## 8. Complex Bug：Feedback Loop Before Guessing
 
-例如：
+当 Bug 具有 flaky / performance / async / cross-service / multiple-hypothesis 等特征，先走：
+
+```text
+Tight Feedback Loop
+→ Reproduce
+→ Minimise
+→ Ranked/Falsifiable Hypotheses
+→ Targeted Instrumentation
+→ Root Cause Evidence
+→ Regression Proof
+→ Fix
+→ Verify Original Repro
+```
+
+Complex Bug 没有 symptom-capable feedback loop 时，不应直接把“看起来可能是某处代码”当 root cause 开始大改。
+
+最终还要重新执行**原始未最小化场景**；minimal regression 绿不等于用户原始症状必然消失。
+
+---
+
+## 9. Regression Proof N/A
+
+允许的典型情况：
 
 - 不可控第三方/生产环境；
-- race/timing 无法稳定复现；
+- race/timing 暂时无法稳定自动复现；
 - 纯视觉且无自动化 harness；
 - 构建环境本身就是修复对象；
-- 安全复现会产生未授权外部副作用。
+- 安全复现会产生未授权外部副作用；
+- 当前代码结构没有能代表真实 Bug 的正确 seam。
 
 记录：
 
@@ -236,28 +271,34 @@ AGY 可以提供 before/after worker evidence，但 Codex 必须判断它确实�
 Regression proof: not-applicable
 Reason: ...
 Alternative evidence: ...
+Architecture gap: <if applicable>
 ```
 
-N/A 不是“懒得写测试”。
+N/A 不是“懒得写测试”，也不能跳过原始 symptom 的替代验证。
 
 ---
 
-## 9. Fix Root Cause，不只盖症状
+## 10. Root Cause，不只盖症状
 
-Codex Review bugfix 时要求能回答：
+Bug Review 至少能回答：
 
 ```text
 Symptom:
+Minimal repro:
 Root cause:
+Why this cause produces the symptom:
+Rejected alternatives / distinguishing evidence:
 Same cause elsewhere:
 Regression boundary:
 ```
 
-同根因存在于 reachable sibling 且不修就仍会产生同类 bug → Completeness remainder。
+同根因存在于 reachable sibling 且不修就仍会产生同类 Bug → Axis C remainder。
+
+如果修复只是 swallow exception / add null guard，但没有解释根因，Axis B 也可能 REWORK。
 
 ---
 
-## 10. Verification Seam
+## 11. Verification Seam
 
 Test Layer 之前先明确：
 
@@ -281,7 +322,7 @@ Spec 行为 = POST /orders
 
 ---
 
-## 11. Test Layer Decision
+## 12. Test Layer Decision
 
 每个开发任务显式：
 
@@ -293,11 +334,9 @@ E2E:         required | not-applicable | user-skipped
 
 ### Unit
 
-适合纯逻辑、validation、mapping、algorithm。
+纯逻辑、validation、mapping、algorithm。
 
 ### Integration
-
-适合：
 
 ```text
 controller ↔ service
@@ -308,8 +347,6 @@ filesystem/external adapter sandbox
 ```
 
 ### E2E
-
-真实用户/进程边界优先 required：
 
 ```text
 UI → API → DB
@@ -328,9 +365,30 @@ E2E = user-skipped
 
 ---
 
-## 12. AGY Worker Test Evidence
+## 13. Test Quality vs Test Execution
 
-AGY 的 Worker Report 应区分：
+Two different questions：
+
+```text
+Axis B / Test Quality
+= 测试本身是不是验证正确的行为边界？
+
+Independent Verification
+= 这些命令是不是真的被 Codex 运行并通过？
+```
+
+例如：
+
+- private-helper test 全绿 → 可能 Quality REWORK；
+- 测试设计正确但 AGY headless soft-deny 没真正运行 → Verification blocked/not-run。
+
+不能互相代替。
+
+---
+
+## 14. AGY Worker Test Evidence
+
+Worker Report 必须区分：
 
 ```text
 actually-run-and-pass
@@ -338,19 +396,13 @@ failed
 blocked/not-run
 ```
 
-特别是在 headless 模式下，Ask permission 的 command 可能 soft-deny，但进程最终 exit 0。
+Headless 中 Ask permission command 可能 soft-deny，但进程最终 exit 0。
 
-因此：
-
-```text
-AGY says "tests pass"
-```
-
-只有 tool/runtime evidence 能证明测试命令真实执行时，才能作为 worker evidence；最终仍由 Codex独立重跑。
+所以 AGY 自述 `tests pass` 只有在 runtime evidence 证明命令真实执行时才算 worker evidence；最终仍由 Codex 独立重跑。
 
 ---
 
-## 13. E2E Run Recipe
+## 15. E2E Run Recipe
 
 E2E required 时记录：
 
@@ -363,11 +415,11 @@ required test account / sandbox
 teardown
 ```
 
-如果仓库没有 E2E harness，不默认为 Small task 引入大型基础设施；由 Spec/Task Size 决定是否建立 minimal harness。
+仓库没有 E2E harness 时，不默认为 Small task 引入大型基础设施；由 Spec/Task Size 决定 minimal harness 或其他证据。
 
 ---
 
-## 14. Execution Unit 中的 Test 字段
+## 16. Execution Unit 字段
 
 每个 Execution Unit 至少继承：
 
@@ -383,35 +435,36 @@ Completeness Watch
 
 ---
 
-## 15. Codex Review 顺序
-
-Alpha 2 推荐：
+## 17. Alpha 3 Review 顺序
 
 ```text
-Diff correctness
-→ Spec / Acceptance coverage
-→ Change Completeness / Blast Radius
-→ Architecture / Contract
-→ Correctness / Edge Cases
-→ Verification Seam / Test Layer / Regression Proof
-→ Independent Verification
-→ CODE_VERIFIED
+Three-Axis Review
+├─ A Spec Fidelity
+├─ B Engineering Quality
+└─ C Completeness
+       ↓ all PASS
+Codex Independent Verification
+       ↓
+CODE_VERIFIED
 ```
 
-Alpha 3 会把它重组为三轴，但本文件的 Completeness/Regression 语义继续保留。
+Regression Proof 的设计质量可在 Axis B 判断；同根因传播在 Axis C 判断；真实最终重跑属于 Independent Verification。
 
 ---
 
-## 16. Final Evidence
+## 18. Final Evidence
 
-进入 `CODE_VERIFIED` 前，Codex 至少能汇报：
+进入 `CODE_VERIFIED` 前至少能汇报：
 
 ```text
-Completeness Sweep: PASS | REWORK | BLOCKED
+Spec Fidelity: PASS
+Engineering Quality: PASS
+Completeness: PASS
 Blast radius evidence: <search/call-chain/contract>
 Remainders: <none | dispositions>
 Primary Verification Seam: <...>
 Test layers: unit/integration/e2e
-Regression proof: RED→GREEN | not-applicable
+Regression proof: RED→GREEN | complex-loop proof | not-applicable
+Original bug repro after fix: PASS | N/A
 Independent verification: <commands + result>
 ```
