@@ -1,107 +1,319 @@
 ---
 name: agy-supervised-development
-description: A workflow-first supervised development process where Codex shapes requirements, freezes a testable spec, slices work into verifiable execution units, delegates implementation to the primary worker (target: official AGY CLI), then independently reviews, verifies, and closes out the repository. Use Small/Medium/Large task sizing, decision shaping, verification seams, vertical slices or expand-migrate-contract, baseline protection, completeness/blast-radius review, regression proof, and mandatory knowledge closeout.
-version: 3.1.0-alpha.1
+description: A workflow-first supervised development process where Codex shapes requirements, freezes a testable spec, slices work into verifiable execution units, delegates implementation to the official AGY CLI, then independently reviews, verifies, and closes out the repository. Use Small/Medium/Large task sizing, decision shaping, verification seams, vertical slices or expand-migrate-contract, AGY headless stream-json with tty7 interactive fallback, baseline protection, completeness/blast-radius review, regression proof, and mandatory knowledge closeout.
+version: 3.1.0-alpha.2
 ---
 
-# AGY Supervised Development 3.1 — Workflow First (Alpha 1)
+# AGY Supervised Development 3.1 — Workflow First (Alpha 2)
 
-当用户明确使用 `$agy-supervised-development`，或要求采用 **Codex 规划/监督 → AGY 实现 → Codex Review/验收** 的定制开发流程时，按本流程工作。
+当用户明确使用 `$agy-supervised-development`，或要求采用 **Codex 规划/监督 → AGY 实现 → Codex Review/验收** 的开发流程时，按本流程工作。
 
-v3.1 的核心变化不是再次替换 Harness，而是把 Skill 从“怎么控制某个 Worker Runtime”升级为“怎么稳定完成一次软件开发”。
+3.1 的核心不是再造 Harness，而是建立一个稳定的软件开发方法：
 
 > **Codex shapes and proves. AGY builds. Git tells the truth.**
 >
 > **Codex 想清楚、拆清楚、验清楚；AGY 负责实现；Git 负责作证。**
 
-## 3.1 Alpha 1 范围
-
-当前 alpha 先正式落地前半段 Workflow Kernel：
+Alpha 2 已完成：
 
 ```text
-SIZE
-→ SHAPE
-→ SPEC
-→ SLICE
+Workflow Kernel
+SIZE → SHAPE → SPEC → SLICE
+
+Execution Adapter
+Execution Unit → AGY official CLI headless → Repository
+                         └→ tty7 interactive fallback
 ```
 
-后半段继续复用已经成熟的：
-
-```text
-Implementation
-→ Review / Rework
-→ Completeness / Blast Radius
-→ Independent Verification
-→ Knowledge Closeout
-```
-
-后续 alpha 再把 AGY execution adapter 和三轴 Review 独立收敛。**不要把当前分支里的旧 Pi runtime 文档误认为 3.1 最终主链路。**
+当前后半段继续复用成熟的 Review / Completeness / Verification / Closeout；后续 Alpha 3 再把 Review 正式收敛成三轴模型。
 
 ---
 
 # 角色固定
 
-- **User = Product / One-way Decision Authority**：决定真正需要产品、架构、风险取舍的问题；不负责替 Agent 查 repository 中能自己查到的事实。
-- **Codex App = Master Supervisor / Shaper / Spec Owner / Reviewer / QA / Final Acceptance**：理解目标、查事实、推进决策、建立 Spec、切 Execution Units、建立 Git baseline、Review、Completeness、独立 Verification、Knowledge Closeout，并且是唯一可以判定 `ACCEPTED` 的角色。
-- **AGY CLI = Target Primary Implementer / Writer**：目标主链使用官方 AGY CLI 执行已经被 Shape/Spec/Slice 清楚的工作。Runtime 适配细节在 3.1 后续阶段收敛；实现者不得重新定义产品语义。
-- **Pi = Optional Specialist**：若未来某个 Pi capability 对 research / second opinion / blast-radius analysis 有明显价值，可以旁路使用；不要求所有任务经过 Pi。
-- **tty7 = Optional Interactive Runtime**：只属于 Worker 交互/运行方式，不决定 Workflow 语义。
-- **Git Repository = Source of Truth**：Worker 总结、模型自述、测试自述都不能代替当前 repository evidence。
+- **User = Product / One-way Decision Authority**：决定真正需要产品、架构、风险取舍的问题；不负责替 Agent 查 repository 中能查到的事实。
+- **Codex App = Master Supervisor / Shaper / Spec Owner / Reviewer / QA / Final Acceptance**：Size、Shape、Spec、Slice、建立 baseline、委派 AGY、Review、Completeness、独立 Verification、Closeout，并且是唯一可以判定 `ACCEPTED` 的角色。
+- **AGY official CLI = Primary Implementer / Writer**：执行已经被冻结并切好的 Execution Unit；不得重新定义产品语义。
+- **tty7 = Optional Interactive Runtime**：仅在 login、permissions、人工审批、TUI-only flow 等需要交互时使用。
+- **Pi = Optional Specialist**：research / second opinion / blast-radius analysis 等旁路能力；不要求所有任务经过 Pi，也不放在 AGY 前面做永久父 Agent。
+- **Git Repository = Source of Truth**：Worker 总结、AGY `SUCCESS`、TUI `Done`、测试自述都不能代替 repository evidence。
 
 ---
 
-# Active Workflow Resources
+# Active Resources
 
-前半段 Workflow Kernel：
+## Workflow Kernel
 
-- `resources/task-sizing.md`：Small / Medium / Large 路由；
-- `resources/shaping.md`：Decision Tree、Frontier、Resolved/Open/Fog/Out-of-Scope；
-- `resources/spec-contract.md`：稳定 Spec、Acceptance、Verification Seams；
-- `resources/execution-slicing.md`：Vertical Slice / Tracer Bullet、Expand→Migrate→Contract。
+- `resources/task-sizing.md` — Small / Medium / Large；
+- `resources/shaping.md` — Decision Tree、Frontier、Resolved/Open/Fog/Out-of-Scope；
+- `resources/spec-contract.md` — Spec、Acceptance Criteria、Verification Seams；
+- `resources/execution-slicing.md` — Vertical Slice / Tracer Bullet、Expand→Migrate→Contract。
 
-当前继续复用的后半段能力：
+## Execution Runtime
 
-- `resources/completeness-regression.md`：Completeness、Blast Radius、Test Layers、RED→GREEN；
-- `resources/review-gates.md`：现有 Review Gates（后续 alpha 将升级为三轴 Review）；
-- `resources/closeout-governance.md`：Knowledge Closeout；
-- `resources/run-lifecycle.md`：现有生命周期规则中仍适用的 Review/Rework/Verify/Closeout 语义。
+- `resources/agy-execution.md` — 官方 AGY CLI headless-first adapter；
+- `resources/tty7-supervision.md` — interactive fallback；
+- `resources/pi-interaction.md` — optional Pi specialist，不是主 Runtime；
+- `resources/run-lifecycle.md` — 3.1 governance lifecycle；
+- `resources/failure-modes.md` — AGY/runtime/workflow failure modes。
 
-3.0/3.0.1 runtime 相关文件属于迁移历史或临时参考，不应驱动新的 Workflow 设计。
+## Delivery Governance
+
+- `resources/completeness-regression.md` — Completeness、Blast Radius、Test Layers、RED→GREEN；
+- `resources/review-gates.md` — 当前 Review Gates（Alpha 3 将升级三轴）；
+- `resources/closeout-governance.md` — Knowledge Closeout。
+
+## Templates
+
+- `templates/execution-unit.md`；
+- `templates/rework-contract.md`；
+- `templates/closeout-contract.md`。
 
 ---
 
 # 不可违反的边界
 
-1. **只有 Codex 可以 `ACCEPTED`。** Primary Worker 完成一轮实现，不等于 Review PASS。
-2. **Workflow 与 Runtime 解耦。** Shape / Spec / Slice / Review 规则不能因为以后使用 AGY headless、tty7 或其他执行入口而改变。
-3. **Primary Worker 不重新做产品决策。** 未解决的关键需求/架构语义必须回到 Shaping，不允许靠 Worker 猜。
-4. **Facts ≠ Decisions。** repository / docs / call graph 能查到的事实由 Codex 查；真正的产品/架构取舍才问用户。
-5. **当前 checkout + baseline protection 是默认单 Writer 拓扑。** 不机械切 worktree，不回滚用户已有改动。
-6. **不 push / merge / release / deploy / production write / irreversible delete**，除非用户明确授权。
-7. **Completeness 不是 Scope Expansion。** unfinished 必须补齐；different ticket 留在 Out of Scope。
-8. **One-way door 不由 Worker 自行决定。** destructive migration、breaking public API、auth relaxation、billing/money、credential semantics、production mutation、irreversible deletion 等需要显式授权。
-9. **每个开发任务必须明确验证边界。** 不只判断 Unit / Integration / E2E，还要记录主要 Verification Seam。
-10. **可安全、确定性复现的 bug 默认要求 RED → root-cause fix → GREEN → Codex independent re-run。**
-11. **`CODE_VERIFIED != ACCEPTED`。** 代码稳定后仍需 Knowledge Impact Scan / Closeout Review。
-12. **不要为了形式把简单任务复杂化。** Small task 允许 compact path。
-13. **不要为了速度把复杂任务伪装成 Small。** 出现新的决策/传播面/one-way door 时必须升级流程。
+1. **只有 Codex 可以 `ACCEPTED`。**
+2. **Workflow 与 Runtime 解耦。** Shape/Spec/Slice/Review 不因 AGY headless、tty7 或 optional Pi 改变。
+3. **AGY 是 Primary Writer，不是 Product Owner。** 未解决的产品/架构决策必须回 Shaping。
+4. **Facts ≠ Decisions。** 能查的事实由 Codex 查；真实取舍才问用户。
+5. **Repository state 是交付真相。** `result.status=SUCCESS != PASS`。
+6. **当前 checkout + baseline protection 是默认单 Writer 拓扑。** 不回滚用户已有改动。
+7. **不 push / merge / release / deploy / production write / irreversible delete**，除非用户明确授权。
+8. **One-way Door 不由 Worker 自行决定。** destructive migration、breaking API、auth relaxation、billing/money、credential semantics、production mutation、irreversible delete 等必须显式授权。
+9. **Completeness 不是 Scope Expansion。** unfinished 收完；different ticket 留在 Out of Scope。
+10. **每个开发任务明确 Verification Seam + Unit/Integration/E2E applicability。**
+11. **可安全确定性复现的 bug 默认 RED → root-cause fix → GREEN → Codex re-run。**
+12. **AGY headless 默认不使用 `--dangerously-skip-permissions`。**
+13. **Exit 0 不等于命令真的执行。** Headless permission soft-deny 必须被识别。
+14. **tty7 是 fallback，不是默认 screen-scraping runtime。**
+15. **Pi 是 optional specialist，不是 `Codex → Pi → AGY` 固定中间层。**
+16. **`CODE_VERIFIED != ACCEPTED`。** 必须做 Knowledge Closeout。
+17. **Small 不过度流程化，Large 不伪装成 Small。**
 
 ---
 
-# 0. INTAKE：先理解目标，不立即写施工计划
+# 0. INTAKE：理解目标并建立初始事实
 
-先读取当前上下文和 repository 中已有规则：
+读取：
 
 ```text
-AGENTS.md
-CLAUDE.md
-README / architecture docs
-CONTEXT / ADR（若存在）
-API / Schema / Contract
-CI / lint / test / build / e2e 约定
+AGENTS.md / CLAUDE.md / README.md
+相关 code / schema / API / tests
+CI / build / e2e 约定
+当前 Git state
 ```
 
-如果任务需要实际开发，建立 Git baseline：
+不要先写计划再查代码。
+
+---
+
+# 1. SIZE：Small / Medium / Large
+
+依据以下信号判断：
+
+```text
+需求清晰度
+决策数量
+模块/contract 数量
+数据/状态传播
+测试边界
+风险/不可逆性
+单个 Worker context 能否承载
+```
+
+### Small
+
+```text
+Compact Spec
+→ one Execution Unit
+→ AGY
+→ Review
+→ Verify
+→ Closeout
+```
+
+### Medium
+
+```text
+Shape
+→ Spec
+→ 2~5 左右可验证 slices（按实际复杂度）
+→ AGY slice-by-slice
+→ Review/Rework each slice
+→ global completeness/verify/closeout
+```
+
+### Large
+
+```text
+Destination
+→ Decision Map / Fog of War
+→ resolve frontier decisions
+→ Spec
+→ staged slices / migration sequence
+→ AGY sequential execution
+```
+
+Size 可向上升级。
+
+详见 `task-sizing.md`。
+
+---
+
+# 2. SHAPE：先把决定想清楚
+
+维护 Shape Record：
+
+```text
+Goal / Destination
+Resolved Decisions
+Open Decisions
+Not Yet Specified
+Out of Scope
+One-way Decisions
+```
+
+### Frontier
+
+只处理前置条件已解决的决策。
+
+```text
+repository fact → Codex 自己查
+external fact → Codex research
+product/architecture trade-off → 用户决定
+blocked downstream question → later frontier
+```
+
+不要让 AGY 用实现替代未完成的需求决策。
+
+### Shaping Gate
+
+进入 Spec 前要求：
+
+```text
+关键 Open Decisions 已解决
+剩余 Fog 不阻塞当前 implementation
+One-way decisions 已授权或明确 blocked
+Out of Scope 明确
+```
+
+详见 `shaping.md`。
+
+---
+
+# 3. SPEC：冻结稳定行为契约
+
+Spec 回答：
+
+```text
+为什么做？
+做成什么样？
+哪些决定已经冻结？
+如何从公共边界验证？
+哪些明确不做？
+```
+
+至少包含：
+
+```text
+Problem
+Expected Behavior
+User/System Scenarios
+Implementation Decisions
+Acceptance Criteria
+Verification Seams
+Test Strategy
+Out of Scope
+One-way Decisions
+```
+
+默认不要把快速过期的具体文件路径/行号/逐文件施工步骤写进 Spec；这些属于 Execution Unit。
+
+### Verification Seam
+
+必须明确主要公共验证边界：
+
+```text
+Primary Seam
+Secondary Seam = optional
+Existing Prior Art
+```
+
+再决定：
+
+```text
+Unit
+Integration
+E2E
+Regression Proof
+```
+
+详见 `spec-contract.md`。
+
+---
+
+# 4. SLICE：把 Spec 切成 Worker 可完成的小步
+
+先判断 Change Shape：
+
+```text
+normal behavior change → Vertical Slice / Tracer Bullet
+wide mechanical change → Expand → Migrate → Contract
+```
+
+### Vertical Slice
+
+每个 slice 尽量：
+
+```text
+Narrow
+Complete
+Independently reviewable
+Independently verifiable
+Fits one fresh Worker context
+```
+
+优先：
+
+```text
+input/user action
+→ business behavior
+→ persistence/integration
+→ observable output
+→ verification
+```
+
+避免：
+
+```text
+先全部 DB
+再全部 API
+再全部 UI
+最后补 tests
+```
+
+### Wide Refactor
+
+使用：
+
+```text
+EXPAND
+→ MIGRATE batches
+→ CONTRACT
+```
+
+中间尽量保持 repository understandable/green。
+
+每个可执行步骤实例化 `templates/execution-unit.md`。
+
+详见 `execution-slicing.md`。
+
+---
+
+# 5. BASELINE：在 Writer 动手前保护当前工作区
+
+Codex 自己记录：
 
 ```bash
 repo_root="$(git rev-parse --show-toplevel)"
@@ -127,384 +339,196 @@ baseline_diff_or_fingerprint
 current changes - baseline changes = task-introduced changes
 ```
 
-不得为了“干净工作区”回滚用户已有修改。
+---
+
+# 6. WORKER READY：官方 AGY CLI Preflight
+
+默认 Primary Worker 使用官方 AGY CLI。
+
+检查：
+
+```bash
+command -v agy
+agy --version
+agy --help
+```
+
+至少确认当前安装支持：
+
+```text
+-p / --print
+--output-format stream-json
+--conversation
+```
+
+并确认：
+
+```text
+auth usable
+repo cwd correct
+permission mode understood
+```
+
+如果 headless 能力缺失/需要人工 TUI：使用 `tty7-supervision.md` 的 fallback；不静默切第三方 Provider。
 
 ---
 
-# 1. SIZED：Small / Medium / Large
+# 7. IMPLEMENT：Headless First
 
-先执行 `resources/task-sizing.md`。
+默认：
 
-输出：
-
-```text
-Task Size: Small | Medium | Large
-Why:
-- uncertainty
-- blast radius
-- one-way doors
-- worker context size
-
-Required Path:
-- shaping: yes/no
-- spec: compact/full
-- slicing: yes/no
-- decision map: yes/no
+```bash
+cd "$repo_root"
+agy -p "<Execution Unit>" \
+  --output-format stream-json \
+  --print-timeout <appropriate-timeout>
 ```
 
-## Small
-
-适合：目标明确、局部、无关键 open decisions、一个 Worker context 可稳定完成。
+从 `init` 保存真实：
 
 ```text
-INTAKE
-→ SIZED(Small)
-→ COMPACT SPEC
-→ IMPLEMENT
-→ REVIEW
-→ VERIFY
-→ CLOSEOUT
+conversation_id
+cwd
+tools
+permission_mode
 ```
 
-## Medium
-
-正常 Feature 默认走：
+必须确认：
 
 ```text
-INTAKE
-→ SIZED(Medium)
-→ SHAPING
-→ SPEC_READY
-→ SLICED
-→ IMPLEMENT / REVIEW slice-by-slice
-→ GLOBAL VERIFY
-→ CLOSEOUT
+init.cwd == repo_root
 ```
 
-## Large
+### Runtime completion semantics
 
-只有复杂度确实需要时：
+stream-json：
 
 ```text
-INTAKE
-→ SIZED(Large)
-→ DESTINATION
-→ DECISION MAP / FOG
-→ resolve frontier
-→ SPEC_READY
-→ SLICED
-→ staged IMPLEMENT / REVIEW
-→ GLOBAL VERIFY
-→ CLOSEOUT
+init
+step_update *
+result
 ```
 
-Sizing 允许根据新证据升级/降级；不要锁死最初判断。
+`result.status=SUCCESS` 只表示 AGY 本轮完成并产生响应：
+
+```text
+SUCCESS → REVIEWING
+```
+
+不是：
+
+```text
+SUCCESS → PASS
+```
+
+### Permission soft-deny
+
+Headless 无法弹人工确认时，某些 `Ask` tool/command 可能 soft-deny，而 run 仍继续甚至 exit 0。
+
+所以同时检查：
+
+```text
+exit code
+result.status/error
+stderr
+step_update.tool_info.error
+actual Git state
+```
+
+AGY 没真正执行的测试必须报告 `blocked/not-run`。
+
+### Permissions
+
+默认禁止：
+
+```bash
+--dangerously-skip-permissions
+```
+
+需要重复运行安全项目命令时，优先使用窄 fine-grained allow rule；一次性人工批准可转 tty7。
+
+详见 `agy-execution.md`。
 
 ---
 
-# 2. SHAPING：先解决决定，再写 Spec
+# 8. REVIEW：AGY 返回后 Codex 自己验 diff
 
-Medium/Large 使用 `resources/shaping.md`。
+固定读取：
 
-维护：
-
-```text
-Goal / Destination
-
-Resolved Decisions
-- ...
-
-Open Decisions
-- ...
-
-Not Yet Specified
-- ...
-
-Out of Scope
-- ...
-
-One-way Decisions
-- ...
+```bash
+git status --short
+git diff --stat
+git diff --check
+git diff
 ```
 
-## Frontier 规则
+当前 Alpha 2 继续使用 `review-gates.md`。
 
-只讨论当前前置条件已解决的问题。
-
-```text
-Can Codex look it up?
-→ Codex investigates.
-
-Requires product/architecture preference?
-→ User decides.
-
-Depends on an unresolved decision?
-→ Keep it for a later frontier.
-```
-
-## Fog / Not Yet Specified
-
-知道以后可能有问题，但现在还不能准确提出问题时，不要提前造 ticket。
+至少判断：
 
 ```text
-unclear future area
-→ Not Yet Specified
-→ earlier decision resolves
-→ precise question emerges
-→ Open Decision / Slice
-```
-
-## Shaping Exit
-
-只有关键行为已经足够明确、Worker 不需要自行发明产品/架构语义时，才进入：
-
-```text
-SPEC_READY candidate
-```
-
----
-
-# 3. SPEC：把已经决定的内容固化
-
-使用 `resources/spec-contract.md`。
-
-Medium/Large Spec 默认包含：
-
-```text
-Problem
-Expected Behavior
-Scenarios / Stories
-Implementation Decisions
-Acceptance Criteria
-Verification Seams
-Test Strategy
-Out of Scope
-Constraints / One-way Decisions
-```
-
-## Verification Seam
-
-除了：
-
-```text
-Unit
-Integration
-E2E
-```
-
-还必须回答：
-
-> **从哪个稳定公共边界观察正确行为？**
-
-例如：
-
-```text
-Primary Seam: POST /orders
-Integration: required
-E2E: required for browser checkout
-```
-
-优先：
-
-```text
-Existing seam > invented seam
-Higher stable seam > internal seam
-Fewer meaningful seams > implementation-coupled tests everywhere
-```
-
-## Spec 不写成施工清单
-
-默认避免把以下内容作为 Spec 权威：
-
-```text
-具体文件路径
-具体行号
-完整实现代码
-逐文件 TODO
-```
-
-Spec 固化行为和决定；短期施工细节放 Execution Unit。
-
-## SPEC_READY Gate
-
-```text
-Critical decisions resolved
-Expected behavior testable
-Acceptance criteria observable
-Primary verification seam chosen
-Test layers recorded
-Out of Scope explicit
-No hidden product/architecture decision delegated to Worker
-```
-
-写 Spec 时发现关键 undecided behavior → 回 `SHAPING`。
-
----
-
-# 4. SLICED：把 Spec 变成 Worker 能稳定完成的小步
-
-Medium/Large 使用 `resources/execution-slicing.md`。
-
-## 默认：Vertical Slice / Tracer Bullet
-
-每个 slice 是窄但完整的行为路径：
-
-```text
-input / user action
-→ business behavior
-→ persistence / integration
-→ observable output
-→ verification
-```
-
-不要默认水平切：
-
-```text
-all DB
-→ all API
-→ all UI
-→ tests at the end
-```
-
-每个 slice 应：
-
-```text
-Narrow
-Complete
-Reviewable
-Verifiable when practical
-Fit one fresh Worker context
-```
-
-## Execution Unit
-
-每个 slice 生成短期施工单：
-
-```text
-Slice Goal
-Spec Source
-Scope
-Context
-Acceptance
-Verification Seam
-Completeness Focus
-Constraints
-Report
-```
-
-Spec 是稳定需求/决定权威；Execution Unit 是当前 Worker 的施工单。
-
-## Wide Refactor 例外
-
-共享字段/type/signature 等大 blast-radius 机械迁移，不强行 vertical slice：
-
-```text
-EXPAND
-→ MIGRATE A
-→ MIGRATE B
-→ MIGRATE ...
-→ CONTRACT
-```
-
-Contract 删除旧 form 前必须有 zero-consumer evidence。
-
-## SLICED Gate
-
-```text
-Every required behavior covered
-Slices are vertical unless justified
-Each slice has observable acceptance
-Dependencies explicit
-Each slice fits one Worker context
-Wide refactors use expand/migrate/contract
-Out-of-scope work not hidden inside slices
-```
-
-Small task 可以只有一个 implicit Execution Unit。
-
----
-
-# 5. IMPLEMENT：Worker 只实现当前 Execution Unit
-
-当前 alpha 的重点不是 Runtime adapter；这里先固定 Workflow 语义：
-
-```text
-Codex owns Spec + Execution Unit
-→ Primary Worker implements exactly this unit
-→ repository changes
-→ Codex reviews repository truth
-```
-
-目标 Primary Worker 是官方 AGY CLI。后续 alpha 会把 AGY headless / tty7 fallback 统一成薄 Execution Adapter；**不要因为运行入口不同而重新定义 Spec/Slice。**
-
-Worker 的报告至少应包含：
-
-```text
-changed paths
-commands/tests run
-known unresolved findings
-any discovered scope/completeness concern
-```
-
-Worker 发现关键 undecided behavior：停止扩大实现，返回 evidence，让 Codex 回到 SHAPING / SPEC。
-
-Worker 发现新传播 path：先报告；Codex 判断它是 unfinished remainder 还是 different ticket。
-
----
-
-# 6. Slice Review / Rework
-
-每个 slice 完成后，Codex 不直接进入下一个 slice。
-
-至少检查：
-
-```text
-Spec fidelity for this slice
-scope drift
-architecture/correctness obvious issues
-local completeness / blast radius
-targeted verification
 baseline integrity
+Spec / Acceptance coverage
+scope drift
+architecture / contract
+correctness / edge cases
+error handling / observability
+test quality / seam
+external side effects
+diff hygiene
 ```
 
-需要返工时生成 evidence-driven Rework Contract：
+Alpha 3 将正式拆成：
 
 ```text
-Issue
-Evidence
-Expected
-Required change
-Re-run
+Spec Fidelity
+Engineering Quality
+Completeness
 ```
-
-默认 3 个完整 `Review → Rework → Re-review` 为 soft limit；达到后重新判断：
-
-- Spec 是否有歧义；
-- slice 是否过大/过横向；
-- root cause 是否错；
-- Worker runtime/model 是否不适合；
-- 是否应回到 SHAPING / SPEC / SLICING。
-
-不要无限返工一个错误的 Execution Unit。
 
 ---
 
-# 7. Global Completeness / Blast Radius
+# 9. REWORK：Evidence-Driven Resume
 
-所有 slices 局部 PASS 后，仍需全局检查 `resources/completeness-regression.md`。
+发现 finding 后，使用 `templates/rework-contract.md`。
 
-固定追踪：
+优先 resume 同一真实 conversation：
+
+```bash
+agy -p "<Rework Contract>" \
+  --conversation "$agy_conversation_id" \
+  --output-format stream-json
+```
+
+自动化监督场景有真实 ID 时，优先 `--conversation`，不靠 `-c` 猜最近 session。
+
+Rework 完成后再次回 Codex Review。
+
+默认 3 个完整 Review→Rework→Re-review 周期为 soft limit；达到后重新评估 Spec、slice、root cause、permissions、environment、conversation quality。
+
+---
+
+# 10. COMPLETENESS：找 Missing Diff
+
+普通 Review 回答：
+
+> 已经改的地方对不对？
+
+Completeness 回答：
+
+> 还有没有本来应该改、却没进入 diff 的地方？
+
+追踪：
 
 ```text
 Changed behavior
-→ direct callers
-→ indirect callers / re-exports / scripts
-→ types / enums / validation / serialization
+→ callers / consumers
+→ types / validation / serialization
 → schema / migration / existing data
 → sibling flows / jobs
-→ error / retry / fallback
+→ error / empty / permission / retry / fallback
 → cache / derived state
-→ dead / orphaned old path
+→ orphaned old path
 → tests
 → knowledge impact
 ```
@@ -518,52 +542,40 @@ out-of-scope-different-ticket
 blocked-decision-needed
 ```
 
-unfinished → Rework；different ticket → 保持 Out of Scope。
+unfinished → Rework。
+
+详见 `completeness-regression.md`。
 
 ---
 
-# 8. Test Strategy / Regression Proof
+# 11. VERIFY：Codex Independent Verification
 
-每个任务显式记录：
+只有 Review + Completeness PASS 才进入。
 
-```text
-Primary Verification Seam
-Unit:        required | not-applicable
-Integration: required | not-applicable
-E2E:         required | not-applicable | user-skipped
-```
-
-可安全、确定性复现的 bug：
-
-```text
-repro / regression test
-→ unfixed RED
-→ root-cause fix
-→ same test GREEN
-→ Codex independent re-run
-```
-
-复杂 bug 后续 alpha 会增加专门 diagnosis branch；当前继续沿用现有 RED→GREEN / Completeness 规则。
-
----
-
-# 9. Codex Independent Verification
-
-只有相关 slice Review + Global Completeness PASS 后，Codex 独立执行适用检查：
+基于 Spec 的 Verification Seam / Test Strategy 独立运行：
 
 ```text
 lint / format-check
 typecheck
 unit
 integration
-e2e（required 时）
+e2e
 build/package
-schema/contract checks
+schema/contract
 ```
 
-Worker 自报 green 不能替代这一阶段。
+Worker 自己跑过不等于 Codex 可以跳过。
 
-全部相关门禁通过：
+确定性 bug：
+
+```text
+unfixed RED
+→ root-cause fix
+→ same test GREEN
+→ Codex re-run
+```
+
+全部相关项满足：
 
 ```text
 CODE_VERIFIED
@@ -571,21 +583,24 @@ CODE_VERIFIED
 
 ---
 
-# 10. Knowledge Closeout
+# 12. CLOSEOUT
 
-`CODE_VERIFIED` 后执行 `resources/closeout-governance.md`。
+`CODE_VERIFIED` 后做 Knowledge Impact Scan。
 
-扫描：
+需要修改时用 `templates/closeout-contract.md`，优先 resume 当前 AGY conversation。
+
+检查：
 
 ```text
 README / usage
-AGENTS / CLAUDE / project rules
-API / schema / CLI / shared Contract
-env / config / service / deploy / jobs
+AGENTS / CLAUDE / rules
+API / schema / contracts
+config / env / CLI / runtime docs
+stale examples / retired symbols
 workspace residue
 ```
 
-相关知识面标：
+状态：
 
 ```text
 verified-current
@@ -595,13 +610,13 @@ out-of-scope
 not-applicable
 ```
 
-不要求每个任务都制造 Markdown diff。
+允许零文档 diff。
 
-Closeout 发现真实实现遗漏 → 退回代码 Review / Completeness / Verification，不用文档掩盖代码问题。
+Closeout 发现真实代码缺陷 → 回 Review/Completeness/Verify，不用文档掩盖。
 
 ---
 
-# 11. Acceptance
+# 13. ACCEPTANCE
 
 只有 Codex 可以：
 
@@ -612,89 +627,85 @@ CLOSEOUT_REVIEW → ACCEPTED
 至少满足：
 
 ```text
-Task was sized appropriately
-Required shaping completed
-Spec fidelity PASS
-All required slices complete
-No unexplained scope drift
-Completeness / Blast Radius PASS
-Test strategy + Verification Seam satisfied
-Regression proof satisfied / justified N/A
-Codex independent verification PASS
+Spec satisfied
+Relevant Review Gates PASS
+Completeness PASS
+Verification Seam exercised appropriately
+Test Strategy satisfied
+Regression Proof satisfied/N/A justified
+Codex Independent Verification PASS
 Knowledge Closeout PASS
-Baseline/user changes preserved
-No unauthorized one-way/external side effects
+Baseline preserved
+No unauthorized side effects
 Final diff explainable
 ```
 
 ---
 
-# 3.1 Workflow State
+# 14. Small / Medium / Large 快速路径
 
-目标状态机：
+## Small
 
 ```text
 INTAKE
-→ SIZED
-→ SHAPING          # Medium/Large; Small may shortcut
-→ SPEC_READY
-→ SLICED           # Small may have one implicit slice
-→ IMPLEMENTING
-→ REVIEWING
-→ COMPLETENESS_REVIEW
-→ VERIFYING
-→ CODE_VERIFIED
-→ CLOSEOUT
-→ CLOSEOUT_REVIEW
-→ ACCEPTED
+→ SIZE=Small
+→ compact Shape/Spec
+→ one Execution Unit
+→ AGY
+→ Review
+→ Verify
+→ Closeout
 ```
 
-可能回退：
+## Medium
 
 ```text
-IMPLEMENTING / REVIEWING
-→ SHAPING          # hidden decision discovered
-→ SPEC_READY       # spec changed
-→ SLICED           # execution units need re-cut
+INTAKE
+→ SIZE=Medium
+→ Shape
+→ Spec
+→ Vertical Slices
+→ [AGY → Review/Rework] per slice
+→ Global Completeness
+→ Verify
+→ Closeout
 ```
 
-异常：
+## Large
 
 ```text
-BLOCKED
-REWORK_REQUIRED
-CANCELLED
-FAILED
-```
-
-核心语义：
-
-```text
-Worker done != Review PASS
-Slice PASS != Feature PASS
-Tests green != Completeness PASS
-CODE_VERIFIED != ACCEPTED
+INTAKE
+→ SIZE=Large
+→ Destination / Decision Map / Fog
+→ resolve frontier
+→ Spec
+→ staged slices or Expand-Migrate-Contract
+→ [AGY → Review/Rework] sequentially
+→ Global Completeness
+→ Verify
+→ Closeout
 ```
 
 ---
 
-# 当前版本演进
+# 15. Runtime Selection
+
+默认：
 
 ```text
-v2.1.x
-Codex Supervisor → tty7 → AGY CLI
-重点：可靠控制外部 Worker + Review/Closeout
-
-v3.0 / 3.0.1
-探索 Pi Native Harness / Provider 分离
-重点：Runtime simplification
-
-v3.1
-Workflow First
-重点：Size → Shape → Spec → Slice → Build → Prove
-Runtime 变成可替换执行细节
+AGY headless stream-json
 ```
 
-3.1 的长期目标不是再造一个 Agent 平台，而是形成一套稳定的个人软件开发方法：
+只有需要交互时：
 
-> **先把问题想清楚，再把任务切小；让 Worker 专心实现，让 Codex 专心证明。**
+```text
+tty7 + AGY interactive
+```
+
+Pi：
+
+```text
+optional specialist only
+```
+
+不让 Runtime choice 重新决定 Workflow。
