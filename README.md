@@ -1,107 +1,122 @@
 # AGY Supervised Development 3.1 — Workflow First
 
-> 当前分支：`3.1.0-alpha.1`。本批次先落地 **Workflow Kernel**，后续再收敛 AGY Runtime 和三轴 Review。
+当前开发版本：**3.1.0-alpha.2**
 
-这是一套面向个人日常软件开发的监督式流程：
+这是一个以 **Codex App 负责 Shape / Spec / Review，官方 AGY CLI 负责实现，Git Repository 负责事实证明** 的定制监督式开发 Skill。
 
 > **Codex shapes and proves. AGY builds. Git tells the truth.**
->
-> **Codex 想清楚、拆清楚、验清楚；AGY 负责实现；Git 负责作证。**
 
-3.1 不再把 Skill 的核心定义成“怎么控制某个 Harness”，而是定义一次开发应该如何从模糊需求走到可证明的交付。
-
----
-
-## 核心流程
+3.1 不再把“选择哪个 Harness”当项目中心，而是把一次软件开发稳定地拆成：
 
 ```text
-User
- ↓
-Codex App
- ↓
 SIZE
-Small / Medium / Large
- ↓
-SHAPE
-Resolved / Open / Fog / Out-of-Scope
- ↓
-SPEC
-Behavior / Decisions / Acceptance / Test Seams
- ↓
-SLICE
-Vertical Slices or Expand→Migrate→Contract
- ↓
-Primary Worker
-Target: Official AGY CLI
- ↓
-Repository
- ↓
-Codex Review / Rework
- ↓
-Completeness / Blast Radius
- ↓
-Independent Verification
- ↓
-Knowledge Closeout
- ↓
-ACCEPTED
+→ SHAPE
+→ SPEC
+→ SLICE
+→ BUILD
+→ REVIEW
+→ COMPLETENESS
+→ VERIFY
+→ CLOSEOUT
+→ ACCEPTED
 ```
-
-Workflow 与 Runtime 解耦：以后 AGY 使用 headless、tty7 交互 fallback，或者某个 specialist 工具，都不应该改变 Size / Shape / Spec / Slice / Review 的方法。
 
 ---
 
-# 第一批：Workflow Kernel
+## 架构
+
+```text
+                         User
+                          │
+                          ▼
+                      Codex App
+             Shaper / Spec Owner / Reviewer
+                          │
+                  Spec + Execution Unit
+                          │
+                          ▼
+                  AGY official CLI
+                 headless-first writer
+                    │           │
+                    │           └── tty7 interactive fallback
+                    ▼
+                  Repository
+                    │
+                    ▼
+                      Codex
+       Review / Completeness / Verification
+                    │
+                    ▼
+                  Closeout
+                    │
+                    ▼
+                  ACCEPTED
+
+Optional sidecar:
+Codex ─────→ Pi specialist (research / second opinion / blast-radius analysis)
+```
+
+### 角色
+
+- **User**：产品和 one-way decisions；
+- **Codex App**：Size、Shape、Spec、Slice、Review、QA、最终 Acceptance；
+- **AGY official CLI**：Primary Implementer / Writer；
+- **tty7**：只有 TUI/人工交互需要时 fallback；
+- **Pi**：可选专家，不进入默认 `Codex → AGY` 主链；
+- **Git**：最终 Source of Truth。
+
+---
+
+# Alpha 1：Workflow Kernel
 
 ## 1. Task Sizing
 
-见 `resources/task-sizing.md`。
+每个任务先判断：
 
-不是所有任务都跑同样重的流程：
+```text
+Small
+Medium
+Large
+```
 
 ### Small
 
 ```text
-Compact Spec
-→ Implement
+Compact Shape/Spec
+→ one Execution Unit
+→ AGY
 → Review
 → Verify
 ```
-
-适合明确局部 bug、小接口、小校验。
 
 ### Medium
 
 ```text
 Shape
 → Spec
-→ 2–5 Vertical Slices
-→ Implement / Review per slice
+→ Vertical Slices
+→ AGY slice-by-slice
+→ Review/Rework
 → Global Verify
 ```
-
-这是正常 Feature 的默认路径。
 
 ### Large
 
 ```text
 Destination
-→ Decision Map / Fog
-→ Resolve Decisions
+→ Decision Map / Fog of War
+→ resolve frontier
 → Spec
-→ Slice
-→ staged implementation
+→ staged execution
 ```
 
-只有真正跨系统、大迁移、大重构、决策高度不确定时才使用重流程。
+详见 `resources/task-sizing.md`。
 
 ---
 
-## 2. Shaping
+## 2. Decision Shaping
 
-见 `resources/shaping.md`。
-
-Codex 不急着生成施工计划，而是先区分：
+在写 Spec 之前，把需求拆成：
 
 ```text
 Resolved Decisions
@@ -111,21 +126,20 @@ Out of Scope
 One-way Decisions
 ```
 
-采用 `frontier` 思路：只处理前置决定已经解决的问题。
+关键思想：
 
-能从代码/文档查到的事实由 Codex 自己调查；真正需要产品/架构取舍的决定才交给用户。
+- 能查到的事实由 Codex 自己查；
+- 真正的取舍才问用户；
+- 下游依赖未解决问题时暂时不问；
+- 看不清的问题留在 Fog，不制造假的完整计划。
 
-关键规则：
-
-> **看不清的问题先留在 Fog，不要提前制造假的 Ticket 精度。**
+详见 `resources/shaping.md`。
 
 ---
 
-## 3. Spec Contract
+## 3. Stable Spec
 
-见 `resources/spec-contract.md`。
-
-Spec 固化已经做出的决定：
+Spec 记录已经稳定的行为/决策：
 
 ```text
 Problem
@@ -136,151 +150,337 @@ Acceptance Criteria
 Verification Seams
 Test Strategy
 Out of Scope
-Constraints / One-way Decisions
 ```
 
-Spec 默认不写成逐文件施工单，也不依赖容易过期的行号/内部实现细节。
+Spec 默认不承担逐文件施工计划。
 
 ### Verification Seam
 
-3.1 在原来的 Unit / Integration / E2E 之外，新增一个重要概念：
+除了 Unit / Integration / E2E，还显式决定：
 
-> **从哪个稳定公共边界观察这个行为？**
+> 从哪个公共边界观察这个功能是否正确？
 
-例如：
-
-```text
-Primary Seam: POST /orders
-Integration: required
-E2E: required for checkout flow
-```
-
-优先复用已有的高层稳定 seam，避免测试绑定内部实现。
+详见 `resources/spec-contract.md`。
 
 ---
 
 ## 4. Execution Slicing
 
-见 `resources/execution-slicing.md`。
-
-Medium/Large Spec 不默认一次交给 Worker。
-
-### Vertical Slice / Tracer Bullet
+正常功能优先：
 
 ```text
-input
-→ behavior
+Vertical Slice / Tracer Bullet
+```
+
+每个 slice 走一条窄而完整的行为路径：
+
+```text
+input/user action
+→ business behavior
 → persistence/integration
 → observable output
 → verification
 ```
 
-每个 slice 应该窄、完整、可 Review、尽量可独立验证，并适合一个 fresh Worker context。
-
-不要默认这样水平切：
-
-```text
-先所有 DB
-→ 再所有 API
-→ 再所有 UI
-→ 最后补测试
-```
-
-### Wide Refactor
-
-共享字段、类型、签名等 blast radius 很大的机械迁移使用：
+Wide mechanical refactor 使用：
 
 ```text
 EXPAND
-→ MIGRATE A
-→ MIGRATE B
-→ ...
+→ MIGRATE batches
 → CONTRACT
 ```
 
-旧 form 删除前要求 zero-consumer evidence。
+详见 `resources/execution-slicing.md`。
 
 ---
 
-# 角色
+# Alpha 2：AGY Native Execution Adapter
 
-| 角色 | 3.1 职责 |
-|---|---|
-| User | 产品/架构/one-way 决策 |
-| Codex App | Shape、Spec、Slice、Review、Verification、Final Acceptance |
-| AGY CLI | Target Primary Implementer / Writer |
-| Pi | Optional Specialist，不要求进入主链 |
-| tty7 | Optional Interactive Runtime / fallback |
-| Git | Source of Truth |
+## 1. Headless First
 
----
+官方 AGY CLI 作为默认 Writer：
 
-# 3.1 保留的成熟资产
-
-3.1 不推翻前几版已经成熟的后半段治理：
-
-- Git baseline protection；
-- repository state as source of truth；
-- Evidence-driven Rework；
-- Change Completeness / Blast Radius；
-- unfinished vs different-ticket boundary；
-- Unit / Integration / E2E applicability；
-- deterministic bugfix RED → root-cause fix → GREEN；
-- Codex Independent Verification；
-- `CODE_VERIFIED != ACCEPTED`；
-- Knowledge Closeout；
-- one-way-door / no push-merge-release-deploy by default。
-
----
-
-# 当前 active files
-
-```text
-agy-supervised-development/
-├── SKILL.md
-├── README.md
-├── CHANGELOG.md
-├── resources/
-│   ├── task-sizing.md            # 3.1 new
-│   ├── shaping.md                # 3.1 new
-│   ├── spec-contract.md          # 3.1 new
-│   ├── execution-slicing.md      # 3.1 new
-│   ├── completeness-regression.md
-│   ├── review-gates.md           # Phase 2 将升级三轴 Review
-│   ├── closeout-governance.md
-│   └── run-lifecycle.md
-├── examples/
-└── evals/
+```bash
+cd "$repo_root"
+agy -p "<Execution Unit>" \
+  --output-format stream-json \
+  --print-timeout <appropriate-timeout>
 ```
 
-旧 `pi-interaction.md` / `provider-boundary.md` / `pi-harness.md` 目前保留用于历史迁移与后续整理，**不是 3.1 Workflow Kernel 的核心依赖**。
+主要原因：
+
+- 有结构化 `init / step_update / result`；
+- 有真实 `conversation_id`；
+- 支持 `--conversation` resume；
+- 可以观察 tool errors / usage；
+- 不需要默认 screen scraping；
+- 不需要维护自定义 Harness/daemon/session DB。
+
+详见 `resources/agy-execution.md`。
 
 ---
 
-# 下一批计划
+## 2. Conversation Identity
 
-Alpha 2：
-
-```text
-AGY Execution Adapter
-- Official AGY CLI as Primary Worker
-- headless-first
-- tty7 interactive fallback
-- runtime 与 Workflow 解耦
-```
-
-Alpha 3：
+从 AGY `init` 保存真实：
 
 ```text
-Three-Axis Review
-- Spec Fidelity
-- Engineering Quality
-- Completeness / Blast Radius
-
-+ dedicated complex-bug workflow
-+ examples
-+ evals
-+ legacy runtime cleanup
+conversation_id
+cwd
+permission_mode
 ```
 
-3.1 的长期目标不是做另一个 Orca/Maestro，而是形成稳定、轻量、适合个人长期使用的软件开发方法。
+必须：
+
+```text
+cwd == repo_root
+```
+
+Review 后返工：
+
+```bash
+agy -p "<Rework Contract>" \
+  --conversation <real-conversation-id> \
+  --output-format stream-json
+```
+
+自动化场景优先显式 `--conversation`，而不是靠 `-c` 猜最近 session。
+
+---
+
+## 3. `SUCCESS` / exit 0 不是交付证明
+
+```text
+AGY result.status = SUCCESS
+```
+
+只代表本轮 AGY 正常产生了响应。
+
+真正交付仍然要：
+
+```bash
+git status --short
+git diff --stat
+git diff --check
+git diff
+```
+
+然后由 Codex Review。
+
+### Headless Permission Soft-Deny
+
+AGY headless 下需要 Ask 的 tool/command 可能被 soft-deny，本轮仍可能继续、甚至 exit 0。
+
+所以必须同时检查：
+
+```text
+result.status / error
+stderr
+step_update.tool_info.error
+actual command evidence
+repository state
+```
+
+测试 command 没真正执行时只能写：
+
+```text
+blocked / not-run
+```
+
+不能包装成 PASS。
+
+---
+
+## 4. Permission Strategy
+
+默认不使用：
+
+```bash
+--dangerously-skip-permissions
+```
+
+优先：
+
+```text
+现有安全 permission rules
+→ 最小范围 allow
+→ 一次性人工审批
+→ tty7 interactive fallback
+```
+
+而不是全量 always-proceed。
+
+`--sandbox` 可以作为可选额外防护，但只有项目/CLI 实测兼容时启用。
+
+---
+
+## 5. tty7 的新定位
+
+2.1.x：
+
+```text
+Codex → tty7 → AGY
+```
+
+3.1：
+
+```text
+Codex → AGY headless       # default
+          └→ tty7 + AGY    # interactive fallback
+```
+
+使用 tty7 的典型场景：
+
+```text
+login/auth
+/permissions
+manual Ask approval
+/resume picker
+TUI-only command
+interactive exploration
+headless temporary incompatibility
+```
+
+详见 `resources/tty7-supervision.md`。
+
+---
+
+## 6. Pi 的新定位
+
+Pi 不再是 Primary Runtime，也不固定放在 AGY 前面。
+
+适合：
+
+```text
+research
+second opinion
+blast-radius analysis
+architecture critique
+specialized Pi extension
+```
+
+不推荐默认：
+
+```text
+Codex → Pi/Codex → AGY
+```
+
+避免重复 decision layer、context handoff 和 token/latency。
+
+详见 `resources/pi-interaction.md`。
+
+---
+
+# Execution Contracts
+
+3.1 把“需求权威”和“施工授权”分开。
+
+### Spec
+
+```text
+长期一点的 stable decisions / behavior contract
+```
+
+### Execution Unit
+
+```text
+当前 slice 到底允许 Worker 做什么
+```
+
+模板：`templates/execution-unit.md`
+
+### Rework Contract
+
+```text
+Issue
+Evidence
+Expected
+Required Change
+Re-run
+```
+
+模板：`templates/rework-contract.md`
+
+### Closeout Contract
+
+只在 `CODE_VERIFIED` 后更新受影响知识面。
+
+模板：`templates/closeout-contract.md`
+
+---
+
+# Review / Completeness / Verification
+
+Alpha 2 暂时保留 3.0.1 已成熟的后半段治理：
+
+```text
+AGY delivery
+→ Codex Diff Review
+→ Completeness / Blast Radius
+→ Codex Independent Verification
+→ CODE_VERIFIED
+→ Knowledge Closeout
+→ ACCEPTED
+```
+
+Alpha 3 将把 Review 正式升级为：
+
+```text
+              AGY Delivery
+                   │
+      ┌────────────┼────────────┐
+      ▼            ▼            ▼
+Spec Fidelity   Quality    Completeness
+      └────────────┼────────────┘
+                   ▼
+              Verification
+```
+
+---
+
+# 当前 Active 文件
+
+```text
+resources/
+├── task-sizing.md
+├── shaping.md
+├── spec-contract.md
+├── execution-slicing.md
+├── agy-execution.md
+├── run-lifecycle.md
+├── failure-modes.md
+├── tty7-supervision.md
+├── pi-interaction.md
+├── completeness-regression.md
+├── review-gates.md
+└── closeout-governance.md
+
+templates/
+├── execution-unit.md
+├── rework-contract.md
+└── closeout-contract.md
+```
+
+旧 `pi-harness.md` / `provider-boundary.md` 属于 3.0.x 架构历史，不再决定 3.1 主链。
+
+---
+
+# 当前演进
+
+```text
+v2.1.x
+Codex → tty7 → AGY
+
+v3.0 / 3.0.1
+探索 Pi Native Harness / Provider 路线
+
+v3.1 Alpha 1
+Workflow First：Size → Shape → Spec → Slice
+
+v3.1 Alpha 2
+AGY official CLI headless-first
++ tty7 interactive fallback
++ Pi optional specialist
+```
+
+下一阶段：**Alpha 3 — Three-Axis Review + Bugfix Workflow**。
