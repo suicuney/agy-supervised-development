@@ -1,245 +1,342 @@
-# AGY Supervised Development 3.0.1 Failure Modes
+# AGY Supervised Development 3.1 Failure Modes — Alpha 2
 
-本文件把 **Pi 原生 CLI/session、现成 Extension、Provider 和 repository delivery** 的常见失败拆成可诊断状态。
+本文件覆盖 Workflow-First + 官方 AGY CLI Runtime 的常见失败。
 
 原则：
 
-> **先收证据，再动作；未知状态不猜成功；Pi runtime failure 不等于 repository progress 无效。**
+> **先收证据，再动作；Runtime 成功不等于交付成功；失败不自动清空 repository progress。**
 
 ---
 
-## 1. Pi 不存在 / CLI capability 不足
+## 1. AGY CLI 不存在 / Headless Capability 不足
 
 ```bash
-command -v pi
-pi --version
-pi --help
+command -v agy
+agy --version
+agy --help
 ```
 
-缺失 `pi`、`--mode json` 或当前流程必需的 session 能力：
+缺失当前流程要求的：
+
+```text
+-p / --print
+--output-format stream-json
+--conversation
+```
+
+则：
+
+```text
+headless_ready = false
+```
+
+选择：
+
+- 受控升级；
+- tty7 interactive fallback；
+- `BLOCKED`。
+
+不要静默切到第三方 Antigravity OAuth Provider。
+
+---
+
+## 2. Auth / Login Required
+
+官方 AGY CLI 未登录或 session/auth 失效：
 
 ```text
 → BLOCKED
 ```
 
-不自动全局安装/升级，除非用户明确要求。
+需要交互登录时可以进入 tty7 / terminal TUI。
+
+禁止：
+
+- 抽取 credential/token；
+- 复制 auth 数据到 Skill evidence；
+- 用第三方 OAuth Provider 偷偷替代官方 CLI。
 
 ---
 
-## 2. Workflow Extension 缺失
+## 3. Wrong Workspace / `init.cwd` Mismatch
 
-如果 Task Contract 希望使用 `plan/build/review/debug`，但 `pi-agent-modes` 或等价 extension 没安装：
-
-- 不发送不存在的 `--modes`；
-- 不声称 read-only/tool guard 已生效；
-- 可继续普通 Pi 时标 `mode_enforcement = unavailable/prompt-only`；
-- 若当前安全边界必须程序化 read-only，则 `BLOCKED`，由用户选择可信扩展/隔离方式。
-
-默认不自动安装 extension。
-
----
-
-## 3. Pi Core `--mode` 与 Extension `--modes` 混淆
-
-错误例子：把 `--mode build` 当成 workflow mode，或把 `--modes json` 当输出协议。
-
-处理：
+如果 stream-json：
 
 ```text
-Pi core:        --mode json | rpc | ...
-workflow ext:   --modes plan | build | review | debug | ...
+init.cwd != repo_root
 ```
 
-调用前以当前 `pi --help` / extension docs/capability 为准。
+立即：
 
----
-
-## 4. Session cwd mismatch
-
-JSON session header 返回：
-
-```text
-cwd != repo_root
-```
-
-处理：
-
-1. 停止使用该 session 作为本任务 Worker；
-2. 检查错误 cwd/repo 是否已发生修改；
+1. 停止把该 run 当当前任务；
+2. 检查错误 workspace 是否有副作用；
 3. 不自动回滚来源不明改动；
-4. 回到正确 repo root 新建/恢复正确 Pi session；
-5. 重新验证 branch/baseline。
+4. 回正确 repo_root；
+5. 重新确认 branch/baseline；
+6. 新建或恢复正确 conversation。
 
 ---
 
-## 5. Session ID 丢失 / 不可恢复
+## 4. Conversation ID 丢失
 
 - 不猜 ID；
-- 不拿“最近一个 session”冒充当前任务；
-- 保留 current repository state；
-- 用 Task Contract + baseline + current diff + Review evidence 建 replacement session。
+- 不把“最近 conversation”自动当当前任务；
+- 保留 repository progress；
+- 新 conversation 输入 Spec + Execution Unit + current diff + Review evidence。
 
-已 `CODE_VERIFIED` 时，只重建 Closeout 上下文。
+`-c` 是人工便捷入口，不是自动化精确关联的首选。
 
 ---
 
-## 6. Wrong / stale session resume
+## 5. Wrong / Stale Conversation Resume
 
 迹象：
 
-- Pi 提到另一个项目；
-- session header/cwd 不匹配；
-- repository 当前事实与 session 上下文明显冲突。
-
-处理：立即停止本 turn，检查 Git，换回真实当前 session 或重建 session。
-
-Session continuity 是帮助，不是 repository truth。
-
----
-
-## 7. JSON stream 截断 / 无 `agent_end`
-
-可能是 Pi crash、Provider error、进程被中断或输出损坏。
+- AGY 回答明显属于另一任务；
+- conversation 与当前 repository facts 冲突；
+- cwd / project context 不一致。
 
 处理：
 
-1. 检查是否已取得真实 session header；
-2. 检查 Git/tool effects；
-3. 不对可能有写副作用的 turn 无脑 replay；
-4. 能安全 resume 时继续同一 session；
-5. 否则 replacement session + current repository evidence。
+1. 停止当前 turn；
+2. 读取 Git；
+3. 不依赖错误 conversation 的总结；
+4. 切回真实 `conversation_id`，或重建 context。
+
+Conversation continuity 只是上下文，不是 Source of Truth。
 
 ---
 
-## 8. `agent_end` / 正常 exit，但没有 repository delivery
+## 6. Stream JSON 截断 / 无 `result`
 
-Pi turn 正常返回，但：
+可能是：
+
+```text
+process crash
+SIGINT
+network/backend failure
+CLI bug
+output corruption
+```
+
+处理：
+
+1. 保存已取得的 `conversation_id`；
+2. 检查 repository tool effects；
+3. 检查 stderr / tool errors；
+4. 不无脑 replay 可能产生重复副作用的 Execution Unit；
+5. 能安全 resume 时用 `--conversation`；
+6. 否则 replacement conversation + current repo evidence。
+
+---
+
+## 7. Terminal Result 非 SUCCESS
+
+可能：
+
+```text
+ERROR
+CANCELED
+INTERRUPTED
+INVALID
+WAITING
+RUNNING
+```
+
+不要只按进程退出码分类。
+
+保留：
+
+```text
+result.status
+result.error
+stderr
+conversation_id
+repository partial progress
+```
+
+然后判断：retry / resume / rework / blocked。
+
+---
+
+## 8. `SUCCESS` 但没有 Repository Delivery
+
+AGY 返回：
+
+```text
+result.status = SUCCESS
+```
+
+但：
 
 ```bash
 git status --short
 git diff
 ```
 
-没有 Task Contract 对应实现。
+没有当前 Execution Unit 的实现。
+
+结论：
+
+```text
+REWORK_REQUIRED or BLOCKED
+```
+
+禁止：
+
+```text
+SUCCESS → ACCEPTED
+```
+
+---
+
+## 9. Headless Permission Soft-Deny
+
+这是 Alpha 2 必须防的 near-miss。
+
+Headless 没有人工 prompt；需要 `Ask` 的 command/tool 可能被 soft-deny，本轮仍继续，甚至 exit 0。
+
+必须同时检查：
+
+```text
+stderr permission notice
+step_update.tool_info.error
+actual command evidence
+repository state
+result.status
+```
+
+如果 AGY 说“测试通过”，但实际测试 command 被 permission block：
+
+```text
+worker_test_execution = blocked/not-run
+```
+
+不能标 PASS。
+
+---
+
+## 10. 为了方便使用 `--dangerously-skip-permissions`
+
+默认禁止把它作为 supervised path。
+
+遇到 command block 时优先：
+
+1. 判断是否属于本任务；
+2. 使用项目已有窄 permission rule；
+3. 用户授权后增加最小 allow；
+4. 需要一次人工判断则 tty7 fallback；
+5. 不直接全量 auto-approve。
+
+---
+
+## 11. Permission Rule 过宽
+
+危险例子：
+
+```text
+command(*) allow
+write_file(*) allow outside intended workspace
+always-proceed used globally
+```
 
 处理：
 
-- 不接受；
-- 检查 task understanding / cwd / provider result；
-- `REWORK_REQUIRED` 或 `BLOCKED`；
-- `agent_end != PASS`。
+- 缩到本项目真实需要的 action/target；
+- 不把 permission config 变成绕过 Supervisor 的永久后门；
+- One-way action 仍要求用户授权，即使 permission engine 会 allow。
 
 ---
 
-## 9. Provider 缺失
+## 12. Sandbox 不兼容
 
-Provider 没注册/没配置：
+`--sandbox` 可能限制某些构建、测试、工具链。
+
+如果 sandbox 导致本应合法的项目命令失败：
+
+- 先确认是 sandbox 限制而非代码失败；
+- 不把 sandbox failure 当 regression；
+- 选择更窄 permission/环境方案；
+- 仍不默认切 `--dangerously-skip-permissions`。
+
+---
+
+## 13. tty7 Fallback 被误用成默认 Runtime
+
+tty7 只在需要 TUI/人工批准时使用。
+
+如果所有正常任务又回到：
 
 ```text
-provider-missing → BLOCKED
+send → capture → wait → parse screen
 ```
 
-不自动 `pi install`；由用户选择并审查 Provider。
+说明 Runtime 设计退化回 2.1.x。
+
+优先恢复 headless；tty7 保持 fallback。
 
 ---
 
-## 10. OAuth / Auth required
+## 14. tty7 Interactive Context 串项目
 
-Provider 存在，但 credential missing/expired/invalid：
+进入 fallback 前必须记录：
 
 ```text
-PROVIDER_AUTH_BLOCKED
+repo_root
+branch
+baseline
+Execution Unit/Rework Contract
+known conversation id
 ```
 
-- 不读取/展示 token；
-- 不模拟登录；
-- 不静默切 Provider；
-- 用户自己完成 auth flow。
+退出后必须重新检查 Git。
+
+不要因为 TUI 看起来在正确项目就跳过 repository binding。
 
 ---
 
-## 11. Antigravity 第三方集成风险
+## 15. Worker 重新做产品决策
 
-第三方 Pi Antigravity Provider 不是官方 AGY CLI。
-
-如果 README/版本提示 ToS、账号封禁或 endpoint 风险：
-
-- 如实报告；
-- 不说成 Google 官方支持；
-- 未经用户接受不自动安装/启用；
-- credential 始终保持 Provider/Pi-owned。
-
----
-
-## 12. Provider quota / transport / model failure
-
-分类：
+如果 AGY 遇到未解决的产品/架构问题并自行选择：
 
 ```text
-401/auth       → PROVIDER_AUTH_BLOCKED
-429/quota      → PROVIDER_CAPACITY_BLOCKED
-timeout/5xx    → PROVIDER_TRANSIENT_FAILURE
-model removed  → PROVIDER_CAPABILITY_FAILURE
+→ REWORK_REQUIRED or SHAPING
 ```
 
-保留 repository progress 和 session（若仍有效）。
-
-Transient error 只做有限 safe retry；不无限重试。
-
-Provider/model failover 默认不静默发生；只有用户/Task Contract 允许时切换并记录。
+Worker 应报告 ambiguity，而不是把猜测固化进代码。
 
 ---
 
-## 13. Read-only mode 实际发生写入
+## 16. Slice 过大
 
-如果可信 extension 声称当前是 `plan/review` read-only，但 repository 出现 task-introduced mutation：
+迹象：
 
-这是 policy violation。
+- 一轮修改大量无明显共同行为边界的文件；
+- 多个独立用户能力混在一个 Execution Unit；
+- Review 很难回答“这一小步交付了什么”。
 
-检查：
-
-- extension 是否真的加载；
-- mode 是否正确；
-- custom tool/bash 是否绕开 policy；
-- 是否是 baseline/其他进程变化。
-
-在确定 extension policy 正常前不要继续信任其 read-only 声明。
+处理：回 `SLICED`，重新拆 Vertical Slices。
 
 ---
 
-## 14. 没有 Extension 却把 Prompt 当 Tool Guard
+## 17. Horizontal Slicing
 
-禁止报告：
+典型：
 
 ```text
-"read-only enforced"
+all DB
+then all API
+then all UI
+then tests
 ```
 
-如果实际只是 prompt 写了“不要修改”。
+如果中间状态长时间不可独立验证，重新按 tracer-bullet vertical slice 拆。
 
-正确写：
-
-```text
-mode_enforcement = prompt-only / unavailable
-```
-
-Codex 必须依赖最终 Git review 发现越界写入。
+Wide mechanical refactor 才使用 Expand → Migrate → Contract 例外。
 
 ---
 
-## 15. 为了绕过阻塞切 `yolo`
-
-监督流程默认禁止把 `yolo` 当 fallback。
-
-遇到 policy block：
-
-- 判断是安全限制、Scope/one-way boundary，还是 extension false positive；
-- 修正 Contract/选择更合适已知模式；
-- 不静默解除所有保护。
-
----
-
-## 16. Scope Drift
+## 18. Scope Drift
 
 ```text
 current changes - baseline changes = task-introduced changes
@@ -247,121 +344,108 @@ current changes - baseline changes = task-introduced changes
 
 发现无关 refactor/format/dependency/config：
 
-1. 判断是否为必然 propagation；
-2. 无依据 → REWORK；
-3. 只撤销 Pi 本任务产生的越界改动；
-4. 不碰 baseline-owned changes。
+1. 判断是否是当前 slice 必然 propagation；
+2. 是 → Completeness scope；
+3. 否 → Rework；
+4. 只撤销 Worker 本任务越界修改；
+5. 不碰 baseline-owned changes。
 
 禁止 `git reset --hard` 粗暴清理。
 
 ---
 
-## 17. Completeness propagation 超初始文件 Scope
+## 19. Completeness Remainder 被误当 Follow-up
 
-初始 Scope 不应成为静态 whitelist。
+例如：
 
-如果新 caller/schema/test 是不更新就会 unfinished：
+```text
+caller 旧签名
+validator/serializer 漏同步
+existing data 漏迁移
+同根因 sibling 仍可达
+```
 
-- Codex 用 blast-radius evidence 判定；
-- 将它纳入当前 Task Contract propagation scope；
-- resume 同一 Pi session 返工。
+这些若会让当前 change unfinished：
 
-若只是邻近优化，则 different ticket。
+```text
+COMPLETENESS_REVIEW → REWORK_REQUIRED
+```
 
----
-
-## 18. Completeness remainder 被误当 follow-up
-
-典型：caller 旧签名、validator/serializer 漏同步、schema existing data 漏处理、sibling 同根因仍可达。
-
-处理：`COMPLETENESS_REVIEW → REWORK_REQUIRED`。
-
-不能因 targeted tests green 进入 Verification。
+不能因为当前 slice targeted test 绿就推给未来。
 
 ---
 
-## 19. Completeness 被误用成 Scope Expansion
+## 20. Completeness 被误用成 Scope Expansion
 
 判断：
 
 > 不做这一项，当前 change 会被 Reviewer 称为 unfinished 吗？
 
-不会 → different ticket。
-
-不要借 completeness 升级依赖、做大重构、解决无关旧债。
+不会 → different ticket / Out of Scope。
 
 ---
 
-## 20. Test Layer 不匹配
+## 21. Verification Seam 不正确
 
-明确：
+如果测试只验证内部实现而没有覆盖 Spec 的公共行为边界：
 
 ```text
-Unit: required | not-applicable
-Integration: required | not-applicable
-E2E: required | not-applicable | user-skipped
+→ REWORK_REQUIRED
 ```
 
-UI→API→DB 等真实跨边界流程只跑 unit 不够。
+例如用户行为是 HTTP contract，却只测 private helper。
 
-用户 skip E2E 必须保留 `user-skipped`。
-
----
-
-## 21. Regression test 只有 fix 后 GREEN
-
-确定性 bug 如果 test 没证明 unfixed 时 RED：
-
-- 不算完整 RED→GREEN；
-- 能安全还原/对照时要求同一 test 在 unfixed behavior 上 RED；
-- 确认失败原因是目标 bug；
-- fix 后 GREEN；
-- Codex 独立重跑。
+Test Layer green 不能弥补错误 seam。
 
 ---
 
-## 22. RED→GREEN 不适用
+## 22. Test Layer 不匹配
 
-允许：不可控第三方、unstable race、纯视觉无自动化、安全复现会造成未授权副作用等。
-
-记录：
+显式：
 
 ```text
-Regression proof: not-applicable
-Reason: ...
-Alternative evidence: ...
+Unit
+Integration
+E2E
 ```
 
-不 fabricated RED，也不跳过全部验证。
+真实跨边界行为只跑 unit 通常不足。
+
+用户 skip E2E 必须记录 `user-skipped`，不能改写成 N/A。
 
 ---
 
-## 23. 修症状不修 Root Cause
+## 23. Regression Test 只有 Fix 后 GREEN
 
-Review 必须能回答：
+确定性 bug 默认要求：
 
 ```text
-Symptom
-Root cause
-Same cause elsewhere
-Regression boundary
+unfixed → RED
+root-cause fix
+same test → GREEN
+Codex re-run
 ```
 
-同根因仍存在于 reachable sibling → Completeness remainder。
+若无法安全复现，记录 N/A 原因和替代证据。
 
 ---
 
 ## 24. Rework 震荡
 
-默认 3 个：
+默认 soft limit：3 个完整 `Review → Rework → Re-review` 周期。
+
+达到后重新评估：
 
 ```text
-Review → Rework → Re-review
+Spec 是否错误
+slice 是否过大
+root cause 是否不清楚
+permission 是否阻止必要验证
+环境是否有问题
+conversation 是否污染
 ```
 
-达到后重新评估：Task Contract、root cause、Provider/model、mode extension、scope/completeness、环境依赖。
-
-不要静默无限循环。
+不要无限 resume 同一 conversation。
 
 ---
 
@@ -370,7 +454,7 @@ Review → Rework → Re-review
 包括：
 
 - destructive migration；
-- breaking API；
+- breaking public API；
 - auth/tenancy relaxation；
 - money/billing semantics；
 - credential behavior；
@@ -378,64 +462,56 @@ Review → Rework → Re-review
 - irreversible delete；
 - push/merge/release/deploy。
 
-无明确授权 → `BLOCKED / blocked-decision-needed`。
+无明确授权：
 
-Extension 能 block 更好，但最终授权边界由 Codex/用户决定，不依赖模型自觉。
+```text
+BLOCKED / blocked-decision-needed
+```
+
+AGY permission allow 不等于产品授权。
 
 ---
 
-## 26. Generated artifact / residue
+## 26. Generated Artifact / Residue
 
-coverage/log/tmp/build output/debug/lockfile：
+coverage/log/tmp/build/debug artifacts：
 
-- 明确本 turn 生成且按项目惯例可安全删除 → 可清理；
-- 来源/用途不明 → `deletion-candidate`；
-- baseline 已存在 → 不删除。
+- 明确本 run 生成、按项目惯例可安全删除 → 可清；
+- 来源不明 → `deletion-candidate`；
+- baseline 已存在 → 不删。
 
 ---
 
 ## 27. Closeout 文档与代码冲突
 
 - final verified implementation 是优先事实；
-- 实现明确 → Closeout rework；
-- 如果文档冲突揭示代码传播漏改 → 退回 Completeness/Verification；
-- 不只改文档遮住错误代码。
+- 文档 stale → Closeout Rework；
+- 冲突揭示实现漏传播 → 退回 Review/Completeness/Verification；
+- 不只改文档掩盖代码问题。
 
 ---
 
-## 28. Closeout 无法裁决 / 跨项目影响
+## 28. Sensitive Data 出现在 Runtime Output
 
-标：
+如果 stderr/tool output 包含 secret/token/Authorization：
 
-```text
-pending
-out-of-scope
-```
-
-保留证据，不把无法验证的行为写成 current truth；必要时 BLOCKED 请求用户判断。
-
----
-
-## 29. Sensitive data 出现在输出
-
-如果 Provider/Pi diagnostics 包含 token、Authorization、secret：
-
-- 不继续复制传播；
+- 不继续复制；
 - 不 commit；
-- 最终报告只记录 auth status，不记录 value；
+- 最终报告只记录状态，不记录值；
 - 按项目安全流程处理潜在泄漏。
 
-3.0.1 没有自定义 Evidence Store，所以尤其不要为了“留证”把原始敏感 JSONL 复制进仓库。
+不要为了“留证”把原始 stream-json 整份提交到 repo。
 
 ---
 
-## 30. 用户取消
+## 29. 用户取消
 
-停止当前 Pi invocation；RPC 模式下调用原生 abort。
+停止当前 AGY process / interactive action。
 
 随后：
 
 - 检查 repository partial progress；
 - 不自动 rollback；
-- 报告当前安全状态；
+- 保存真实 conversation id（若有）；
+- 报告当前状态；
 - `CANCELLED` 或风险未决时 `BLOCKED`。
