@@ -1,8 +1,10 @@
-# Repository Review Gates — v3.0.1
+# Repository Review Gates — v3.1 Alpha 2
 
-本文件定义 Codex 对 **Pi Native Worker 产出的真实 repository state** 做独立 Review 的维度。
+本文件定义 Codex 对 **AGY Primary Worker 产出的真实 repository state** 做独立 Review 的门禁。
 
-Pi JSON events、session metadata、Provider/model 信息和 Worker summary 只用于诊断；真正交付从 Git state 获取。
+AGY stream-json、conversation metadata、Worker summary 只用于诊断；真正交付从 Git state 和 Codex Independent Verification 获取。
+
+> Alpha 2 只完成 Runtime 对齐；Alpha 3 会把这些 Gate 正式重组为 **Spec Fidelity / Engineering Quality / Completeness** 三轴 Review。
 
 ---
 
@@ -13,7 +15,7 @@ Pi JSON events、session metadata、Provider/model 信息和 Worker summary 只�
 - 当前 branch / HEAD 已记录；
 - 任务前已有未提交改动已识别；
 - 没有为了“清理”回滚用户改动；
-- Pi 本任务新增改动可与 baseline 区分。
+- AGY 本任务新增改动可与 baseline 区分。
 
 ```bash
 git status --short
@@ -33,30 +35,34 @@ current changes - baseline changes = task-introduced changes
 
 检查：
 
-- 修改属于 Task Contract；
+- 修改属于当前 Spec / Execution Unit；
 - 没有无关 refactor/format；
 - 没有无关 dependency/config/CI/deploy 变化。
 
 超初始 Scope 的 path：
 
-1. 是需求必然 propagation → 可以纳入 completeness scope；
+1. 是当前 change 必然 propagation → 可以纳入 completeness scope；
 2. 无充分证据 → REWORK；
-3. 只撤销 Pi 本任务引入的越界改动；
+3. 只撤销 AGY 本任务引入的越界改动；
 4. 不碰 baseline-owned changes。
 
 ---
 
-## Gate 2 — Requirement Coverage
+## Gate 2 — Spec / Acceptance Coverage
 
-把需求逐项对应到：
+把 Spec / Execution Unit 的 Acceptance Criteria 对应到：
 
-- implementation；
-- API/schema/contract；
-- migration/data；
-- tests；
-- UI/caller（若适用）。
+```text
+implementation
+observable behavior
+API/schema/contract
+migration/data
+verification seam
+tests
+UI/caller（若适用）
+```
 
-不能用 Pi “已完成”替代覆盖证明。
+不能用 AGY “已完成”替代覆盖证明。
 
 ---
 
@@ -105,7 +111,7 @@ blocked-decision-needed
 - DTO/model/entity 边界；
 - schema/migration/persistence；
 - config convention；
-- 没有无依据架构扩张。
+- 没有 Speculative Generality / 无依据架构扩张。
 
 ---
 
@@ -140,24 +146,22 @@ blocked-decision-needed
 
 ---
 
-## Gate 7 — Tests, Test Layers & Regression Proof
+## Gate 7 — Verification Seam, Test Layers & Regression Proof
 
 每个任务必须明确：
 
 ```text
+Primary Verification Seam
 Unit:        required | not-applicable
 Integration: required | not-applicable
 E2E:         required | not-applicable | user-skipped
 ```
 
-- pure logic → unit；
-- module/DB/serialization/queue/adapter contract → integration；
-- UI→API→DB、service→service、CLI→filesystem 等真实边界 → 优先 E2E；
-- `user-skipped` 不得改写成 N/A。
+测试应优先通过公共行为边界观察，而不是绑定内部实现。
 
 ### Bugfix RED → GREEN
 
-可安全、确定性自动复现：
+可安全确定性自动复现：
 
 ```text
 unfixed → regression test RED
@@ -171,33 +175,32 @@ Codex independent re-run
 - 只改 assertion；
 - 删/skip tests；
 - mock 掉真实 contract；
-- fix 后才补一个从没证明能 RED 的测试。
+- fix 后才补一个从没证明能 RED 的 test；
+- test layer 对了但 seam 错了。
 
 ---
 
-## Gate 8 — Pi Session / Turn Evidence Integrity
-
-3.0.1 不要求 custom `run_id/operation_id`。
+## Gate 8 — AGY Run / Conversation Evidence Integrity
 
 确认：
 
-- Pi session id/file 来自真实 Pi 输出；
-- JSON session header 的 `cwd` 与 `repo_root` 一致；
-- resume 使用的是当前任务真实 session，而不是最近一个未知 session；
-- `agent_end` / 正常 process exit 只被解释为“Pi turn returned”；
-- JSON stream 截断时没有无脑 replay 可能产生写副作用的 turn；
-- Provider/model 切换若发生是显式、可解释的；
-- Worker summary 与 Git state 冲突时以 Git 为准。
+- `conversation_id` 来自真实 AGY `init/result`；
+- `init.cwd == repo_root`；
+- rework 使用当前任务真实 `--conversation <id>`；
+- `-c` 没被用于猜一个未知“最近 session”冒充精确身份；
+- stream-json 截断时没有无脑 replay 可能有副作用的任务；
+- `result.status=SUCCESS` 只被解释为本轮 AGY 返回；
+- Worker summary 与 Git 冲突时以 Git 为准。
 
 规则：
 
 ```text
-Pi agent_end != PASS
+AGY result SUCCESS != PASS
 ```
 
 ---
 
-## Gate 9 — Independent Verification
+## Gate 9 — Codex Independent Verification
 
 Codex 必须自己执行相关门禁：
 
@@ -212,7 +215,17 @@ build/package
 contract/schema check
 ```
 
-Pi 报告“我跑过”只能作为线索。
+AGY 报告“我跑过”只能作为线索。
+
+尤其要区分：
+
+```text
+actually-run-and-pass
+blocked/not-run
+failed
+```
+
+Headless permission soft-deny 不得伪装成测试 PASS。
 
 E2E required 时记录 command、startup/readiness、seed/fixture、account/sandbox、teardown。
 
@@ -242,8 +255,6 @@ git diff
 
 ## Gate 11 — External Side Effects / One-way Door
 
-默认验收边界：本地 repository 可交付。
-
 未经授权不得：
 
 - push；
@@ -263,47 +274,31 @@ git diff
 - credential behavior；
 - irreversible data deletion。
 
-标 `blocked-decision-needed`，不能借 completeness 自动授权。
+AGY permission engine 的 allow 只代表 Runtime 允许，不代表产品/风险层已授权。
 
 ---
 
-## Gate 12 — Pi Runtime / Extension / Credential Hygiene
+## Gate 12 — AGY Runtime / Permission / Credential Hygiene
 
-3.0.1 不再 Review 自研 Harness，而 Review **实际 Pi runtime 能力是否被如实使用和报告**。
+### Native Runtime
 
-### Native runtime
+确认：
 
-- 使用 Pi 原生 session，而非伪造 session identity；
-- 不要求不存在的 custom daemon/Run Store；
-- JSON/RPC capability 使用前已由当前安装能力确认。
+- 使用官方 AGY CLI 主链；
+- headless capability 使用前由当前 `agy --help` 验证；
+- `stream-json` 按 `init / step_update / result` 解析；
+- 不默认 screen scrape；
+- 不 reverse-engineer conversation DB 作为主身份来源。
 
-### Workflow extension
+### Permission Integrity
 
-如果报告 `read-only enforced`：
+- 默认不使用 `--dangerously-skip-permissions`；
+- 需要 allow 时尽量使用窄 fine-grained rule；
+- `Ask` 在 headless 中被 soft-deny 时被如实记录；
+- exit 0 不被当成所有 tool 都成功；
+- tty7 只用于真正需要人工交互的 fallback。
 
-- 必须确认可信 extension 已加载；
-- 当前 mode 必须是实际 read-only mode（如已验证的 `plan/review`）；
-- task-introduced mutation 与 read-only 声明不矛盾。
-
-如果 extension 不存在：
-
-```text
-mode_enforcement = unavailable/prompt-only
-```
-
-不得包装成程序化 Tool Guard。
-
-监督流程默认不使用 `yolo` 绕过阻塞。
-
-### Provider boundary
-
-- Provider 只作为 intelligence；
-- 没自动安装/登录未经用户确认的 Provider；
-- 没提取 OAuth token/credential；
-- auth/quota/model/transport error 与 code error 分类清楚；
-- provider/model failover 不静默。
-
-### Credential hygiene
+### Credential Hygiene
 
 不得把：
 
@@ -312,10 +307,14 @@ access token
 refresh token
 Authorization header
 client secret
-credential file contents
+credential store contents
 ```
 
-写入 Task Contract、项目文件、最终报告或为了“留证”复制到仓库。
+写进 Execution Unit、Rework Contract、项目文件或最终报告。
+
+### Pi Boundary
+
+如果使用 Pi，只能作为 optional specialist。不要让 Pi 重新成为默认 `Codex → Pi → AGY` 中间层，也不要用第三方 Antigravity OAuth Provider 偷偷替代官方 AGY CLI 主链。
 
 ---
 
@@ -338,11 +337,10 @@ not-applicable
 - README/usage 与 final implementation 一致；
 - `AGENTS.md` / `CLAUDE.md` / project rules 准确且不过度膨胀；
 - API/schema/CLI/shared Contract 与实现/示例/caller 一致；
-- env/config/provider/service/deploy/job docs 同步；
+- env/config/service/deploy/job docs 同步；
 - rename/retirement 无 stale current-state reference；
 - 没有多个文档争夺同一事实权威；
 - 没把开发流水账写进长期规则；
-- 未验证行为没写成“已完成/已上线”；
 - residue 如实报告且未未经授权删除。
 
 每次开发都 Scan，不是每次都必须修改 Markdown。
@@ -355,11 +353,11 @@ not-applicable
 
 ```text
 PASS
-- 当前 Task Contract 阶段满足。
+- 当前 Spec / Execution Unit 满足。
 - Baseline 完整，无无依据 scope drift。
 - Completeness/blast radius 已检查。
 - 相关代码/测试证据成立。
-- Pi session/runtime evidence 与 repository 不冲突。
+- AGY runtime evidence 与 repository 不冲突。
 - 可以进入下一阶段。
 ```
 
@@ -368,9 +366,9 @@ PASS
 ```text
 REWORK
 - Issue: <问题>
-- Evidence: <file/diff/test/call-chain/Pi session evidence>
+- Evidence: <file/diff/test/call-chain/runtime evidence>
 - Expected: <期望>
-- Required change: <Pi 要修改什么>
+- Required change: <AGY 要修改什么>
 - Re-run: <命令>
 ```
 
@@ -378,10 +376,10 @@ REWORK
 
 ```text
 BLOCKED
-- Blocker: <环境/Provider/权限/one-way decision/session/extension capability>
+- Blocker: <环境/auth/permission/one-way decision/conversation capability>
 - Evidence: <实际证据>
 - Safe state: <repository / governance state>
 - Decision needed: <用户决定>
 ```
 
-最终 `ACCEPTED` 必须同时经过 Completeness、Test/Regression Proof、Codex Independent Verification、Pi Runtime/Extension Hygiene 和 Knowledge Closeout Review。
+最终 `ACCEPTED` 必须经过 Completeness、Test/Regression Proof、Codex Independent Verification、Runtime/Permission Hygiene 和 Knowledge Closeout Review。
