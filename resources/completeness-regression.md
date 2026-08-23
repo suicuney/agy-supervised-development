@@ -1,46 +1,42 @@
-# Completeness & Regression Proof — v3.0.1
+# Completeness & Regression Proof — v3.1
 
-本文件定义两个代码交付门禁：**Change Completeness Sweep** 与 **Regression/Test Proof**。
+本文件定义进入 `CODE_VERIFIED` 前的两个核心门禁：
 
-它们解决两个不同问题：
+```text
+Change Completeness Sweep
+Regression / Test Proof
+```
 
-- 当前 diff 本身是否正确；
-- 是否还有“本来应该改、但没有改”的传播面。
+它们回答两个不同问题：
 
-Knowledge Closeout 负责代码稳定后的知识对齐；本文件负责进入 `CODE_VERIFIED` 之前的代码世界完整性。
+- 当前 diff 里的东西是否正确；
+- 是否还有“本来应该改、却没有进入 diff”的传播面。
 
 ---
 
 ## 1. Completeness Contract
 
-一个改动不能因为核心文件已经实现就被视为完整。
-
 判断边界：
 
 > 如果现在交付，Reviewer 会把剩余项称为 **unfinished**，还是 **a different ticket**？
 
-- `unfinished`：属于本任务，必须补齐或证明不适用；
-- `different ticket`：保持 out-of-scope，不借完整性扩大需求。
+- `unfinished`：属于当前 Spec / slice，必须补齐或证明不适用；
+- `different ticket`：保持 Out of Scope，不借 Completeness 扩需求。
 
-Completeness 不是顺手重构附近代码，而是禁止把**本次改动自己制造的 remainder** 推给未来。
+典型 unfinished remainder：
 
-典型 remainder：
-
-- 函数签名变了，caller 仍使用旧签名；
-- enum/type 增加值，validator/serializer/fixture 没同步；
-- schema 增字段，existing rows 需要 backfill 却未处理；
-- 新状态可达，但 error/empty/permission-denied 分支没处理；
-- 新路径落地后旧路径失去意义，却仍 orphaned；
+- 函数签名变了，caller 仍用旧签名；
+- enum/type 增值，validator/serializer/fixture 没同步；
+- schema 增字段，existing rows 需要处理却遗漏；
+- 新状态可达，但 error/empty/permission/retry 分支没处理；
 - API 变了，consumer/SDK/test fixture 仍按旧 contract；
-- bugfix 只覆盖第一个实例，同一 root cause 在 sibling path 仍可达。
+- bugfix 只修第一个实例，同根因 sibling 仍可达。
 
 ---
 
-## 2. Change Completeness Sweep
+## 2. Missing Diff Review
 
-Codex 不能只读 diff，还要做 **Missing Diff Review**。
-
-对每一个有语义变化的 symbol / contract / state：
+对每一个语义变化追踪：
 
 ```text
 Changed Symbol / Behavior
@@ -66,7 +62,7 @@ Tests
 Knowledge Impact Handoff
 ```
 
-最后一项只判断“是否影响知识面”；真正 README/docs/rules 修改优先放在 `CODE_VERIFIED` 后的 Closeout。
+最后一项只判断知识面是否受影响；真正 docs/rules 修改放在 `CODE_VERIFIED` 后的 Closeout。
 
 ---
 
@@ -104,7 +100,7 @@ Remainder disposition:
 Knowledge impact:
 ```
 
-`Remainder disposition` 只能是：
+Remainder disposition：
 
 ```text
 fixed-in-run
@@ -115,45 +111,63 @@ blocked-decision-needed
 
 ---
 
-## 4. Completeness 与 Scope Guard
+## 4. Completeness 与 Execution Unit Scope
 
 两者方向相反但必须同时成立：
 
 ```text
 Scope Drift Guard
-= 不允许做需求之外的东西
+= 不允许做当前 Spec/slice 之外的东西
 
 Completeness Sweep
-= 不允许漏掉需求之内、由本次改动必然产生的传播面
+= 不允许漏掉当前 change 必然产生的传播面
 ```
 
 因此：
 
 - 顺手升级依赖通常是 scope drift；
 - 新参数导致所有实际 caller 必须补齐是 completeness；
-- 顺便设计全站新架构是 different ticket；
+- 顺便重做全站架构是 different ticket；
 - existing data 必须变更才能被新代码正确读取通常是 completeness。
 
-3.0.1 不要求自研静态 Path Guard。若 Pi/Review 发现新的 propagation path：
+若 AGY/Review 发现新的 propagation path：
 
-1. Codex 用调用链/contract evidence 判断它是不是 unfinished；
-2. 如果是，更新 Rework Contract 的有效 scope；
-3. resume 同一真实 Pi session 继续修改；
-4. 如果只是邻近优化，则保持 different ticket。
+1. Codex 用调用链/contract evidence 判断是否 unfinished；
+2. 是 → 更新 `Rework Contract` 的有效 scope；
+3. resume 当前真实 AGY conversation；
+4. 否 → 保持 different ticket。
 
-如果当前安装的可信 Extension 提供 path/tool policy，可以作为附加防护，但 Skill 不假装它一定存在。
+Execution Unit 的初始文件范围不是永久静态 whitelist。
 
 ---
 
-## 5. One-way Door
+## 5. 与 Vertical Slice / Wide Refactor 的关系
 
-普通、可逆、范围内实现细节优先：
+### Vertical Slice
 
-- narrower over broader；
-- additive over destructive；
-- flag-off over flag-on；
-- deny over allow；
-- project convention over invented pattern。
+每个 slice 的 Completeness 先保证：
+
+> 这个 slice 自己交付的行为是完整的。
+
+多个 slice 完成后，再做一次 Global Completeness，防止跨 slice contract 漏传播。
+
+### Expand → Migrate → Contract
+
+每个 migration batch 可以只完成一部分调用点，但必须符合已批准 migration sequence。
+
+最终 `CONTRACT` 前必须证明：
+
+```text
+old form no longer has active callers
+migration batches complete
+compatibility bridge can safely remove
+```
+
+不要把计划内的 later migration batch误判成当前 batch 的 unfinished；同时也不能遗漏不在 migration plan 里的真实 caller。
+
+---
+
+## 6. One-way Door
 
 以下不能为了 completeness 擅自决定：
 
@@ -165,54 +179,48 @@ Completeness Sweep
 - production mutation；
 - irreversible deletion。
 
-可信 Extension 若能程序化 block 是加分项；无论 Extension 是否存在，Codex 都必须把未授权 one-way remainder 标：
+标：
 
 ```text
 blocked-decision-needed
 ```
 
-并请求用户决策。
+AGY permission engine 是否允许执行，不改变用户授权要求。
 
 ---
 
-## 6. Bugfix Regression Proof：RED → GREEN
+## 7. Bugfix Regression Proof：RED → GREEN
 
-对于能够确定性自动复现的 bug，默认要求：
+对于能够确定性、安全复现的 bug，默认要求：
 
 ```text
 Reproduce
-  ↓
-Write Regression Test
-  ↓
-Run against unfixed behavior
-  ↓
-RED for expected reason
-  ↓
-Fix Root Cause
-  ↓
-Run same test
-  ↓
-GREEN
-  ↓
-Codex Independent Re-run
+→ Write/identify regression test at the agreed seam
+→ Run against unfixed behavior
+→ RED for expected reason
+→ Fix Root Cause
+→ Run same test
+→ GREEN
+→ Codex Independent Re-run
 ```
 
-目的不是形式化 TDD，而是证明新测试真的能捕获这次缺陷。
-
-### RED evidence
+### RED Evidence
 
 ```text
 Regression proof: required
+Verification seam: <public boundary>
 Test: <test name/path>
 Before fix: FAIL
-Failure evidence: <关键错误/断言>
+Failure evidence: <target symptom>
 After fix: PASS
 Codex re-run: PASS | FAIL
 ```
 
-Pi Worker 可以生成 before/after evidence，但 Codex 必须判断证据确实对应目标 bug，并独立重跑最终 test。
+AGY 可以提供 before/after worker evidence，但 Codex 必须判断它确实对应目标 bug，并独立重跑最终 test。
 
-### 允许 `not-applicable`
+---
+
+## 8. 允许 Regression Proof N/A
 
 例如：
 
@@ -227,16 +235,16 @@ Pi Worker 可以生成 before/after evidence，但 Codex 必须判断证据确�
 ```text
 Regression proof: not-applicable
 Reason: ...
-Alternative evidence: targeted verification / fixture / static check / manual repro ...
+Alternative evidence: ...
 ```
 
-`not-applicable` 不是“懒得写测试”。
+N/A 不是“懒得写测试”。
 
 ---
 
-## 7. Fix Root Cause，不只盖症状
+## 9. Fix Root Cause，不只盖症状
 
-Codex Review bugfix 时要求证据能回答：
+Codex Review bugfix 时要求能回答：
 
 ```text
 Symptom:
@@ -245,13 +253,37 @@ Same cause elsewhere:
 Regression boundary:
 ```
 
-发现同类 pattern 时搜索 sibling sites。若同一根因存在多处，只修一处会让同类 bug 继续可达，则属于 completeness remainder。
+同根因存在于 reachable sibling 且不修就仍会产生同类 bug → Completeness remainder。
 
 ---
 
-## 8. Test Layer Decision
+## 10. Verification Seam
 
-每个开发任务显式判断：
+Test Layer 之前先明确：
+
+```text
+Primary Verification Seam
+Secondary Seam = optional
+```
+
+测试应优先观察公共行为，不绑定实现细节。
+
+错误例子：
+
+```text
+Spec 行为 = POST /orders
+实际只测试 private helper
+```
+
+即使 helper tests 全绿，也不能证明用户行为。
+
+如果实现过程中发现 seam 本身设计错误，需要回 Codex 修改 Spec 决策，而不是 Worker 私自换验证标准。
+
+---
+
+## 11. Test Layer Decision
+
+每个开发任务显式：
 
 ```text
 Unit:        required | not-applicable
@@ -261,17 +293,19 @@ E2E:         required | not-applicable | user-skipped
 
 ### Unit
 
-适合：纯逻辑、validation、mapping、algorithm、isolated service behavior。
+适合纯逻辑、validation、mapping、algorithm。
 
 ### Integration
 
-适合真实 contract 跨模块/基础设施：
+适合：
 
-- controller ↔ service；
-- ORM ↔ database；
-- serialization/schema；
-- queue producer/consumer；
-- filesystem/external adapter sandbox。
+```text
+controller ↔ service
+ORM ↔ database
+serialization/schema
+queue producer/consumer
+filesystem/external adapter sandbox
+```
 
 ### E2E
 
@@ -284,9 +318,7 @@ CLI → filesystem
 browser → auth → callback
 ```
 
-纯 library/helper 可明确 N/A。
-
-用户明确 skip E2E：
+用户明确 skip：
 
 ```text
 E2E = user-skipped
@@ -296,9 +328,31 @@ E2E = user-skipped
 
 ---
 
-## 9. E2E Run Recipe
+## 12. AGY Worker Test Evidence
 
-E2E required 时，Verification 应记录：
+AGY 的 Worker Report 应区分：
+
+```text
+actually-run-and-pass
+failed
+blocked/not-run
+```
+
+特别是在 headless 模式下，Ask permission 的 command 可能 soft-deny，但进程最终 exit 0。
+
+因此：
+
+```text
+AGY says "tests pass"
+```
+
+只有 tool/runtime evidence 能证明测试命令真实执行时，才能作为 worker evidence；最终仍由 Codex独立重跑。
+
+---
+
+## 13. E2E Run Recipe
+
+E2E required 时记录：
 
 ```text
 command
@@ -309,71 +363,55 @@ required test account / sandbox
 teardown
 ```
 
-如果仓库没有 E2E harness，不默认为小任务引入大型基础设施；由 Task Contract 决定是否建立 minimal harness。
+如果仓库没有 E2E harness，不默认为 Small task 引入大型基础设施；由 Spec/Task Size 决定是否建立 minimal harness。
 
 ---
 
-## 10. Task Contract 字段
+## 14. Execution Unit 中的 Test 字段
 
-Task Contract 应包含：
+每个 Execution Unit 至少继承：
 
 ```text
-Completeness
-- 必须追踪哪些 caller/consumer/data/state propagation。
-- 哪些 remainder 明确属于 different ticket。
-
+Verification Seam
 Test Strategy
-- Unit: required | not-applicable
-- Integration: required | not-applicable
-- E2E: required | not-applicable | user-skipped
-- Run recipe/environment constraints（若适用）
-
 Regression Proof
-- bugfix: required | not-applicable
-- 若 not-applicable，原因与替代证据。
+Worker Verification
+Completeness Watch
 ```
 
-简单任务可以很短，但三个判断不能默默省略。
+模板见 `../templates/execution-unit.md`。
 
 ---
 
-## 11. Codex Review 顺序
+## 15. Codex Review 顺序
 
-推荐：
+Alpha 2 推荐：
 
 ```text
 Diff correctness
-  ↓
-Requirement coverage
-  ↓
-Change Completeness / Blast Radius
-  ↓
-Architecture / Contract
-  ↓
-Correctness / Edge Cases
-  ↓
-Test Layer / Regression Proof
-  ↓
-Independent Verification
-  ↓
-CODE_VERIFIED
+→ Spec / Acceptance coverage
+→ Change Completeness / Blast Radius
+→ Architecture / Contract
+→ Correctness / Edge Cases
+→ Verification Seam / Test Layer / Regression Proof
+→ Independent Verification
+→ CODE_VERIFIED
 ```
 
-如果 Completeness 找到 missing caller / partial propagation，结论是 REWORK；不能靠“当前 changed files 测试都绿”继续推进。
+Alpha 3 会把它重组为三轴，但本文件的 Completeness/Regression 语义继续保留。
 
 ---
 
-## 12. Final Evidence
+## 16. Final Evidence
 
-进入 `CODE_VERIFIED` 前，Codex 至少能够汇报：
+进入 `CODE_VERIFIED` 前，Codex 至少能汇报：
 
 ```text
 Completeness Sweep: PASS | REWORK | BLOCKED
-Blast radius evidence: <搜索/调用链/contract>
+Blast radius evidence: <search/call-chain/contract>
 Remainders: <none | dispositions>
+Primary Verification Seam: <...>
 Test layers: unit/integration/e2e
 Regression proof: RED→GREEN | not-applicable
 Independent verification: <commands + result>
 ```
-
-只有代码正确、传播完整、测试层选择合理、可复现 bug 回归证据成立，才允许进入 `CODE_VERIFIED`，然后执行 Knowledge Closeout。
