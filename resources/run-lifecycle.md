@@ -1,19 +1,19 @@
-# Supervisor Run Lifecycle — v3.1 Alpha 2
+# Supervisor Run Lifecycle — v3.1 Alpha 3
 
-本文件定义 **Codex 的治理生命周期**。AGY CLI 自己的内部 agent/tool/subagent 状态不复制成第二套 orchestration state machine。
+本文件定义 **Codex 的治理生命周期**。AGY CLI 的内部 agent/tool/subagent 状态不复制成第二套 orchestration state machine。
 
 核心顺序：
 
 ```text
 INTAKE
 → SIZED
-→ SHAPING          # Medium/Large when needed
+→ SHAPING              # Medium/Large when needed
 → SPEC_READY
 → SLICED
 → WORKER_READY
+→ DIAGNOSING            # complex bug only, optional
 → IMPLEMENTING
-→ REVIEWING
-→ COMPLETENESS_REVIEW
+→ REVIEWING             # Three-Axis Review
 → VERIFYING
 → CODE_VERIFIED
 → CLOSEOUT
@@ -25,10 +25,13 @@ INTAKE
 
 ```text
 REWORK_REQUIRED
+REWORKING
 BLOCKED
 CANCELLED
 FAILED
 ```
+
+Alpha 3 的关键变化：**Completeness 已成为 Three-Axis Review 的 Axis C，不再在 Review PASS 后重复跑一个独立 `COMPLETENESS_REVIEW` 状态。**
 
 ---
 
@@ -52,13 +55,19 @@ current_execution_unit
 test_strategy
 primary_verification_seam
 regression_proof_status
+bug_workflow = simple | complex | not-applicable
+feedback_loop = command/evidence | none
 
 agy_conversation_id = real | none
 agy_cwd
 agy_result_status
 rework_count
 
-completeness_status
+review_cycle
+spec_fidelity_status = pending | pass | rework | blocked
+engineering_quality_status = pending | pass | rework | blocked
+completeness_status = pending | pass | rework | blocked
+review_findings
 blast_radius_evidence
 remainder_dispositions
 
@@ -89,13 +98,13 @@ Large
 
 详见 `task-sizing.md`。
 
-Size 不是永久标签。后续发现新的决策、blast radius 或 one-way door 时可以升级。
+Size 不是永久标签；新的决策、blast radius 或 one-way door 可以使其升级。
 
 ---
 
 ## 3. SHAPING
 
-Small 可走 compact shaping；Medium/Large 正式维护：
+Small 可 compact shaping；Medium/Large 正式维护：
 
 ```text
 Resolved Decisions
@@ -107,13 +116,13 @@ One-way Decisions
 
 只有关键 Open Decisions 已解决、剩余 Fog 不阻塞当前实现时，进入 `SPEC_READY`。
 
-Worker 不负责替用户补齐未解决的产品/架构决策。
+Worker 不负责替用户补齐未解决的产品/架构决定。
 
 ---
 
 ## 4. SPEC_READY → SLICED
 
-Codex 冻结 Spec：
+Codex 冻结：
 
 ```text
 Problem
@@ -126,7 +135,7 @@ Test Strategy
 Out of Scope
 ```
 
-再判断 Change Shape：
+再选择：
 
 ```text
 Vertical Slice
@@ -134,13 +143,13 @@ or
 Expand → Migrate → Contract
 ```
 
-生成 Execution Units。Medium/Large 默认不要一次把完整 Spec 交给 Worker。
+生成 Execution Units。Medium/Large 默认不要把完整 Spec 一次塞给 Worker。
 
 ---
 
 ## 5. Git Baseline
 
-进入写实现前建立 baseline：
+Writer 动手前：
 
 ```bash
 git status --short
@@ -149,19 +158,19 @@ git branch --show-current
 git rev-parse HEAD
 ```
 
-规则：
+保存 baseline，始终按：
 
 ```text
 current changes - baseline changes = task-introduced changes
 ```
 
-不得为了“干净工作区”回滚用户已有改动。
+不得为了制造干净工作区回滚用户已有改动。
 
 ---
 
 ## 6. WORKER_READY — AGY Native Preflight
 
-默认 Primary Worker 目标是官方 AGY CLI。
+默认 Primary Worker 是官方 AGY CLI。
 
 确认：
 
@@ -181,19 +190,42 @@ correct repo cwd
 auth usable
 ```
 
-如果 headless 能力不可用：
-
-- 可以选择受控 tty7 interactive fallback；
-- 或在确有需要时 `BLOCKED`；
-- 不静默改成第三方 Antigravity Provider。
-
-详见 `agy-execution.md`。
+headless 不可用时可选择受控 tty7 fallback，或 `BLOCKED`；不静默切第三方 Antigravity Provider。
 
 ---
 
-## 7. IMPLEMENTING
+## 7. Optional DIAGNOSING — Complex Bug Only
 
-Codex 只把**当前 Execution Unit**交给 AGY。
+先按 `resources/bugfix-workflow.md` 判断：
+
+```text
+Simple deterministic bug
+→ compact RED → FIX → GREEN
+
+Complex / uncertain bug
+→ DIAGNOSING
+```
+
+Complex Bug 的 DIAGNOSING 至少推进：
+
+```text
+Tight Feedback Loop
+→ Reproduce
+→ Minimise
+→ Ranked/Falsifiable Hypotheses
+→ Targeted Instrumentation
+→ Root Cause Evidence
+```
+
+没有 red-capable / symptom-capable feedback loop 时，不能把第一个 plausible code reading 包装成 root cause。
+
+需要产品语义决定时返回 SHAPING；需要环境/权限时 BLOCKED；技术诊断得到足够证据后进入 IMPLEMENTING。
+
+---
+
+## 8. IMPLEMENTING
+
+Codex 只把当前 Execution Unit / Bugfix Contract 交给 AGY。
 
 默认：
 
@@ -202,27 +234,42 @@ cd "$repo_root"
 agy -p "<Execution Unit>" --output-format stream-json
 ```
 
-读取真实 `init.conversation_id` 和 `init.cwd`，要求：
+读取真实：
+
+```text
+init.conversation_id
+init.cwd
+```
+
+要求：
 
 ```text
 agy_cwd == repo_root
 ```
 
-本轮 terminal `result` 到达后：
+terminal `result` 到达后：
 
 ```text
 IMPLEMENTING → REVIEWING
 ```
 
-无论 `result.status` 是否 `SUCCESS`，都不能直接进入 Verification/Acceptance。
+`result.status=SUCCESS`、exit 0、Worker summary 都不能直接进入 VERIFYING。
 
-如果 run 异常中止，先检查 repository partial effects，再决定 resume / replacement conversation。
+复杂 Bug 修复还应保存：
+
+```text
+original feedback loop before
+minimal repro
+root cause evidence
+regression proof
+original feedback loop after
+```
 
 ---
 
-## 8. REVIEWING
+## 9. REVIEWING — Three-Axis Review
 
-Codex 自己读取：
+Codex 固定重新读取：
 
 ```bash
 git status --short
@@ -231,31 +278,100 @@ git diff --check
 git diff
 ```
 
-当前 Alpha 2 继续复用现有 Review Gates；后续 Alpha 3 会升级为：
+然后按照 `resources/review-gates.md` 独立做三个轴：
 
 ```text
-Spec Fidelity
-Engineering Quality
-Completeness
+A. Spec Fidelity        — 做对了吗？
+B. Engineering Quality  — 写得好吗？
+C. Completeness         — 漏了吗？
 ```
 
-本阶段结论：
+使用 `templates/review-report.md`。
+
+### Axis A
+
+检查：
 
 ```text
-PASS    → COMPLETENESS_REVIEW
-REWORK  → REWORK_REQUIRED
-BLOCKED → BLOCKED
+Acceptance coverage
+missing/partial behavior
+wrong semantics
+scope creep
+unauthorized decisions
+verification seam fidelity
 ```
 
-AGY final response、exit 0、`result.status=SUCCESS` 都不是 Review PASS。
+### Axis B
+
+检查：
+
+```text
+architecture/module responsibility
+contract/data consistency
+correctness/edge cases
+error handling/observability
+security/side effects
+code smells
+quality of tests
+```
+
+### Axis C
+
+固定做 Missing Diff Review：
+
+```text
+changed behavior
+→ callers / consumers
+→ types / validators / serializers
+→ schema / migration / existing data
+→ sibling flows / jobs
+→ error / retry / fallback
+→ cache / derived state
+→ old/orphaned path
+→ tests
+→ knowledge impact
+```
+
+Remainder：
+
+```text
+fixed-in-run
+not-applicable
+out-of-scope-different-ticket
+blocked-decision-needed
+```
+
+### Aggregation
+
+```text
+A PASS + B PASS + C PASS → VERIFYING
+any REWORK               → REWORK_REQUIRED
+any unresolved BLOCKED   → BLOCKED
+```
+
+不做平均分/多数投票。
+
+如果环境支持独立 reviewer，可分离三个轴的上下文再由主 Codex 汇总；不支持时也要分轴形成 verdict 后再汇总。
 
 ---
 
-## 9. REWORK_REQUIRED → REWORKING
+## 10. REWORK_REQUIRED → REWORKING
 
-Rework 固定使用：
+Finding 使用稳定 ID：
 
 ```text
+S1... = Spec Fidelity
+Q1... = Engineering Quality
+C1... = Completeness
+V1... = Independent Verification finding
+K1... = Closeout finding
+```
+
+Rework Contract 固定包含：
+
+```text
+Finding ID
+Axis / Source
 Issue
 Evidence
 Expected
@@ -273,59 +389,25 @@ agy -p "<Rework Contract>" \
   --output-format stream-json
 ```
 
-自动化监督场景优先显式 `--conversation`，不要用 `-c` 猜“最近 conversation”。
+自动监督场景有真实 id 时不用 `-c` 猜最近 conversation。
 
-Rework 结束后回：
+Rework 完成后：
 
 ```text
-REVIEWING
+REWORKING → REVIEWING
 ```
 
-默认 soft limit：3 个完整 `Review → Rework → Re-review` 周期。达到后重新评估 Spec、slice 边界、root cause、permissions 和环境，不无限循环。
+即使只修了 Q1，也要重新确认 A/B/C，防止修 Quality 时破坏 Spec 或产生新 missing diff。
+
+默认 3 个完整 `Review → Rework → Re-review` 周期为 soft limit；达到后重新评估 Spec、slice、root cause、permissions、environment、conversation quality，而不是无限循环。
 
 ---
 
-## 10. COMPLETENESS_REVIEW
+## 11. VERIFYING — Codex Independent Verification
 
-固定做 Missing Diff Review：
+**只有 Three-Axis Review 全 PASS 才进入。**
 
-```text
-changed behavior
-→ callers / consumers
-→ types / validators / serializers
-→ schema / migration / existing data
-→ sibling flows / jobs
-→ error / retry / fallback
-→ cache / derived state
-→ orphaned old path
-→ tests
-→ knowledge impact
-```
-
-Remainder：
-
-```text
-fixed-in-run
-not-applicable
-out-of-scope-different-ticket
-blocked-decision-needed
-```
-
-发现 unfinished：
-
-```text
-→ REWORK_REQUIRED
-```
-
-如果属于当前 slice 的真实传播面，Codex 可以扩充 Rework Contract；这不是 Scope Creep。
-
----
-
-## 11. VERIFYING
-
-只有 Review + Completeness PASS 才进入。
-
-Codex 根据 Spec 的 Verification Seam 和 Test Strategy 独立运行：
+Codex 根据 Verification Seam / Test Strategy 独立运行：
 
 ```text
 lint / format-check
@@ -335,11 +417,12 @@ integration
 e2e
 build/package
 schema/contract checks
+original bug repro / performance benchmark where applicable
 ```
 
-Worker 自己声称测试通过不能替代这一阶段。
+Worker 自述不能替代。
 
-特别注意：AGY headless 中某些 `Ask` command 可能被 soft-deny，但 run 仍可能 exit 0。因此 Codex 必须区分：
+AGY headless permission soft-deny 必须区分：
 
 ```text
 actually-run-and-pass
@@ -347,18 +430,20 @@ blocked/not-run
 failed
 ```
 
-确定性 bug 还要满足 RED → root-cause fix → GREEN → Codex re-run。
+### Verification Failure
 
-通过：
+失败产生新的 `V*` finding：
+
+```text
+VERIFYING → REWORK_REQUIRED → REWORKING → REVIEWING
+```
+
+返工后必须重新 Three-Axis Review，再重新 Verification；不能只修到某个测试绿就跳回 VERIFYING。
+
+### Pass
 
 ```text
 VERIFYING → CODE_VERIFIED
-```
-
-失败：
-
-```text
-VERIFYING → REWORK_REQUIRED
 ```
 
 ---
@@ -368,7 +453,8 @@ VERIFYING → REWORK_REQUIRED
 至少能说明：
 
 ```text
-Spec/Requirement Review = PASS
+Spec Fidelity = PASS
+Engineering Quality = PASS
 Completeness = PASS
 Blast Radius evidence
 Verification Seam exercised
@@ -393,22 +479,33 @@ verified-current
 
 可零文档 diff。
 
-需要修改时优先 resume 同一 AGY conversation，发送严格 Closeout Contract；如果 conversation 已丢失，则新建 conversation，但必须以 final verified repository state 为 Source of Truth。
+需要修改时，优先 resume 同一 AGY conversation 发送严格 Closeout Contract；conversation 丢失时可新建，但 final verified repository state 是 Source of Truth。
 
-Closeout 不能重开新 Feature/架构范围。
+Closeout 不能重开 Feature/架构范围。
 
 ---
 
 ## 14. CLOSEOUT_REVIEW → ACCEPTED
 
-Codex 重新检查 Git、stale references、knowledge surfaces。
+Codex 检查 Git、stale references、knowledge surfaces。
+
+Closeout 发现代码真实缺陷：
+
+```text
+K finding
+→ REWORK_REQUIRED
+→ REVIEWING
+→ VERIFYING
+→ CODE_VERIFIED
+→ CLOSEOUT
+```
+
+不能只改文档掩盖代码问题。
 
 只有满足：
 
 ```text
-Spec satisfied
-Review PASS
-Completeness PASS
+Three-Axis Review PASS
 Independent Verification PASS
 Knowledge Closeout PASS
 Baseline preserved
@@ -428,8 +525,6 @@ ACCEPTED
 
 ### 已知真实 conversation id
 
-继续：
-
 ```bash
 agy -p "..." --conversation <id> --output-format stream-json
 ```
@@ -443,8 +538,9 @@ approved Spec
 current Execution Unit
 repo/branch/baseline
 current diff
-Review/Completeness findings
+Three-Axis findings
 verification status
+bug diagnosis evidence when applicable
 ```
 
 Repository progress 不作废，也不默认从头重写。
@@ -453,7 +549,7 @@ Repository progress 不作废，也不默认从头重写。
 
 ## 16. tty7 Fallback
 
-只有需要 TUI 交互时使用：
+只在真实 TUI 交互需要时使用：
 
 ```text
 login/auth
@@ -464,36 +560,38 @@ slash/TUI-only commands
 headless temporary incompatibility
 ```
 
-进入 tty7 前保留当前 Spec/Execution Unit/baseline/conversation identity；退出后仍回 Codex Review。
+进入 tty7 前保留 Spec/Execution Unit/baseline/conversation identity；退出后仍回 Codex Three-Axis Review。
 
-**tty7 不拥有 Workflow state，也不拥有最终 Acceptance。**
+`tty7` 不拥有 Workflow state 或 Acceptance。
 
 ---
 
 ## 17. Cancel / Interrupt
 
-用户取消或 AGY 被中断：
+用户取消或 AGY 中断：
 
 1. 停止当前 process / interactive action；
 2. 检查 repository partial progress；
 3. 不自动 rollback；
-4. 保存真实 conversation id（若已取得）；
+4. 保存真实 conversation id（若取得）；
 5. 报告当前安全状态；
-6. `CANCELLED`，存在风险未决时 `BLOCKED`。
+6. `CANCELLED`，风险未决时 `BLOCKED`。
 
 ---
 
 ## 18. One-way Door
 
-以下始终默认需要用户决定：
+始终默认需要用户决定：
 
-- destructive/non-additive migration；
-- breaking public API；
-- auth/tenancy relaxation；
-- money/billing semantics；
-- credential behavior；
-- production mutation；
-- irreversible deletion；
-- push/merge/release/deploy。
+```text
+destructive/non-additive migration
+breaking public API
+auth/tenancy relaxation
+money/billing semantics
+credential behavior
+production mutation
+irreversible deletion
+push/merge/release/deploy
+```
 
-AGY permissions 是防护层，不替代用户授权语义。
+AGY permissions 是 Runtime 防护层，不替代用户授权语义。
