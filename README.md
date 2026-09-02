@@ -1,54 +1,174 @@
 # AGY Supervised Development 3.2 — Pluginized Runtime
 
-当前开发版本：**3.2.0-alpha.1**
+当前开发版本：**3.2.0-alpha.2**
 
 这是一个以 **Codex App 负责 Shape / Spec / Review / Verification，官方 AGY CLI 负责实现，Git Repository 负责事实证明** 的监督式开发插件。
 
 > **Codex shapes and proves. AGY builds. Git tells the truth.**
 
-v3.2 不重写 v3.1 已稳定的 Workflow Kernel，而是在其上增加 **Codex Plugin Packaging、Thin AGY Adapter、Deterministic Validation、Review Convergence 和 Optional AGY Consult**。
+v3.2 不重写 v3.1 已稳定的 Workflow Kernel，而是在其上增加 **Codex Plugin Packaging、Thin AGY Adapter、Deterministic Validation、Review Convergence、Optional AGY Consult，以及 Browser Runtime Verification Capability Negotiation**。
 
 ## 主流程
 
 ```text
-SIZE
+INTAKE
+→ SIZE
+→ RUNTIME CAPABILITY DETECTION / NEGOTIATION   # browser-runtime applicable only
 → SHAPE
 → SPEC
 → SLICE
 → BUILD
 → THREE-AXIS REVIEW
-→ VERIFY
+→ INDEPENDENT VERIFY
+   ├─ Static / Automated
+   ├─ Browser Runtime when applicable
+   └─ Regression Proof
 → CLOSEOUT
 → ACCEPTED
 ```
 
-运行边界：
+浏览器能力有两个受控入口：
 
 ```text
-Codex
-  ↓ Execution Unit
-scripts/agy-run.sh            # thin adapter only
-  ↓
-official AGY CLI / stream-json
-  ↓
-Repository
-  ↓
-Codex Three-Axis Review
-  ↓
+Complex Bug DIAGNOSE
+  └─ Chrome DevTools MCP      # optional, when allowed
+
 Independent Verification
-  ↓
-Knowledge Closeout
-  ↓
-ACCEPTED
+  └─ Chrome DevTools MCP      # optional/applicable runtime adapter
 ```
 
-`tty7 + AGY TUI` 仍只在 login、permissions、manual approval、resume picker 或 TUI-only 行为真正需要交互时作为 fallback。
+核心边界不变：
 
-## v3.2 Alpha 1 新增
+```text
+AGY = Primary Writer
+Codex = Reviewer / QA / Runtime Verifier / Final Acceptance
+Chrome DevTools MCP = Codex-owned optional Runtime Verification Adapter
+```
 
-### 1. Codex Plugin Packaging
+## v3.2 Alpha 2 新增
 
-仓库现在可以作为 Codex Plugin marketplace source：
+### 1. Runtime Capability Negotiation
+
+新增 `resources/runtime-verification.md`。
+
+当任务存在 Web / Browser / Chrome Extension 等运行时验收价值时，Codex 在 **Spec freeze 之前** 判断 Browser Runtime 是否适用。
+
+如果适用且没有既有有效偏好，则询问用户：
+
+```text
+Enable
+Disable
+Auto-decide
+```
+
+不适用的纯后端 / CLI / SQL / Library 等任务不机械询问 Chrome DevTools MCP。
+
+偏好优先级：
+
+```text
+current task override
+> project preference
+> global/default preference
+```
+
+只有用户明确要求“记住这个项目的选择”时，才应写入项目级持久偏好；不要擅自新增配置文件。
+
+### 2. Chrome DevTools MCP as Runtime Verification Adapter
+
+Chrome DevTools MCP 不进入 AGY Writer 路径，而作为 Codex 的可选 Runtime Verification Adapter。
+
+适合检查：
+
+```text
+真实页面操作
+Console/runtime errors
+Network 4xx/5xx / request-response contract
+表单、路由、登录态、浏览器存储
+frontend ↔ backend interaction
+刷新后的持久化状态
+Chrome Extension behavior
+Performance when performance is part of the Spec
+```
+
+截图只是 evidence 的一种，**Screenshot alone != functional proof**。
+
+### 3. Browser Verification Contract
+
+新增：
+
+```text
+templates/browser-verification.md
+```
+
+用于固定：
+
+```text
+Target / Environment
+Preconditions
+Critical Journey
+Assertions
+Console expectations
+Network expectations
+Persistence evidence
+Performance applicability
+Verdict / Re-run
+```
+
+Runtime verification 失败形成普通 `V*` finding：
+
+```text
+VERIFYING
+→ V* finding
+→ REWORK_REQUIRED
+→ AGY
+→ THREE-AXIS REVIEW AGAIN
+→ VERIFY AGAIN
+```
+
+不能因为浏览器重新跑绿了就绕过 Three-Axis Review。
+
+### 4. Provider Unavailable / Fallback
+
+Chrome DevTools MCP 不是 AGY 3.2 的硬依赖。
+
+如果本次已经选择 Browser Runtime Verification，但 provider 不可用：
+
+```text
+TOOL_UNAVAILABLE
+→ 尝试已批准的 equivalent seam（existing E2E / API integration / manual browser evidence 等）
+→ 不允许静默降低 required acceptance criterion
+```
+
+如果 Spec 明确要求 Browser Runtime，而没有等价证据，则不能发出 `CODE_VERIFIED`。
+
+### 5. Security Boundary
+
+DevTools 连接的浏览器可能暴露：
+
+```text
+Cookie / session
+request headers
+response bodies
+页面敏感数据
+authenticated runtime state
+```
+
+因此默认倾向：
+
+```text
+独立测试浏览器 / Profile
+避免个人和生产登录态
+不把 MCP 能访问解释成允许 production mutation
+不在日志和最终报告泄露凭据
+```
+
+浏览器运行时能力不覆盖原有 one-way / external side-effect 授权规则。
+
+## v3.2 Alpha 1 基础能力
+
+### Codex Plugin Packaging
+
+仓库可以作为 Codex Plugin marketplace source：
 
 ```bash
 codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy-supervised-v3.2-pluginized
@@ -63,58 +183,15 @@ codex plugin add agy-supervised-development@agy-supervised-development
 skills/agy-supervised-development/SKILL.md
 ```
 
-根目录 `SKILL.md + resources/ + templates/` 仍是现有 Workflow Kernel 的单一权威来源；插件 Skill 是 v3.2 入口，不复制整套 Kernel，避免双真相源。
+根目录 `SKILL.md + resources/ + templates/` 仍是 Workflow Kernel 的权威来源；插件 Skill 作为 v3.2 overlay 入口，不复制整套 Kernel。
 
-### 2. Thin AGY Adapter
+### Thin AGY Adapter
 
-新增：
+`scripts/agy-run.sh` 只统一 repository binding、build/consult mode、timeout、conversation id、add-dir 和 official `stream-json` 输出，不是 custom harness / daemon / run store / acceptance engine。
 
-```text
-scripts/agy-run.sh
-```
+### Review Convergence
 
-它只统一：
-
-- repository binding；
-- build / consult mode；
-- timeout；
-- conversation id；
-- add-dir；
-- official `stream-json` 输出。
-
-示例：
-
-```bash
-scripts/agy-run.sh \
-  --repo "$repo_root" \
-  --timeout 30m \
-  "<Execution Unit>"
-```
-
-返工：
-
-```bash
-scripts/agy-run.sh \
-  --repo "$repo_root" \
-  --conversation "$agy_conversation_id" \
-  "<Rework Contract>"
-```
-
-Wrapper **不是** custom harness、daemon、Run Store、session DB 或 acceptance engine。AGY 官方 CLI 仍是 Runtime integration boundary。
-
-### 3. Review Convergence
-
-新增 `resources/review-convergence.md`。
-
-Three-Axis Review 仍独立形成：
-
-```text
-A Spec Fidelity
-B Engineering Quality
-C Completeness
-```
-
-随后可把 finding 分类为：
+`resources/review-convergence.md` 支持：
 
 ```text
 BLOCKING
@@ -122,45 +199,13 @@ NON_BLOCKING
 BACKLOG
 ```
 
-当没有 unresolved BLOCKING finding 时，Codex 可以记录：
+`NO_BLOCKING_FINDINGS != ACCEPTED`。
 
-```text
-NO_BLOCKING_FINDINGS
-```
+### Optional AGY Consult
 
-但必须牢记：
+`resources/agy-consult.md` 提供只读 second opinion；不能替代 Codex Review、Verification 或 Acceptance。
 
-```text
-NO_BLOCKING_FINDINGS != ACCEPTED
-REVIEW PASS != CODE_VERIFIED
-CODE_VERIFIED != ACCEPTED
-```
-
-Independent Verification 与 Knowledge Closeout 仍不可跳过。
-
-### 4. Optional AGY Consult
-
-新增 `resources/agy-consult.md`，用于只读第二意见：
-
-```bash
-scripts/agy-run.sh \
-  --repo "$repo_root" \
-  --mode consult \
-  "Review this implementation plan for hidden risks."
-```
-
-适合：
-
-- plan challenge；
-- difficult code-path analysis；
-- blast-radius second opinion；
-- root-cause hypothesis comparison。
-
-AGY Consult 只产生 advisory evidence，不能替代 Codex Three-Axis Review、Verification、Closeout 或 Acceptance。
-
-### 5. Deterministic Validation
-
-新增：
+### Deterministic Validation
 
 ```text
 scripts/validate-structure.sh
@@ -175,49 +220,11 @@ scripts/test-readiness.sh
 scripts/test-readiness.sh
 ```
 
-覆盖：
-
-```text
-plugin manifest / marketplace JSON
-required files
-script executable bits
-bash syntax
-plugin metadata/version
-README contract
-plugin-skill routing
-agy-run argument behavior
-consult read-only prefix
-conversation/add-dir forwarding
-```
-
-这和 `evals/` 的职责不同：
-
-```text
-Deterministic Validators = 文件、manifest、wrapper、docs contract 的确定性检查
-Semantic Evals            = Workflow、Review、状态迁移、Agent 行为的语义回归
-```
-
-两者共同组成 v3.2 的自验证层。
-
-## v3.1 Kernel 保持不变的核心边界
-
-- 只有 Codex 可以 `ACCEPTED`；
-- Workflow 与 Runtime 解耦；
-- AGY 是 Primary Writer，不是 Product Owner；
-- Repository state 是交付真相；
-- `AGY SUCCESS != REVIEW PASS`；
-- Three-Axis Review 不做平均分；
-- Verification 独立于 Review；
-- CODE_VERIFIED 后仍必须 Knowledge Closeout；
-- tty7 是 interactive fallback；
-- 默认不使用 `--dangerously-skip-permissions`；
-- 不 push / merge / release / deploy / production write，除非用户明确授权。
-
 ## Active Files
 
 ```text
-SKILL.md                         # v3.1 workflow kernel, canonical workflow source
-skills/agy-supervised-development/SKILL.md  # v3.2 plugin entrypoint
+SKILL.md
+skills/agy-supervised-development/SKILL.md
 
 .agents/plugins/marketplace.json
 .codex-plugin/plugin.json
@@ -225,6 +232,7 @@ skills/agy-supervised-development/SKILL.md  # v3.2 plugin entrypoint
 resources/
 ├── agy-execution.md
 ├── agy-consult.md
+├── runtime-verification.md          # Alpha 2
 ├── review-convergence.md
 ├── task-sizing.md
 ├── shaping.md
@@ -250,6 +258,7 @@ templates/
 ├── execution-unit.md
 ├── review-report.md
 ├── rework-contract.md
+├── browser-verification.md          # Alpha 2
 └── closeout-contract.md
 
 evals/
@@ -267,6 +276,7 @@ Spec satisfied
 + Completeness PASS
 + NO unresolved blocking findings
 + Independent Verification PASS
++ Required Browser Runtime seam exercised when applicable
 + Regression/Bug Proof satisfied when applicable
 + Knowledge aligned
 + Deterministic readiness checks satisfied when applicable
