@@ -1,54 +1,29 @@
-# Runtime Verification — Capability Negotiation and Browser Adapter
+# Runtime Verification — Browser Capability
 
-AGY Supervised Development keeps workflow governance separate from runtime tools. Browser automation is therefore an optional **Codex-owned verification capability**, not an AGY writer capability.
+Browser runtime verification is an optional **Codex-owned** capability. It does not change the core workflow and Chrome DevTools MCP never becomes part of the AGY writer runtime.
 
-## 1. Purpose
+## Applicability
 
-Use this resource when a task may require evidence from a real browser runtime: UI behavior, browser-side integration, authentication flows, forms, routing, storage, Chrome extensions, frontend/backend interaction, console errors, network failures, or browser performance.
-
-Primary provider in v3.2 Alpha 2:
+Use it only when the task contains browser-observable behavior, for example:
 
 ```text
-Chrome DevTools MCP
-```
-
-It may support two bounded purposes:
-
-```text
-Runtime Diagnosis      # why is the browser-observable behavior failing?
-Runtime Verification   # is the delivered behavior actually correct in a real browser?
-```
-
-It does not become the implementation writer and it does not decide ACCEPTED.
-
-## 2. Capability Detection
-
-After INTAKE/SIZE and before SPEC freeze, Codex determines applicability.
-
-Typical signals include:
-
-```text
-Web UI / SPA / SSR
-browser interaction or routing
-authentication/session behavior
-forms or upload/download flows
+Web UI / routing / forms
+authentication or browser session behavior
 frontend ↔ backend integration
-browser storage/cookies
-Chrome Extension / manifest.json
+browser storage or cookies
+Chrome Extension
 console/runtime JavaScript errors
-network/API behavior observable from the browser
+browser-observable network failures
 browser performance requirements
 ```
 
-Pure backend, CLI, SQL, batch, library, or JVM-only tasks normally mark Browser Runtime as `N/A` unless the stated acceptance path explicitly requires a browser.
+Pure backend, CLI, SQL, batch, library, or JVM-only work is normally `N/A` unless the acceptance path explicitly requires a browser.
 
-Do not ask about Chrome DevTools MCP for every task mechanically.
+Do not ask about Chrome DevTools MCP mechanically for every task.
 
-## 3. Runtime Capability Negotiation
+## Capability Negotiation
 
-If Browser Runtime is applicable and no effective preference already exists, ask the user **before SPEC freeze** whether Chrome DevTools MCP may participate.
-
-User-facing choices should be simple:
+When browser runtime is applicable and no effective preference exists, ask the user **before Spec freeze**:
 
 ```text
 Enable
@@ -56,141 +31,67 @@ Disable
 Auto-decide
 ```
 
-Recommended wording:
+Keep the question short. Do not turn it into MCP configuration setup.
 
-> This task has browser-runtime behavior. Enable Chrome DevTools MCP for diagnosis and/or final runtime verification? I recommend enabling it for this task.
-
-Do not turn the question into a long MCP configuration interview.
-
-## 4. Effective Preference
-
-Resolve preferences in this order:
+Preference order:
 
 ```text
-current-task override
+current task
 > project preference
 > global/default preference
 ```
 
-Supported semantic modes:
+Semantic modes:
 
 ```text
-enabled      # may use when applicable
-disabled     # do not use this provider
-auto         # Codex decides based on verification value and cost
-unset        # ask when applicable
+enabled
+disabled
+auto
+unset
 ```
 
-The workflow may also record separate permissions:
+Persist a project preference only when the user explicitly asks to remember it.
 
-```yaml
-runtime_verification:
-  provider: chrome-devtools-mcp
-  mode: enabled
-  diagnosis: allowed
-  final_verification: required_when_applicable
-```
-
-This is a semantic contract, not a required physical config-file format.
-
-If a repository already has a project preference mechanism, reuse it instead of inventing `.agy/config.yaml` unprompted. Persist a new project preference only when the user explicitly asks to remember the choice.
-
-## 5. SPEC Integration
-
-When applicable, record the resolved runtime decision in the Spec:
-
-```text
-Runtime Verification
-- Applicability: YES / NO / N/A
-- Provider: Chrome DevTools MCP / fallback / none
-- Mode: enabled / disabled / auto
-- Diagnosis: allowed / disallowed
-- Final Verification: required / optional / N/A
-- Primary Journey / Verification Seam
-- Expected runtime evidence
-```
-
-The decision must be frozen before implementation when it materially changes the Verification Seam, acceptance evidence, or bug diagnosis method.
-
-## 6. Ownership Boundary
-
-The default ownership model is:
+## Ownership
 
 ```text
 AGY = Primary Writer
 Codex = Reviewer / QA / Runtime Verifier / Acceptance Authority
-Chrome DevTools MCP = Codex-owned Runtime Verification Adapter
+Chrome DevTools MCP = optional Codex verification adapter
 ```
 
-Do not let AGY's own browser self-check replace Codex Independent Verification.
+AGY may receive browser findings through a Rework Contract, but AGY's own browser self-check never replaces Codex Independent Verification.
 
-AGY may receive runtime findings through a Rework Contract, but the authoritative runtime verdict remains Codex-owned.
+## Two Hooks
 
-## 7. Diagnosis Hook
-
-For complex browser-observable bugs, Chrome DevTools MCP may participate during DIAGNOSE when `diagnosis: allowed`.
-
-Useful evidence includes:
+Chrome DevTools MCP has only two workflow hooks:
 
 ```text
-reproducible user journey
-console errors / stack evidence
-network request status and response evidence
-runtime state or browser-visible side effects
-performance trace when performance is the symptom
+Complex browser bug
+→ DIAGNOSE
+→ optional browser evidence
+
+Three-Axis Review PASS
+→ CODEX INDEPENDENT VERIFY
+→ optional/required browser verification
 ```
 
-Use it to tighten the feedback loop, not to replace hypothesis discipline.
-
-No first code guess becomes root cause merely because a browser tool was available.
-
-## 8. Independent Runtime Verification Hook
-
-Only after Three-Axis Review PASS should Codex perform final runtime verification, unless runtime evidence is required earlier for diagnosis.
-
-Recommended verification layers:
+For browser verification, use only the evidence needed by the Spec:
 
 ```text
-V1 Static       lint / typecheck / compile / build
-V2 Automated    unit / integration / contract / existing E2E
-V3 Runtime      real browser journey when applicable
-V4 Regression   original repro + critical sibling flow as required
+navigate / interact
+assert observable behavior
+console errors
+unexpected network 4xx/5xx or contract failures
+persistence/state after reload when relevant
+performance evidence only when required
 ```
 
-Chrome DevTools MCP primarily implements V3.
+A screenshot alone is not functional proof.
 
-A browser verification should normally combine the relevant subset of:
+## Failure Flow
 
-```text
-Navigate
-Interact
-Assert observable behavior
-Inspect Console
-Inspect unexpected Network 4xx/5xx or contract failures
-Verify persistence/state after reload when relevant
-Performance evidence only when required
-Screenshot only when it is meaningful evidence
-```
-
-A screenshot alone is not sufficient proof of functional correctness.
-
-## 9. Runtime Findings
-
-Verification failures become normal `V*` findings.
-
-Example:
-
-```text
-V1
-Source: Browser Runtime Verification
-Issue: Saving the dimension produces HTTP 500.
-Evidence: POST /api/articles/332/tags → 500; UI remains unsaved after reload.
-Expected: HTTP success and persisted dimension after reload.
-Required Change: Fix the persistence path without widening scope.
-Re-run: Original browser journey plus relevant automated tests.
-```
-
-Flow:
+Browser verification failures are normal `V*` findings:
 
 ```text
 VERIFYING
@@ -201,72 +102,40 @@ VERIFYING
 → VERIFY AGAIN
 ```
 
-Do not skip the renewed Three-Axis Review just because the browser journey becomes green.
+Do not skip renewed Review because the browser journey becomes green.
 
-## 10. Provider Unavailable
+## Provider Unavailable
 
-Chrome DevTools MCP is optional infrastructure, not a universal hard dependency.
-
-If the selected provider is unavailable:
+If Chrome DevTools MCP is unavailable:
 
 ```text
-1. Record TOOL_UNAVAILABLE honestly.
-2. Attempt a previously approved equivalent seam when one exists
-   (existing E2E, API integration test, curl/Newman, manual browser evidence, etc.).
-3. Do not silently weaken a required acceptance criterion.
+record TOOL_UNAVAILABLE
+→ use an already-approved equivalent verification seam when one exists
+→ never silently weaken a required acceptance criterion
 ```
 
-If Browser Runtime Verification was explicitly required and no equivalent seam can prove it, `CODE_VERIFIED` must not be issued.
+If browser verification is required and no equivalent seam can prove it, do not issue `CODE_VERIFIED`.
 
-If runtime verification was optional, report the skipped/partial evidence precisely and continue only when the remaining Spec permits it.
+## Security
 
-## 11. Security Boundary
+Prefer a dedicated test browser/profile. Do not treat browser access as permission for production mutation, and do not expose credentials or sensitive session data in reports.
 
-A DevTools-connected browser may expose sensitive page state, cookies, request headers, responses, authenticated sessions, or executable runtime context.
+## Core Rule
 
-Therefore:
-
-```text
-prefer a dedicated test browser/profile
-avoid personal or production-authenticated sessions unless explicitly required and authorized
-do not treat MCP access as permission for production mutation
-do not expose credentials in logs or final reports
-respect existing one-way/external-side-effect rules
-```
-
-Runtime verification does not override AGY Supervised Development safety and authorization boundaries.
-
-## 12. Chrome Extension Applicability
-
-For Chrome Extension tasks (for example a repository containing `manifest.json`), Browser Runtime Verification is normally highly applicable.
-
-Typical journey:
-
-```text
-build extension
-→ load/reload test extension when tooling permits
-→ open target page
-→ trigger extension action
-→ inspect browser/extension console and network
-→ verify downstream persisted result
-```
-
-The exact journey must come from the task's Spec, not from this generic example.
-
-## 13. Core Rule
+For browser-facing work:
 
 ```text
 Repository Evidence + Runtime Evidence
 ```
 
-is stronger than either alone for browser-facing work.
+is stronger than either alone.
 
-But the governance remains unchanged:
+But:
 
 ```text
-Chrome runtime green != REVIEW PASS
-Chrome runtime green != CODE_VERIFIED by itself
-Chrome runtime green != ACCEPTED
+browser green != REVIEW PASS
+browser green != CODE_VERIFIED by itself
+browser green != ACCEPTED
 ```
 
-Only Codex can integrate repository, review, automated-test, runtime, regression, closeout, baseline, and side-effect evidence into final acceptance.
+Only Codex can issue final acceptance.
