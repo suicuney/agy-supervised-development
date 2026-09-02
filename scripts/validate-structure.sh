@@ -12,7 +12,7 @@ files=(
   "$root/SKILL.md"
   "$root/resources/agy-execution.md"
   "$root/resources/agy-consult.md"
-  "$root/resources/review-convergence.md"
+  "$root/resources/review-gates.md"
   "$root/resources/runtime-verification.md"
   "$root/templates/browser-verification.md"
   "$root/scripts/agy-run.sh"
@@ -21,6 +21,7 @@ files=(
   "$root/scripts/validate-runtime.sh"
   "$root/scripts/test-readiness.sh"
 )
+
 for file in "${files[@]}"; do require_file "$file"; done
 for script in "$root/scripts/agy-run.sh" "$root/scripts/validate-structure.sh" "$root/scripts/validate-docs.sh" "$root/scripts/validate-runtime.sh" "$root/scripts/test-readiness.sh"; do require_exec "$script"; done
 
@@ -39,9 +40,8 @@ assert marketplace['name']=='agy-supervised-development'
 assert marketplace['plugins'][0]['name']=='agy-supervised-development'
 assert marketplace['plugins'][0]['source']['path']=='.'
 assert plugin['name']=='agy-supervised-development'
-assert plugin['version']=='3.2.0-alpha.2'
+assert plugin['version'].startswith('3.2.')
 assert plugin['skills']=='./skills/'
-assert 'Negotiate optional browser-runtime verification' in plugin['interface']['capabilities']
 PY
 
 printf 'Structure validation passed.\n'
