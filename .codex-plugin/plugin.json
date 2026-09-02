@@ -1,27 +1,26 @@
 {
   "name": "agy-supervised-development",
-  "version": "3.2.0-alpha.2",
-  "description": "Pluginized Codex-supervised development workflow with AGY as the primary writer, Git as delivery evidence, and optional browser-runtime verification.",
+  "version": "3.2.0-alpha.3",
+  "description": "Codex-supervised development with pre-implementation Sol High plan review, AGY as the primary writer, and Codex-owned review/runtime verification.",
   "author": {"name": "suicuney"},
   "repository": "https://github.com/suicuney/agy-supervised-development",
   "license": "MIT",
-  "keywords": ["codex", "antigravity", "agy", "supervised-development", "workflow", "browser-verification"],
+  "keywords": ["codex", "antigravity", "agy", "sol-high", "plan-review", "supervised-development", "browser-verification"],
   "skills": "./skills/",
   "interface": {
     "displayName": "AGY Supervised Development",
-    "shortDescription": "Codex shapes and proves; AGY builds; Git and runtime evidence tell the truth.",
-    "longDescription": "A workflow-first supervised development plugin. Codex owns shaping, specification, slicing, review, independent verification and final acceptance; AGY is the primary implementation writer; Chrome DevTools MCP can be negotiated as an optional Codex-owned browser runtime verification adapter; tty7 remains an interactive fallback.",
+    "shortDescription": "Codex plans and proves; Sol High critiques plans; AGY builds.",
+    "longDescription": "A serial supervised-development workflow. Codex owns Shape/Spec/Slice and the executable plan; GPT-5.6 Sol High may review that plan for up to three rounds before PLAN FROZEN; AGY implements the frozen plan; Codex independently reviews and verifies repository/runtime evidence before acceptance.",
     "developerName": "suicuney",
     "category": "Productivity",
     "capabilities": [
-      "Shape and freeze implementation specs",
+      "Shape, specify, and slice executable plans",
+      "Review executable plans with GPT-5.6 Sol High before implementation",
       "Delegate bounded execution units to AGY",
       "Run Three-Axis Review and independent verification",
-      "Negotiate optional browser-runtime verification",
-      "Use Chrome DevTools MCP for applicable runtime diagnosis and verification",
-      "Perform knowledge closeout",
-      "Request optional read-only AGY consultation"
+      "Use Chrome DevTools MCP for applicable browser runtime verification",
+      "Perform knowledge closeout"
     ],
-    "defaultPrompt": "Use AGY Supervised Development for this task. Preserve the workflow kernel and repository evidence boundaries. For browser-runtime work, negotiate Chrome DevTools MCP before Spec freeze when no effective preference exists."
+    "defaultPrompt": "Use AGY Supervised Development. Build a Codex-owned executable plan, use the default Sol High plan review gate unless I explicitly opt out, freeze the plan, then delegate to AGY and keep post-implementation review and verification Codex-owned."
   }
 }
