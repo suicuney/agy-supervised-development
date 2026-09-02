@@ -1,13 +1,14 @@
 # AGY Supervised Development 3.2
 
-当前开发版本：**3.2.0-alpha.2**
+当前开发版本：**3.2.0-alpha.3**
 
-一个简单的监督式开发插件：
+一个串行、简单的监督式开发插件：
 
 ```text
-Codex 负责想清楚、拆清楚、验清楚
+Codex 负责方案、评审、验证和最终裁决
+Sol High 只负责实现前的方案评审
 AGY 负责实现
-Git 负责提供仓库事实
+Git / Tests / Runtime Evidence 负责证明交付
 ```
 
 > **Codex shapes and proves. AGY builds. Git tells the truth.**
@@ -19,6 +20,8 @@ SIZE
 → SHAPE
 → SPEC
 → SLICE
+→ SOL HIGH PLAN REVIEW
+→ PLAN FROZEN
 → BUILD
 → THREE-AXIS REVIEW
 → VERIFY
@@ -26,15 +29,47 @@ SIZE
 → ACCEPTED
 ```
 
-核心边界：
+如果用户明确要求跳过 Sol 方案评审：
 
 ```text
-AGY SUCCESS != REVIEW PASS
-REVIEW PASS != CODE_VERIFIED
-CODE_VERIFIED != ACCEPTED
+SLICE
+→ PLAN FROZEN
+→ BUILD
 ```
 
-只有 Codex 可以最终标记 `ACCEPTED`。
+## Sol High Plan Review
+
+默认开启。
+
+```text
+Codex Executable Plan
+→ Chrome DevTools MCP
+→ ChatGPT Web
+→ GPT-5.6 Sol + High
+→ Sol Review
+→ Codex Adopt / Reject / Modify
+```
+
+最多 **3 轮 Sol Review**，但可以提前结束：
+
+```text
+PASS                     → PLAN FROZEN
+only non-blocking notes  → PLAN FROZEN
+USER_DECISION_REQUIRED   → ask user
+round 3 still blocking   → ask user, never round 4
+```
+
+Codex 永远是 Plan Owner。Sol High 不直接拥有最终方案。
+
+一旦进入：
+
+```text
+PLAN FROZEN
+```
+
+Sol High 立即退出本次任务，后续 AGY Build / Review / Rework / Verify / Closeout 均不再调用 Sol High。
+
+详见 `resources/sol-plan-review.md` 和独立仓库 `suicuney/sol-consult-skill` 中的 `sol-high-plan-review` Skill。
 
 ## 安装
 
@@ -43,26 +78,23 @@ codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy
 codex plugin add agy-supervised-development@agy-supervised-development
 ```
 
-## Runtime
-
-默认实现路径：
+## AGY Runtime
 
 ```text
-Codex
-→ Execution Unit
+PLAN FROZEN
+→ Codex Execution Unit
 → scripts/agy-run.sh
 → official AGY CLI
 → Repository
-→ Codex Review / Verification
 ```
 
-`agy-run.sh` 只是薄适配器，不负责 workflow state、review 或 acceptance。
+`agy-run.sh` 只是薄实现适配器，不再包含 consult mode，也不负责 workflow state、review 或 acceptance。
 
-需要交互时才使用 `tty7 + AGY TUI`，例如 login、permissions、manual approval 或 TUI-only 行为。
+需要真实交互时才使用 tty7。
 
 ## Review
 
-Codex 独立执行 Three-Axis Review：
+AGY 完成后，Codex 独立执行：
 
 ```text
 A. Spec Fidelity
@@ -70,58 +102,38 @@ B. Engineering Quality
 C. Completeness
 ```
 
-Finding severity 和 `NO_BLOCKING_FINDINGS` 收敛规则统一定义在 `resources/review-gates.md`。
+```text
+AGY SUCCESS != REVIEW PASS
+REVIEW PASS != CODE_VERIFIED
+CODE_VERIFIED != ACCEPTED
+```
 
-Review PASS 后仍必须执行 Independent Verification。
+Sol High 不参与这里的 Review。
 
-## Browser Runtime Verification
+## Verification / Chrome DevTools MCP
 
-对于 Web UI、浏览器集成、Chrome Extension、Console / Network 问题等 browser-facing 任务，可选使用 Chrome DevTools MCP。
+实现后，Codex 根据 Verification Seam 独立验证：
 
 ```text
-Browser applicable?
-  ├─ No  → skip
-  └─ Yes
-       ↓
-No effective preference?
-       ↓
-Ask before Spec freeze:
-Enable / Disable / Auto-decide
+lint / typecheck / build
+unit / integration / e2e
+original repro
+browser runtime when applicable
 ```
 
-Chrome DevTools MCP 属于 **Codex verification capability**，不是 AGY writer dependency。
+对于 browser-facing 任务，Chrome DevTools MCP 可作为 Codex-owned runtime verification adapter。
 
-它只有两个使用点：
+因此同一个 MCP 有两个严格分开的使用阶段：
 
 ```text
-Complex browser bug → DIAGNOSE
-Review PASS          → Independent Runtime Verification
+Before PLAN FROZEN:
+Chrome DevTools MCP → ChatGPT Web → Sol High Plan Review
+
+After AGY Review PASS:
+Chrome DevTools MCP → target Web system → Runtime Verification
 ```
 
-如果必需的 browser verification 无法执行，且没有等价 verification seam，就不能标记 `CODE_VERIFIED`。
-
-详见 `resources/runtime-verification.md` 和 `templates/browser-verification.md`。
-
-## Optional AGY Consult
-
-需要第二意见时可使用只读 Consult：
-
-```bash
-scripts/agy-run.sh \
-  --repo "$repo_root" \
-  --mode consult \
-  "Review this implementation plan for hidden risks."
-```
-
-它只是 advisory evidence，不能替代 Codex Review / Verification。
-
-## 自检
-
-```bash
-scripts/test-readiness.sh
-```
-
-只检查必要的机器契约：plugin manifest、必要文件、脚本语法和 runtime wrapper 行为。
+不新增 MCP manager 或第二套 orchestration。
 
 ## Active Structure
 
@@ -134,8 +146,8 @@ resources/
 ├── shaping.md
 ├── spec-contract.md
 ├── execution-slicing.md
+├── sol-plan-review.md
 ├── agy-execution.md
-├── agy-consult.md
 ├── tty7-supervision.md
 ├── bugfix-workflow.md
 ├── review-gates.md
@@ -149,21 +161,23 @@ templates/
 ├── rework-contract.md
 ├── browser-verification.md
 └── closeout-contract.md
+```
 
-scripts/
-├── agy-run.sh
-├── validate-structure.sh
-├── validate-docs.sh
-├── validate-runtime.sh
-└── test-readiness.sh
+## 自检
+
+```bash
+scripts/test-readiness.sh
 ```
 
 ## 原则
 
 ```text
-小步
 串行
+小步
 简单
+一个 Writer
+一个 Plan Owner
+Sol 只评方案
+方案冻结后 Evidence > 额外模型意见
 同一条规则只定义一次
-其他地方只引用
 ```
