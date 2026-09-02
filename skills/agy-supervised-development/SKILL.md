@@ -1,20 +1,22 @@
 ---
 name: agy-supervised-development
-description: Pluginized entrypoint for AGY Supervised Development v3.2. Codex shapes/specs/slices work, delegates bounded implementation to official AGY CLI, independently reviews and verifies repository/runtime evidence, then closes out knowledge before acceptance.
-version: 3.2.0-alpha.2
+description: Pluginized entrypoint for AGY Supervised Development v3.2. Codex owns the executable plan, converges it with optional/default Sol High review before freeze, delegates bounded implementation to AGY, then independently reviews and verifies repository/runtime evidence.
+version: 3.2.0-alpha.3
 ---
 
 # AGY Supervised Development 3.2
 
 This is the Codex Plugin entrypoint.
 
-Read `../../SKILL.md` as the current workflow kernel. Keep the workflow simple:
+Read `../../SKILL.md` as the current workflow kernel.
 
 ```text
 SIZE
 → SHAPE
 → SPEC
 → SLICE
+→ SOL HIGH PLAN REVIEW
+→ PLAN FROZEN
 → BUILD
 → THREE-AXIS REVIEW
 → VERIFY
@@ -24,21 +26,23 @@ SIZE
 
 > Codex shapes and proves. AGY builds. Git tells the truth.
 
-## v3.2 Runtime Rules
+## Rules
 
-1. Prefer `../../scripts/agy-run.sh` as the thin AGY invocation adapter when available.
-2. AGY remains the primary writer. Codex remains reviewer, verifier, and final acceptance authority.
-3. Use `../../resources/review-gates.md` for Three-Axis Review, finding severity, and convergence.
-4. Use `../../resources/runtime-verification.md` only when browser-runtime behavior is applicable. If no effective preference exists, ask `Enable / Disable / Auto-decide` before Spec freeze.
-5. Chrome DevTools MCP is an optional **Codex-owned** diagnosis/verification adapter, never an AGY writer dependency.
-6. Use `../../resources/agy-consult.md` only for optional read-only second opinions.
-7. Use tty7 only when interaction is genuinely required: login, permissions, manual approval, resume picker, or TUI-only behavior.
-8. Run `../../scripts/test-readiness.sh` when local execution is available before treating the plugin as release-ready.
+1. Codex is the executable-plan owner and final acceptance authority.
+2. Plan review is enabled by default unless the user explicitly opts out.
+3. Use `../../resources/sol-plan-review.md` for the Sol High review loop. Maximum three Sol review rounds; stop early on convergence.
+4. Sol High uses the installed `sol-high-plan-review` Skill and Chrome DevTools MCP to reach ChatGPT Web with GPT-5.6 Sol + High.
+5. `PLAN FROZEN` is a hard boundary: never call Sol High during AGY Build, Three-Axis Review, Rework, Verification, Closeout, or Acceptance.
+6. Prefer `../../scripts/agy-run.sh` as the thin AGY invocation adapter.
+7. Use `../../resources/review-gates.md` for Three-Axis Review, finding severity, and convergence.
+8. Use `../../resources/runtime-verification.md` only when browser-runtime behavior is applicable. Chrome DevTools MCP remains Codex-owned verification tooling.
+9. Use tty7 only when AGY interaction is genuinely required.
+10. Run `../../scripts/test-readiness.sh` when local execution is available before treating the plugin as release-ready.
 
 ## Runtime Boundary
 
 ```text
-Codex
+Codex frozen plan
 → Execution Unit
 → agy-run.sh
 → official AGY CLI
@@ -48,22 +52,15 @@ Codex
 → Knowledge Closeout
 ```
 
-Optional browser evidence:
-
-```text
-Codex
-→ Chrome DevTools MCP
-→ diagnosis / runtime verification
-```
-
 ## Acceptance Boundary
 
 ```text
+Sol High PASS != PLAN ownership transfer
+PLAN FROZEN != implementation complete
 AGY SUCCESS != REVIEW PASS
 REVIEW PASS != CODE_VERIFIED
-NO_BLOCKING_FINDINGS != ACCEPTED
 browser green != ACCEPTED
 CODE_VERIFIED != ACCEPTED
 ```
 
-Only Codex may mark `ACCEPTED` after Review, Verification, Closeout, baseline preservation, and side-effect checks pass.
+Only Codex may mark `ACCEPTED`.
