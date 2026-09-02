@@ -1,7 +1,7 @@
 ---
 name: agy-supervised-development
-description: Codex-supervised development workflow. Codex shapes, specifies, reviews and verifies; AGY implements bounded execution units; Git and applicable runtime evidence prove delivery before closeout and acceptance.
-version: 3.2.0-alpha.2
+description: Codex-supervised development workflow. Codex shapes, specifies, slices, owns the executable plan, optionally converges that plan with GPT-5.6 Sol High before freeze, then delegates bounded implementation to AGY and independently reviews/verifies delivery evidence.
+version: 3.2.0-alpha.3
 ---
 
 # AGY Supervised Development 3.2
@@ -18,6 +18,8 @@ INTAKE
 → SHAPE
 → SPEC
 → SLICE
+→ SOL HIGH PLAN REVIEW      # default enabled; max 3 rounds
+→ PLAN FROZEN
 → BASELINE
 → AGY BUILD
 → THREE-AXIS REVIEW
@@ -26,38 +28,47 @@ INTAKE
 → ACCEPTED
 ```
 
-Optional hooks:
+Explicit user opt-out:
 
 ```text
-Complex bug → DIAGNOSE
-Browser-facing task → optional Chrome DevTools MCP
-Need second opinion → read-only AGY Consult
-Interactive AGY need → tty7 fallback
+SLICE
+→ PLAN FROZEN
+→ BASELINE
+→ AGY BUILD
+```
+
+Optional runtime hook:
+
+```text
+Browser-facing verification → Chrome DevTools MCP
 ```
 
 ## Roles
 
 ```text
-User  = product / one-way decision authority
-Codex = supervisor / spec owner / reviewer / verifier / acceptance authority
-AGY   = primary writer
-Git   = repository source of truth
+User     = product / one-way decision authority
+Codex    = supervisor / plan owner / reviewer / verifier / acceptance authority
+Sol High = pre-implementation plan reviewer only
+AGY      = primary writer
+Git      = repository source of truth
 ```
 
-Chrome DevTools MCP, when enabled, is a **Codex-owned verification adapter**. It is never an AGY writer dependency.
+Chrome DevTools MCP is a Codex-owned browser tool. It may transport Sol High plan review before freeze and provide runtime verification after implementation, but it never owns workflow decisions.
 
 ## Non-Negotiable Boundaries
 
 1. Only Codex may mark `ACCEPTED`.
-2. `AGY SUCCESS != REVIEW PASS`.
-3. `REVIEW PASS != CODE_VERIFIED`.
-4. `CODE_VERIFIED != ACCEPTED`.
-5. Repository state is authoritative delivery evidence.
-6. AGY does not decide unresolved product or architecture trade-offs.
-7. One-way decisions require explicit user authority.
-8. Do not push, merge, release, deploy, mutate production, or perform irreversible deletion unless explicitly authorized.
-9. Do not use `--dangerously-skip-permissions` as a normal workaround.
-10. Preserve user pre-existing changes; do not manufacture a clean worktree by rolling them back.
+2. Codex remains the authoritative executable-plan owner.
+3. Sol High only reviews the plan before `PLAN FROZEN`.
+4. `AGY SUCCESS != REVIEW PASS`.
+5. `REVIEW PASS != CODE_VERIFIED`.
+6. `CODE_VERIFIED != ACCEPTED`.
+7. Repository state is authoritative delivery evidence.
+8. AGY does not decide unresolved product or architecture trade-offs.
+9. One-way decisions require explicit user authority.
+10. Do not push, merge, release, deploy, mutate production, or perform irreversible deletion unless explicitly authorized.
+11. Do not use `--dangerously-skip-permissions` as a normal workaround.
+12. Preserve user pre-existing changes.
 
 ## 1. INTAKE
 
@@ -74,17 +85,9 @@ Facts that can be inspected should be inspected by Codex rather than asked back 
 
 ## 2. SIZE
 
-Classify the task as:
+Classify the task as `Small | Medium | Large` using decisions, contracts, propagation, verification, risk and worker context.
 
-```text
-Small
-Medium
-Large
-```
-
-Use complexity of decisions, contracts, propagation, verification, risk and worker context. Size may increase when new evidence appears.
-
-Small tasks use a compact Shape/Spec and normally one execution unit. Medium/Large tasks use multiple verifiable slices.
+Small tasks use compact Shape/Spec and normally one execution unit. Medium/Large tasks use multiple verifiable slices.
 
 See `resources/task-sizing.md`.
 
@@ -109,7 +112,7 @@ See `resources/shaping.md`.
 
 ## 4. SPEC
 
-Freeze a testable contract before implementation:
+Freeze the intended behavior into a testable contract:
 
 ```text
 Problem
@@ -123,13 +126,7 @@ Out of Scope
 One-way Decisions
 ```
 
-For browser-facing work, resolve runtime verification before Spec freeze when it materially affects acceptance evidence. If applicable and no effective preference exists, ask:
-
-```text
-Enable
-Disable
-Auto-decide
-```
+For browser-facing work, resolve runtime verification preference when it materially affects acceptance evidence.
 
 See `resources/spec-contract.md` and `resources/runtime-verification.md`.
 
@@ -142,11 +139,61 @@ normal behavior change → Vertical Slice / Tracer Bullet
 wide mechanical change → Expand → Migrate → Contract
 ```
 
-A good slice follows observable behavior end-to-end rather than separating all DB, API, UI and tests into unrelated horizontal phases.
+The completed Shape + Spec + Slice set is the Codex-authored **Executable Plan**.
 
 See `resources/execution-slicing.md` and `templates/execution-unit.md`.
 
-## 6. BASELINE
+## 6. SOL HIGH PLAN REVIEW
+
+Default:
+
+```text
+Plan Review = enabled
+```
+
+If the user explicitly says to skip Sol review / skip plan review / execute directly, skip this step.
+
+Otherwise Codex sends the executable plan through the installed `sol-high-plan-review` Skill, using Chrome DevTools MCP to ChatGPT Web with:
+
+```text
+GPT-5.6 Sol
+High reasoning
+```
+
+Loop:
+
+```text
+Codex Plan
+→ Sol High Review
+→ Codex Adopt / Reject / Modify
+→ Revised Plan
+```
+
+Maximum Sol review rounds:
+
+```text
+3
+```
+
+Stop early on `PASS` or when only non-blocking suggestions remain.
+
+If Sol returns `USER_DECISION_REQUIRED`, or round 3 still has blocking disagreement, stop the loop and ask the user. Never start round 4.
+
+See `resources/sol-plan-review.md`.
+
+## 7. PLAN FROZEN
+
+Codex owns the final plan and records:
+
+```text
+PLAN FROZEN
+```
+
+From this point forward, Sol High exits the task completely.
+
+No Sol High calls during AGY Build, Review, Rework, Verify, Closeout, or Acceptance.
+
+## 8. BASELINE
 
 Before AGY writes:
 
@@ -165,15 +212,15 @@ Rule:
 current changes - baseline changes = task-introduced changes
 ```
 
-## 7. BUG DIAGNOSIS
+## 9. BUG DIAGNOSIS
 
-For simple deterministic bugs:
+Simple deterministic bug:
 
 ```text
 RED → root-cause fix → GREEN
 ```
 
-For complex/uncertain bugs:
+Complex/uncertain bug:
 
 ```text
 reproduce
@@ -186,11 +233,11 @@ reproduce
 
 Do not turn the first plausible code reading into root cause without a symptom-capable feedback loop.
 
-For browser-observable bugs, Chrome DevTools MCP may provide Console / Network / runtime evidence when enabled.
+After `PLAN FROZEN`, Sol High is not reopened for bug discussion.
 
 See `resources/bugfix-workflow.md`.
 
-## 8. AGY BUILD
+## 10. AGY BUILD
 
 Prefer the thin adapter:
 
@@ -216,18 +263,9 @@ Use tty7 only when real interaction is required.
 
 See `resources/agy-execution.md` and `resources/tty7-supervision.md`.
 
-## 9. THREE-AXIS REVIEW
+## 11. THREE-AXIS REVIEW
 
-Codex independently reads the resulting repository state:
-
-```bash
-git status --short
-git diff --stat
-git diff --check
-git diff
-```
-
-Review three axes separately:
+Codex independently reads repository state and reviews three axes:
 
 ```text
 A. Spec Fidelity       — did we build the right thing?
@@ -243,11 +281,13 @@ any REWORK               → REWORK_REQUIRED
 any unresolved BLOCKED   → BLOCKED
 ```
 
-Finding severity and convergence live in the same review contract; do not create a second review state machine.
+Finding severity and convergence live in the same review contract.
+
+Sol High is not part of this stage.
 
 See `resources/review-gates.md` and `templates/review-report.md`.
 
-## 10. REWORK
+## 12. REWORK
 
 Every actionable finding uses a stable ID and bounded contract:
 
@@ -267,7 +307,7 @@ After AGY rework, rerun the full Three-Axis Review before verification.
 
 See `templates/rework-contract.md`.
 
-## 11. CODEX VERIFY
+## 13. CODEX VERIFY
 
 Only after Review PASS, Codex independently runs the relevant seams:
 
@@ -287,26 +327,13 @@ Worker self-report cannot replace this step.
 
 Verification failure becomes `V*` and returns to AGY rework, then full Review again, then Verify again.
 
-For browser-facing tasks, Chrome DevTools MCP may be used only according to `resources/runtime-verification.md`.
+For browser-facing tasks, Chrome DevTools MCP may be used according to `resources/runtime-verification.md`.
 
-All required verification passing produces:
+All required verification passing produces `CODE_VERIFIED`.
 
-```text
-CODE_VERIFIED
-```
+## 14. CLOSEOUT
 
-## 12. CLOSEOUT
-
-After code verification, scan only the knowledge surfaces affected by the task:
-
-```text
-README / usage
-project rules
-API / schema / CLI / shared contracts
-env / config / service / deploy / jobs
-stale renamed or retired references
-workspace residue
-```
+After code verification, scan only knowledge surfaces affected by the task.
 
 No documentation diff is required when existing knowledge is already current.
 
@@ -314,7 +341,7 @@ A code defect found during closeout returns to Rework → Review → Verify.
 
 See `resources/closeout-governance.md` and `templates/closeout-contract.md`.
 
-## 13. ACCEPTANCE
+## 15. ACCEPTANCE
 
 Codex may mark `ACCEPTED` only when:
 
@@ -330,7 +357,7 @@ Final diff explainable
 
 ## Recovery
 
-If the AGY conversation id is lost, do not guess the latest session. Start a replacement conversation with the approved Spec, current unit, repository state, findings and verification state. Repository progress remains valid evidence.
+If the AGY conversation id is lost, do not guess the latest session. Start a replacement conversation with the frozen plan, current unit, repository state, findings and verification state.
 
 ## Final Report
 
@@ -338,6 +365,8 @@ Keep the final report compact:
 
 ```text
 Task size
+Plan review status / rounds
+Plan frozen state
 What changed
 AGY execution status
 Three-Axis Review result
@@ -356,8 +385,8 @@ task-sizing
 shaping
 spec-contract
 execution-slicing
+sol-plan-review
 agy-execution
-agy-consult
 tty7-supervision
 bugfix-workflow
 review-gates
