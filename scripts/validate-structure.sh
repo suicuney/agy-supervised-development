@@ -11,7 +11,7 @@ files=(
   "$root/skills/agy-supervised-development/SKILL.md"
   "$root/SKILL.md"
   "$root/resources/agy-execution.md"
-  "$root/resources/agy-consult.md"
+  "$root/resources/sol-plan-review.md"
   "$root/resources/review-gates.md"
   "$root/resources/runtime-verification.md"
   "$root/templates/browser-verification.md"
@@ -40,7 +40,7 @@ assert marketplace['name']=='agy-supervised-development'
 assert marketplace['plugins'][0]['name']=='agy-supervised-development'
 assert marketplace['plugins'][0]['source']['path']=='.'
 assert plugin['name']=='agy-supervised-development'
-assert plugin['version'].startswith('3.2.')
+assert plugin['version']=='3.2.0-alpha.3'
 assert plugin['skills']=='./skills/'
 PY
 
