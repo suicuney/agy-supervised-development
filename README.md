@@ -70,19 +70,13 @@ B. Engineering Quality
 C. Completeness
 ```
 
-Finding severity 和 `NO_BLOCKING_FINDINGS` 收敛规则统一定义在：
-
-```text
-resources/review-gates.md
-```
+Finding severity 和 `NO_BLOCKING_FINDINGS` 收敛规则统一定义在 `resources/review-gates.md`。
 
 Review PASS 后仍必须执行 Independent Verification。
 
 ## Browser Runtime Verification
 
 对于 Web UI、浏览器集成、Chrome Extension、Console / Network 问题等 browser-facing 任务，可选使用 Chrome DevTools MCP。
-
-规则很简单：
 
 ```text
 Browser applicable?
@@ -106,12 +100,7 @@ Review PASS          → Independent Runtime Verification
 
 如果必需的 browser verification 无法执行，且没有等价 verification seam，就不能标记 `CODE_VERIFIED`。
 
-详见：
-
-```text
-resources/runtime-verification.md
-templates/browser-verification.md
-```
+详见 `resources/runtime-verification.md` 和 `templates/browser-verification.md`。
 
 ## Optional AGY Consult
 
