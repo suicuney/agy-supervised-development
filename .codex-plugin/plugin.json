@@ -1,0 +1,25 @@
+{
+  "name": "agy-supervised-development",
+  "version": "3.2.0-alpha.1",
+  "description": "Pluginized Codex-supervised development workflow with AGY as the primary writer and Git as delivery evidence.",
+  "author": {"name": "suicuney"},
+  "repository": "https://github.com/suicuney/agy-supervised-development",
+  "license": "MIT",
+  "keywords": ["codex", "antigravity", "agy", "supervised-development", "workflow"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AGY Supervised Development",
+    "shortDescription": "Codex shapes and proves; AGY builds; Git tells the truth.",
+    "longDescription": "A workflow-first supervised development plugin. Codex owns shaping, specification, slicing, review, independent verification and final acceptance; AGY is the primary implementation writer; tty7 remains an interactive fallback.",
+    "developerName": "suicuney",
+    "category": "Productivity",
+    "capabilities": [
+      "Shape and freeze implementation specs",
+      "Delegate bounded execution units to AGY",
+      "Run Three-Axis Review and independent verification",
+      "Perform knowledge closeout",
+      "Request optional read-only AGY consultation"
+    ],
+    "defaultPrompt": "Use AGY Supervised Development for this task. Preserve the workflow kernel and repository evidence boundaries."
+  }
+}

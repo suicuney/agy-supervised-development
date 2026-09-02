@@ -1,12 +1,14 @@
-# AGY Supervised Development 3.1 — Workflow First
+# AGY Supervised Development 3.2 — Pluginized Runtime
 
-当前开发版本：**3.1.0-alpha.3**
+当前开发版本：**3.2.0-alpha.1**
 
-这是一个以 **Codex App 负责 Shape / Spec / Review / Verification，官方 AGY CLI 负责实现，Git Repository 负责事实证明** 的定制监督式开发 Skill。
+这是一个以 **Codex App 负责 Shape / Spec / Review / Verification，官方 AGY CLI 负责实现，Git Repository 负责事实证明** 的监督式开发插件。
 
 > **Codex shapes and proves. AGY builds. Git tells the truth.**
 
-3.1 不再把“选哪个 Harness”当项目中心，而是把一次软件开发稳定拆成：
+v3.2 不重写 v3.1 已稳定的 Workflow Kernel，而是在其上增加 **Codex Plugin Packaging、Thin AGY Adapter、Deterministic Validation、Review Convergence 和 Optional AGY Consult**。
+
+## 主流程
 
 ```text
 SIZE
@@ -20,304 +22,229 @@ SIZE
 → ACCEPTED
 ```
 
----
-
-## 架构
+运行边界：
 
 ```text
-                         User
-                          │
-                          ▼
-                      Codex App
-              Shape / Spec / Slice / Review
-                          │
-                    Execution Unit
-                          │
-                          ▼
-                  AGY official CLI
-                 headless-first writer
-                    │           │
-                    │           └── tty7 interactive fallback
-                    ▼
-                  Repository
-                    │
-                    ▼
-                      Codex
-         ┌────────────┼────────────┐
-         ▼            ▼            ▼
-   Spec Fidelity    Quality    Completeness
-         └────────────┼────────────┘
-                      ▼
-             Independent Verify
-                      ▼
-                 CODE_VERIFIED
-                      ▼
-                   Closeout
-                      ▼
-                   ACCEPTED
-
-Optional sidecar:
-Codex ─────→ Pi specialist
-             research / second opinion / blast-radius analysis
+Codex
+  ↓ Execution Unit
+scripts/agy-run.sh            # thin adapter only
+  ↓
+official AGY CLI / stream-json
+  ↓
+Repository
+  ↓
+Codex Three-Axis Review
+  ↓
+Independent Verification
+  ↓
+Knowledge Closeout
+  ↓
+ACCEPTED
 ```
 
----
+`tty7 + AGY TUI` 仍只在 login、permissions、manual approval、resume picker 或 TUI-only 行为真正需要交互时作为 fallback。
 
-# 3.1 三个已经落地的阶段
+## v3.2 Alpha 1 新增
 
-## Alpha 1 — Workflow Kernel
+### 1. Codex Plugin Packaging
+
+仓库现在可以作为 Codex Plugin marketplace source：
+
+```bash
+codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy-supervised-v3.2-pluginized
+codex plugin add agy-supervised-development@agy-supervised-development
+```
+
+插件入口：
 
 ```text
-SIZE → SHAPE → SPEC → SLICE
+.agents/plugins/marketplace.json
+.codex-plugin/plugin.json
+skills/agy-supervised-development/SKILL.md
 ```
 
-核心能力：
+根目录 `SKILL.md + resources/ + templates/` 仍是现有 Workflow Kernel 的单一权威来源；插件 Skill 是 v3.2 入口，不复制整套 Kernel，避免双真相源。
 
-- Small / Medium / Large 路由；
-- Decision Tree / Frontier；
-- Resolved / Open / Fog / Out-of-Scope；
-- Spec 与施工单分离；
-- Verification Seam；
-- Vertical Slice / Tracer Bullet；
-- Wide Refactor 使用 Expand → Migrate → Contract。
+### 2. Thin AGY Adapter
 
-## Alpha 2 — AGY Execution Adapter
+新增：
 
 ```text
-Execution Unit
-→ AGY official CLI headless / stream-json
-→ repository
+scripts/agy-run.sh
 ```
 
-核心能力：
+它只统一：
 
-- 官方 AGY CLI 作为 Primary Writer；
-- `conversation_id` 精确 resume；
-- `init.cwd == repo_root`；
-- `SUCCESS != PASS`；
-- headless permission soft-deny 不伪装成测试成功；
+- repository binding；
+- build / consult mode；
+- timeout；
+- conversation id；
+- add-dir；
+- official `stream-json` 输出。
+
+示例：
+
+```bash
+scripts/agy-run.sh \
+  --repo "$repo_root" \
+  --timeout 30m \
+  "<Execution Unit>"
+```
+
+返工：
+
+```bash
+scripts/agy-run.sh \
+  --repo "$repo_root" \
+  --conversation "$agy_conversation_id" \
+  "<Rework Contract>"
+```
+
+Wrapper **不是** custom harness、daemon、Run Store、session DB 或 acceptance engine。AGY 官方 CLI 仍是 Runtime integration boundary。
+
+### 3. Review Convergence
+
+新增 `resources/review-convergence.md`。
+
+Three-Axis Review 仍独立形成：
+
+```text
+A Spec Fidelity
+B Engineering Quality
+C Completeness
+```
+
+随后可把 finding 分类为：
+
+```text
+BLOCKING
+NON_BLOCKING
+BACKLOG
+```
+
+当没有 unresolved BLOCKING finding 时，Codex 可以记录：
+
+```text
+NO_BLOCKING_FINDINGS
+```
+
+但必须牢记：
+
+```text
+NO_BLOCKING_FINDINGS != ACCEPTED
+REVIEW PASS != CODE_VERIFIED
+CODE_VERIFIED != ACCEPTED
+```
+
+Independent Verification 与 Knowledge Closeout 仍不可跳过。
+
+### 4. Optional AGY Consult
+
+新增 `resources/agy-consult.md`，用于只读第二意见：
+
+```bash
+scripts/agy-run.sh \
+  --repo "$repo_root" \
+  --mode consult \
+  "Review this implementation plan for hidden risks."
+```
+
+适合：
+
+- plan challenge；
+- difficult code-path analysis；
+- blast-radius second opinion；
+- root-cause hypothesis comparison。
+
+AGY Consult 只产生 advisory evidence，不能替代 Codex Three-Axis Review、Verification、Closeout 或 Acceptance。
+
+### 5. Deterministic Validation
+
+新增：
+
+```text
+scripts/validate-structure.sh
+scripts/validate-docs.sh
+scripts/validate-runtime.sh
+scripts/test-readiness.sh
+```
+
+本地完整自检：
+
+```bash
+scripts/test-readiness.sh
+```
+
+覆盖：
+
+```text
+plugin manifest / marketplace JSON
+required files
+script executable bits
+bash syntax
+plugin metadata/version
+README contract
+plugin-skill routing
+agy-run argument behavior
+consult read-only prefix
+conversation/add-dir forwarding
+```
+
+这和 `evals/` 的职责不同：
+
+```text
+Deterministic Validators = 文件、manifest、wrapper、docs contract 的确定性检查
+Semantic Evals            = Workflow、Review、状态迁移、Agent 行为的语义回归
+```
+
+两者共同组成 v3.2 的自验证层。
+
+## v3.1 Kernel 保持不变的核心边界
+
+- 只有 Codex 可以 `ACCEPTED`；
+- Workflow 与 Runtime 解耦；
+- AGY 是 Primary Writer，不是 Product Owner；
+- Repository state 是交付真相；
+- `AGY SUCCESS != REVIEW PASS`；
+- Three-Axis Review 不做平均分；
+- Verification 独立于 Review；
+- CODE_VERIFIED 后仍必须 Knowledge Closeout；
+- tty7 是 interactive fallback；
 - 默认不使用 `--dangerously-skip-permissions`；
-- tty7 只做 interactive fallback；
-- Pi 降级为 optional specialist。
+- 不 push / merge / release / deploy / production write，除非用户明确授权。
 
-## Alpha 3 — Review Intelligence
-
-```text
-                 AGY Delivery
-                      │
-          ┌───────────┼───────────┐
-          ▼           ▼           ▼
-   Spec Fidelity    Quality   Completeness
-          │           │           │
-          └───────────┼───────────┘
-                      ▼
-             Independent Verify
-```
-
-### A. Spec Fidelity — 做对了吗？
-
-检查：
+## Active Files
 
 ```text
-Acceptance coverage
-missing / partial requirement
-wrong semantics
-scope creep
-unauthorized decisions
-Verification Seam fidelity
-```
+SKILL.md                         # v3.1 workflow kernel, canonical workflow source
+skills/agy-supervised-development/SKILL.md  # v3.2 plugin entrypoint
 
-### B. Engineering Quality — 写得好吗？
-
-检查：
-
-```text
-architecture / module responsibility
-contract / data consistency
-correctness / edge cases
-error handling / observability
-security / side effects
-backward compatibility
-code smells / speculative generality
-test quality / implementation coupling
-```
-
-### C. Completeness — 漏了吗？
-
-做 Missing Diff Review：
-
-```text
-changed behavior
-→ callers / consumers
-→ types / validation / serialization
-→ schema / migration / existing data
-→ sibling flows / jobs
-→ error / retry / fallback
-→ cache / derived state
-→ old/orphaned path
-→ tests
-→ knowledge impact
-```
-
-汇总不是打平均分：
-
-```text
-A PASS + B PASS + C PASS → REVIEW PASS
-any REWORK               → REWORK_REQUIRED
-any BLOCKED              → BLOCKED
-```
-
----
-
-# Bug Intelligence
-
-## Simple deterministic bug
-
-```text
-REPRODUCE
-→ RED
-→ ROOT-CAUSE FIX
-→ GREEN
-→ CODEX RE-RUN
-```
-
-## Complex / uncertain bug
-
-```text
-TIGHT FEEDBACK LOOP
-→ REPRODUCE
-→ MINIMISE
-→ RANKED/FALSIFIABLE HYPOTHESES
-→ TARGETED INSTRUMENTATION
-→ ROOT CAUSE
-→ REGRESSION PROOF
-→ FIX
-→ VERIFY ORIGINAL REPRO
-```
-
-关键原则：
-
-> **复杂 Bug 没有能抓住用户症状的反馈环，就不要把第一个代码猜测包装成根因。**
-
----
-
-# 为什么 Review 和 Verification 分开
-
-```text
-Review
-= 对代码、Spec、传播面的工程判断
-
-Verification
-= Codex 自己实际运行验证命令取得执行证据
-```
-
-所以：
-
-```text
-AGY SUCCESS
-!= REVIEW PASS
-
-REVIEW PASS
-!= CODE_VERIFIED
-
-CODE_VERIFIED
-!= ACCEPTED
-```
-
-Verification 失败会形成 `V*` finding，返工后重新过 Three-Axis Review，再重新 Verification。
-
----
-
-# Finding IDs
-
-Review / Rework 使用稳定 Finding ID：
-
-```text
-S* = Spec Fidelity
-Q* = Engineering Quality
-C* = Completeness
-V* = Independent Verification
-K* = Knowledge Closeout
-```
-
-例如：
-
-```text
-C1
-Axis: Completeness
-Issue: export script still calls retired signature
-Evidence: rg / call-chain
-Expected: all reachable callers migrated
-```
-
-AGY 返工必须收到具体 Finding + Evidence，不发送“再检查一下有没有漏改”。
-
----
-
-# 任务大小与实际使用
-
-## Small
-
-```text
-Compact Shape/Spec
-→ one Execution Unit
-→ AGY
-→ Three-Axis Review
-→ Verify
-→ Closeout
-```
-
-适合：明确 bug、字段校验、小范围 contract 修正。
-
-## Medium
-
-```text
-Shape
-→ Spec
-→ 2~5 verifiable slices
-→ AGY slice-by-slice
-→ Three-Axis Review / Rework
-→ Verify
-→ Closeout
-```
-
-这是默认主力流程。
-
-## Large
-
-```text
-Destination
-→ Decision Map / Fog
-→ resolve frontier
-→ Spec
-→ staged slices / migration sequence
-→ AGY
-→ Three-Axis Review
-```
-
-只在真正大且不确定的工作中使用，不把普通 Feature 强行变成 Issue DAG。
-
----
-
-# Active Files
-
-```text
-SKILL.md
+.agents/plugins/marketplace.json
+.codex-plugin/plugin.json
 
 resources/
+├── agy-execution.md
+├── agy-consult.md
+├── review-convergence.md
 ├── task-sizing.md
 ├── shaping.md
 ├── spec-contract.md
 ├── execution-slicing.md
-├── agy-execution.md
-├── bugfix-workflow.md
 ├── review-gates.md
 ├── completeness-regression.md
+├── bugfix-workflow.md
+├── closeout-governance.md
 ├── run-lifecycle.md
 ├── failure-modes.md
-├── closeout-governance.md
 ├── tty7-supervision.md
 └── pi-interaction.md
+
+scripts/
+├── agy-run.sh
+├── validate-structure.sh
+├── validate-docs.sh
+├── validate-runtime.sh
+└── test-readiness.sh
 
 templates/
 ├── execution-unit.md
@@ -330,28 +257,7 @@ evals/
 └── scenarios.json
 ```
 
----
-
-# 不做什么
-
-3.1 默认不要求：
-
-```text
-custom Pi harness
-pi-supervisor daemon
-custom Run Store
-custom operation protocol
-Goal/DAG for every task
-GitHub issue for every tiny change
-tty7 screen scraping for every AGY turn
-third-party Antigravity OAuth provider as main path
-```
-
-Runtime 只是执行层；Workflow 才是本 Skill 的长期核心。
-
----
-
-# Definition of Done
+## Definition of Done
 
 ```text
 DONE
@@ -359,14 +265,16 @@ DONE
 Spec satisfied
 + Engineering Quality PASS
 + Completeness PASS
++ NO unresolved blocking findings
 + Independent Verification PASS
 + Regression/Bug Proof satisfied when applicable
 + Knowledge aligned
++ Deterministic readiness checks satisfied when applicable
 + Baseline preserved
 + No unauthorized one-way/external side effects
 ```
 
-只有 Codex 可以最终标记：
+最终仍只有 Codex 可以标记：
 
 ```text
 ACCEPTED
