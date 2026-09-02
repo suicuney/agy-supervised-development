@@ -3,14 +3,14 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: agy-run.sh [--repo PATH] [--mode build|consult] [--timeout DURATION] [--conversation ID] [--add-dir PATH]... PROMPT
+Usage: agy-run.sh [--repo PATH] [--timeout DURATION] [--conversation ID] [--add-dir PATH]... PROMPT
 
+Thin wrapper for bounded AGY implementation/rework turns.
 Options must appear before PROMPT. Arguments after the first prompt token are joined into the prompt text.
 EOF
 }
 
 repo=""
-mode="build"
 timeout="30m"
 conversation=""
 add_dirs=()
@@ -20,9 +20,6 @@ while [[ $# -gt 0 ]]; do
     --repo)
       [[ $# -ge 2 ]] || { usage; exit 2; }
       repo="$2"; shift 2 ;;
-    --mode)
-      [[ $# -ge 2 ]] || { usage; exit 2; }
-      mode="$2"; shift 2 ;;
     --timeout|--print-timeout)
       [[ $# -ge 2 ]] || { usage; exit 2; }
       timeout="$2"; shift 2 ;;
@@ -44,7 +41,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ "$mode" == "build" || "$mode" == "consult" ]] || { printf 'Invalid mode: %s\n' "$mode" >&2; exit 2; }
 [[ $# -ge 1 ]] || { usage; exit 2; }
 command -v agy >/dev/null 2>&1 || { printf 'agy was not found on PATH.\n' >&2; exit 127; }
 command -v git >/dev/null 2>&1 || { printf 'git was not found on PATH.\n' >&2; exit 127; }
@@ -59,10 +55,6 @@ repo_root="$(git -C "$repo" rev-parse --show-toplevel)"
 cd "$repo_root"
 
 prompt="$*"
-if [[ "$mode" == "consult" ]]; then
-  prompt="Read-only consultation. Do not modify files, run write commands, apply patches, commit, push, merge, deploy, or mutate external systems. Return findings/advice only. ${prompt}"
-fi
-
 args=(-p "$prompt" --output-format stream-json --print-timeout "$timeout")
 if [[ -n "$conversation" ]]; then
   args+=(--conversation "$conversation")
