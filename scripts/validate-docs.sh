@@ -10,10 +10,10 @@ require_contains() {
   grep -Eq -- "$pattern" "$file" || { printf 'Documentation validation failed: %s\n' "$label" >&2; exit 1; }
 }
 
-# Check only stable routing/version contracts. Do not validate prose wording.
-require_contains "$readme" '3\.2\.0-alpha\.2' 'README version'
+require_contains "$readme" '3\.2\.0-alpha\.3' 'README version'
 require_contains "$readme" 'codex plugin marketplace add' 'plugin install command'
 require_contains "$plugin_skill" 'Read `\.\./\.\./SKILL\.md`' 'plugin routes to workflow kernel'
+require_contains "$plugin_skill" 'sol-plan-review\.md' 'Sol plan review routing'
 require_contains "$plugin_skill" 'review-gates\.md' 'review rules routing'
 require_contains "$plugin_skill" 'runtime-verification\.md' 'runtime verification routing'
 
