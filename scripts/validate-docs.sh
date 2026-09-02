@@ -10,8 +10,7 @@ require_contains() {
   grep -Eq -- "$pattern" "$file" || { printf 'Documentation validation failed: %s\n' "$label" >&2; exit 1; }
 }
 
-# Keep this validator intentionally small: check stable routing/version contracts,
-# not prose wording.
+# Check only stable routing/version contracts. Do not validate prose wording.
 require_contains "$readme" '3\.2\.0-alpha\.2' 'README version'
 require_contains "$readme" 'codex plugin marketplace add' 'plugin install command'
 require_contains "$plugin_skill" 'Read `\.\./\.\./SKILL\.md`' 'plugin routes to workflow kernel'
