@@ -22,15 +22,14 @@ grep -q -- 'stream-json' <<<"$out"
 grep -q -- '--print-timeout' <<<"$out"
 grep -q -- '12m' <<<"$out"
 
-out="$(run --repo "$tmp/repo" --mode consult --conversation conv-123 --add-dir /tmp/extra 'Review risk')"
-grep -q -- 'Read-only consultation' <<<"$out"
+out="$(run --repo "$tmp/repo" --conversation conv-123 --add-dir /tmp/extra 'Fix bounded finding')"
 grep -q -- '--conversation' <<<"$out"
 grep -q -- 'conv-123' <<<"$out"
 grep -q -- '--add-dir' <<<"$out"
 grep -q -- '/tmp/extra' <<<"$out"
 
-if run --repo "$tmp/repo" --mode invalid test >/dev/null 2>&1; then
-  printf 'Invalid mode should fail.\n' >&2
+if run --repo "$tmp/repo" --mode consult test >/dev/null 2>&1; then
+  printf 'Obsolete consult mode should fail.\n' >&2
   exit 1
 fi
 
