@@ -37,15 +37,14 @@ active=(
   "$readme"
   "$plugin_skill"
   "$kernel"
-  "$agy_execution"
-  "$failure_modes"
+  "$root/resources"
   "$root/examples"
   "$root/evals"
 )
 
-if grep -REn -- 'agy-run\.sh|tty7' "${active[@]}" >/dev/null; then
-  printf 'Documentation validation failed: legacy AGY runtime reference remains in active docs/evals.\n' >&2
-  grep -REn -- 'agy-run\.sh|tty7' "${active[@]}" >&2 || true
+if grep -REn -- 'agy-run\.sh|tty7|agy -p|--conversation[[:space:]]+<real-conversation-id>' "${active[@]}" >/dev/null; then
+  printf 'Documentation validation failed: removed AGY runtime path remains in active docs/evals.\n' >&2
+  grep -REn -- 'agy-run\.sh|tty7|agy -p|--conversation[[:space:]]+<real-conversation-id>' "${active[@]}" >&2 || true
   exit 1
 fi
 

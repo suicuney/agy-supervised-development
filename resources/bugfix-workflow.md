@@ -1,6 +1,6 @@
 # Bugfix Workflow — Evidence Before Guessing
 
-本文件定义 AGY Supervised Development 3.1 的 Bug 分流与证据要求。
+本文件定义 AGY Supervised Development 3.3 的 Bug 分流与证据要求。
 
 目标不是把每个 Bug 都流程化，而是防止复杂 Bug 进入：
 
@@ -16,23 +16,11 @@
 
 > **先建立能抓住这个 Bug 的反馈环，再让实现围绕证据推进。**
 
----
-
 ## 1. 先判断 Bug 类型
 
 ### Simple / Deterministic Bug
 
-满足大部分：
-
-```text
-症状明确
-可安全稳定复现
-根因空间小
-正确 Verification Seam 已知
-一个 Worker context 足够
-```
-
-使用 compact path：
+满足大部分：症状明确、可安全稳定复现、根因空间小、正确 Verification Seam 已知、一个 Worker context 足够。
 
 ```text
 REPRODUCE
@@ -44,19 +32,7 @@ REPRODUCE
 
 ### Complex / Uncertain Bug
 
-出现任一强信号：
-
-```text
-偶发 / flaky
-性能退化
-跨服务/跨线程/异步链路
-症状与根因距离远
-多个 plausible hypotheses
-生产/真实数据依赖
-现有测试无法抓住用户症状
-```
-
-使用完整 Bug Intelligence：
+出现 flaky、性能、跨服务/线程/异步、多个 hypothesis、真实数据依赖或现有测试抓不住症状时：
 
 ```text
 FEEDBACK LOOP
@@ -70,11 +46,7 @@ FEEDBACK LOOP
 → VERIFY ORIGINAL REPRO
 ```
 
----
-
-## 2. Phase 1 — Build a Tight Feedback Loop
-
-复杂 Bug 在提出根因结论前，优先建立一个可重复执行的 pass/fail signal。
+## 2. Build a Tight Feedback Loop
 
 按实际情况优先：
 
@@ -91,50 +63,15 @@ FEEDBACK LOOP
 10. structured HITL reproduction as last resort
 ```
 
-完成标准：
+完成标准：Red-capable、Deterministic（或显著提高复现率）、Fast、Agent-runnable。
 
-```text
-Red-capable — 能抓住用户描述的这个症状
-Deterministic — 或至少把 flaky 复现率提高到可调试水平
-Fast — 尽可能秒级/短周期
-Agent-runnable — Worker/Codex 可重复运行
-```
+## 3. Reproduce and Minimise
 
-没有 feedback loop 时不要把“代码看起来可能是 X”包装成 root cause。
+先确认反馈环复现的是**同一个 Bug**，再最小化输入、调用方、配置、数据、步骤、并发条件和时间窗口。每次只移除一个变量并重跑。
 
----
+## 4. Ranked, Falsifiable Hypotheses
 
-## 3. Phase 2 — Reproduce and Minimise
-
-先确认反馈环真的复现的是**同一个 Bug**，而不是附近另一个错误。
-
-然后最小化：
-
-```text
-输入
-调用方
-配置
-数据
-步骤
-并发条件
-时间窗口
-```
-
-每次只移除一个变量并重跑，直到剩余元素基本都是 load-bearing。
-
-最小复现的价值：
-
-- 缩小 hypothesis space；
-- 形成更准确 regression test；
-- 降低 AGY 为了“顺便修周边”产生 scope drift 的概率。
-
----
-
-## 4. Phase 3 — Ranked, Falsifiable Hypotheses
-
-复杂 Bug 默认先形成 3~5 个有排序的 hypothesis，而不是只保留第一个直觉。
-
-每个 hypothesis 使用：
+复杂 Bug 默认形成 3~5 个有排序 hypothesis：
 
 ```text
 Hypothesis H1
@@ -144,55 +81,15 @@ Probe:
 What would falsify it:
 ```
 
-要求 Prediction 可证伪，例如：
+无法提出证伪方式的“感觉”不算强 hypothesis。产品/风险取舍仍返回 Shaping。
 
-```text
-如果缓存失效顺序是根因，禁用缓存后错误应消失；
-如果事务边界是根因，把读取移入同一事务后症状应改变；
-```
+## 5. Instrument One Prediction at a Time
 
-不能提出验证方式的“感觉”不算强 hypothesis。
+Instrumentation 必须服务某个具体 prediction。优先 debugger / profiler / targeted instrumentation，避免到处加日志。临时 instrumentation 在最终 Review 前清理。
 
-真正涉及产品语义/风险取舍的问题仍返回 Shaping；技术假设由 Codex/AGY 用证据验证。
+性能 Bug 必须有 baseline measurement 和 change 后对比，不能只说“感觉更快”。
 
----
-
-## 5. Phase 4 — Instrument One Prediction at a Time
-
-Instrument 必须服务于某个具体 hypothesis。
-
-优先：
-
-```text
-debugger / REPL / profiler
-→ targeted instrumentation
-→ narrow logs/metrics/traces
-```
-
-避免：
-
-```text
-到处加 log 再 grep
-一次改多个变量
-把 debug instrumentation 混进最终代码
-```
-
-临时 instrumentation 使用明显唯一标记，便于 Closeout 前清理。
-
-性能 Bug：
-
-```text
-baseline measurement
-→ profile/query plan/timing evidence
-→ change
-→ compare measurement
-```
-
-不要仅凭“感觉更快”。
-
----
-
-## 6. Phase 5 — Root Cause Finding
+## 6. Root Cause Finding
 
 宣布 Root Cause 前应能回答：
 
@@ -205,13 +102,11 @@ Evidence that distinguishes it from rejected hypotheses:
 Same cause elsewhere:
 ```
 
-如果只能说“改了这里以后绿了”，还不够证明 root cause。
+“改这里以后绿了”本身不够。
 
----
+## 7. Regression Proof
 
-## 7. Phase 6 — Regression Proof
-
-如果存在正确的公共 Verification Seam：
+如果存在正确公共 Verification Seam：
 
 ```text
 same regression proof
@@ -221,31 +116,11 @@ same proof → GREEN
 Codex independent re-run → GREEN
 ```
 
-如果没有正确 seam：
+没有正确 seam 时记录 N/A 原因和替代证据，不为形式制造无法抓真实症状的测试。
 
-```text
-Regression Proof = not-applicable / architecture-gap
-Reason = <why existing seam cannot represent the real bug>
-Alternative Evidence = <original feedback loop / integration fixture / trace replay>
-```
+## 8. Verify the Original Repro
 
-不要为了形式在错误 seam 写一个永远绿、无法抓真实症状的测试。
-
----
-
-## 8. Phase 7 — Verify the Original Repro
-
-Regression test 绿以后，还必须重新执行最初的 feedback loop / 原始未最小化场景。
-
-因为：
-
-```text
-minimal regression green
-!=
-original user symptom definitely gone
-```
-
-最终至少记录：
+Minimal regression 绿以后，还必须重新执行最初 feedback loop / 原始未最小化场景。
 
 ```text
 Original repro before: RED
@@ -253,10 +128,6 @@ Minimal repro: RED
 Regression proof after: GREEN
 Original repro after: GREEN
 ```
-
-适用时再加性能/flake rate 前后数据。
-
----
 
 ## 9. Cleanup
 
@@ -270,27 +141,21 @@ secret/captured auth data redacted
 final tests target public behavior where possible
 ```
 
-来源不明或可能属于用户 baseline 的 debug 文件不能擅自删除。
-
----
+来源不明或可能属于用户 baseline 的文件不能擅自删除。
 
 ## 10. 与 Three-Axis Review 的关系
-
-Bug 修复完成后仍进入三轴：
 
 ```text
 Spec Fidelity
 - 用户症状/冻结修复目标真的被满足了吗？
 
 Engineering Quality
-- root-cause fix 是否健康？是否只是 swallow/error masking？
+- root-cause fix 是否健康？
 - regression test 是否绑定内部实现？
 
 Completeness
 - 同一 root cause 在 sibling/reachable path 是否仍存在？
 ```
-
-所以：
 
 ```text
 feedback loop 找原因

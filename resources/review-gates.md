@@ -80,27 +80,17 @@ NON_BLOCKING
 BACKLOG
 ```
 
-- `BLOCKING` — prevents the frozen contract, safe delivery, required propagation, verification, or closeout from passing.
+- `BLOCKING` — prevents frozen contract, safe delivery, required propagation, verification, or closeout from passing.
 - `NON_BLOCKING` — real in-scope improvement that does not invalidate the current contract; fix when cheap, otherwise record it.
-- `BACKLOG` — different ticket, speculative hardening, or optional polish; do not keep the current loop open for it unless scope is explicitly expanded.
+- `BACKLOG` — different ticket, speculative hardening, or optional polish; do not keep the current loop open unless scope expands.
 
-Codex may record:
-
-```text
-NO_BLOCKING_FINDINGS
-```
-
-only when no unresolved `BLOCKING` finding remains.
-
-This is a convergence signal only:
+Codex may record `NO_BLOCKING_FINDINGS` only when no unresolved blocking finding remains. It is a convergence signal only:
 
 ```text
 NO_BLOCKING_FINDINGS != REVIEW PASS by itself
 NO_BLOCKING_FINDINGS != CODE_VERIFIED
 NO_BLOCKING_FINDINGS != ACCEPTED
 ```
-
-Never downgrade a requirement, security problem, data-loss risk, compatibility break, or required verification failure just to reach convergence.
 
 ## Aggregate Verdict
 
@@ -112,11 +102,9 @@ any unresolved BLOCKED   → BLOCKED
 
 No averaging and no majority vote.
 
-When isolated reviewers are available, the three axes may be reviewed independently before Codex aggregates them. Otherwise Codex still forms each verdict separately.
-
 ## Rework Rule
 
-Every actionable review finding must contain enough evidence for a bounded Rework Contract:
+Every actionable finding must contain:
 
 ```text
 Finding ID
@@ -132,13 +120,12 @@ Forbidden Actions
 
 After AGY rework, rerun the full Three-Axis Review. Fixing one axis can break another.
 
-A normal soft limit is three complete `Review → Rework → Re-review` cycles. At that point reassess the Spec, slice, root cause, permissions, environment, or worker conversation instead of looping mechanically.
+A normal soft limit is three complete `Review → Rework → Re-review` cycles. At that point reassess the Spec, slice, root cause, permissions, environment, or the Herdr-managed AGY session instead of looping mechanically.
 
 ## Cross-Cutting Rules
 
-Review must preserve these boundaries:
-
 ```text
+Herdr done != REVIEW PASS
 AGY SUCCESS != REVIEW PASS
 REVIEW PASS != CODE_VERIFIED
 CODE_VERIFIED != ACCEPTED
