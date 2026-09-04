@@ -1,13 +1,13 @@
 # Rework Contract Template
 
-Codex Three-Axis Review / Independent Verification / Closeout 发现问题后，用真实 AGY `conversation_id` resume，并发送完整、证据驱动的 Rework Contract。
+Codex Three-Axis Review / Independent Verification / Closeout 发现问题后，优先发送给**同一个 Herdr-managed AGY worker**。Herdr 负责 native session continuity；Contract 本身不携带或调用 AGY resume 命令。
 
 ```text
 Rework Contract
 
 Source
 - Execution Unit: <name>
-- Conversation: <real AGY conversation id>
+- Herdr Agent: <stable task-local agent name>
 - Review cycle: <n>
 
 Finding
@@ -60,24 +60,16 @@ V* = Codex Independent Verification
 K* = Knowledge Closeout
 ```
 
-稳定 ID 让 Review → Rework → Re-review 可以准确追踪，不依赖“刚才那个问题”这种 session memory。
+稳定 ID 让 Review → Rework → Re-review 可以准确追踪，不依赖 session memory。
 
 ## 合并规则
 
-一个 Rework Contract 可以包含多个 finding，但仅当它们：
-
-```text
-同一 root cause
-或
-同一小范围修改可以一起解决
-```
-
-否则分开，避免一个大返工包同时改产品语义、架构和无关 caller。
+多个 finding 只有在同一 root cause 或同一小范围修改可一起解决时才放进同一 Rework Contract。
 
 ## Re-review 规则
 
 - 不发送模糊的“继续”“再检查一下”“修一下刚才的问题”。
-- Conversation history 是上下文，不替代 Evidence。
-- AGY 本轮 `SUCCESS` 后仍必须回 Codex Three-Axis Review。
-- 即使只修一个 Q finding，也重新确认 Spec Fidelity / Quality / Completeness，防止返工引入新问题。
+- Herdr/AGY conversation history 是辅助上下文，不替代 Evidence。
+- Herdr `done` / AGY self-report 后仍必须回 Codex Three-Axis Review。
+- 即使只修一个 Q finding，也重新确认 Spec Fidelity / Quality / Completeness。
 - Verification finding 修复后不能直接回 VERIFYING；先重新 Three-Axis Review。

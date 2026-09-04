@@ -1,6 +1,6 @@
 # Execution Unit Template
 
-用于把一个已批准的 Spec slice 交给 Primary Worker（目标：官方 AGY CLI）。
+用于把一个已批准的 Spec slice 交给 **Herdr-managed AGY Primary Worker**。
 
 ```text
 Execution Unit
@@ -58,7 +58,7 @@ Bug Evidence — only when Work Type = bugfix
 
 Worker Verification
 - <targeted command/check expected during implementation>
-- If a command is blocked by AGY permission policy, report it as blocked/not-run; never report it as passed.
+- If the worker is blocked before a command actually runs, report blocked/not-run; never report it as passed.
 
 Completeness Watch
 - <caller / consumer / schema / state / job / fallback / same-root-cause sibling surfaces that must be checked>
@@ -84,9 +84,10 @@ Report
 
 ## 规则
 
-- 一份 Execution Unit 尽量适配一个 fresh Worker context。
+- 一份 Execution Unit 尽量适配一个 Worker context。
 - Medium/Large 任务默认一次只交付一个 slice。
 - Spec 是需求权威；Execution Unit 是这一轮施工授权。
+- AGY 必须由 Herdr 启动和交互；Execution Unit 不定义第二套 Runtime。
 - Worker 发现新的产品/架构决策时应停下来报告，不自行猜测。
 - Worker 发现新传播面时可以调查并报告；是否扩大当前 slice 由 Codex 根据 Axis C Completeness 判断。
 - Complex Bug 在 root cause 未建立前，不应把猜测直接转换成大范围代码修改；按 `resources/bugfix-workflow.md` 建立反馈环和诊断证据。
