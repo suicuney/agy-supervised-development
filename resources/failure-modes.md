@@ -135,6 +135,41 @@ Pi 仅在 research / second opinion / blast-radius / specialized extension 有�
 
 ---
 
+## Additional Runtime Cases
+
+### Sol skill 缺失或半安装
+
+先运行：
+
+```bash
+scripts/check-sol-plan-review.sh
+```
+
+`SKILL.md` 存在但 references/scripts/tests 缺失时是 `INCOMPLETE`，不是可用。使用全量安装路径后重新检查；不要把根目录 sparse checkout 当成完整 skill，也不要自动删除已有的半安装目录。
+
+### ChatGPT Web 会话或模型状态不可信
+
+- 用户要求现有 Chrome 时，保留无关标签页只读；创建或核对同一会话中的 ChatGPT 标签。
+- 未登录就停在用户登录交接，不检查 cookies/passwords。
+- 只有可见状态同时证明 `GPT-5.6 Sol` 与 `High` 才能发送；默认按钮文字不足以证明模型。
+- Send 前自动准备和填充草稿可以复用；最终外发仍需 action-time confirmation。
+
+### Send 状态不明
+
+网络或页面在点击附近中断时标为 `UNKNOWN`。恢复原会话并寻找可见证据；在状态确定前不重发、不新开重复评审。
+
+### AGY init cwd 正确但命令 cwd 错误
+
+`init.cwd == repo_root` 不是充分证据。首个命令必须核对 `pwd`、仓库根目录和 branch；若落到 AGY CLI home，停止相对路径写入，改用绝对路径或重新绑定。
+
+### 长 prompt 或工具调用在写入前直接 ERROR
+
+先确认 Git 没有部分改动，再把 Execution Unit 缩成一个小 writer turn；不要连续重放同一个长 prompt。若仍无法写入，记录 runtime error 并按权限/tty7 fallback 处理。
+
+### Headless 写入被拒绝、tty7 wait 无 status
+
+保存真实 conversation id 和 permission/tool error，转 tty7 做一次性批准。`tty7 wait` 因 `no-agent`/缺少 hook 超时不是完成判定；用最新 `capture --plain` 加 Git 状态核实。TUI 的反馈问卷或终端错误也不覆盖 Git 与独立验证结果。
+
 # Workflow Failures
 
 ## 9. Small task 被过度流程化

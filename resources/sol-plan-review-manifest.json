@@ -1,0 +1,19 @@
+{
+  "manifest_version": 1,
+  "skill_name": "sol-high-plan-review",
+  "source_repo": "suicuney/sol-consult-skill",
+  "source_ref": "main",
+  "required_paths": [
+    "SKILL.md",
+    "README.md",
+    "UPSTREAM.md",
+    "LICENSE",
+    "agents/openai.yaml",
+    "evals/evals.json",
+    "references/context-packet-template.md",
+    "references/mcp-workflow.md",
+    "scripts/build_attachment_bundle.py",
+    "scripts/check_packet_safety.py",
+    "tests/test_skill_contract.py"
+  ]
+}

@@ -114,6 +114,16 @@ init.cwd == repo_root
 
 AGY conversation history 由当前 working directory 做 workspace scoping；不能用 `-c` 代替显式身份校验。
 
+`init.cwd == repo_root` 只是第一道检查，不足以证明后续工具命令的 cwd。首个 `run_command` 后还要核对命令输出中的：
+
+```bash
+pwd
+git -C "$repo_root" rev-parse --show-toplevel
+git -C "$repo_root" branch --show-current
+```
+
+如果 `pwd` 落到 AGY CLI home 或其他目录，停止写入；改用绝对路径或重新绑定 workspace。不要因为 `init` 看起来正确就继续使用相对路径。
+
 ---
 
 ## 4. 默认单次执行
@@ -206,6 +216,8 @@ Execution Unit PASS
 
 它只说明 AGY 本轮完成并产生响应；随后必须由 Codex 读取 Git。
 
+同理，`ERROR` 也不自动等于“没有改动”：若 CLI 在已执行编辑后因反馈问卷、TUI 或其他运行时错误退出，先检查 Git 是否已有部分写入，再由 Codex Review 和独立验证判断正确性。不要自动回滚或自动重放可能产生重复副作用的单元。
+
 ---
 
 ## 6. 不要只看 Exit Code
@@ -267,6 +279,8 @@ Deny > Ask > Allow
 3. 用户明确同意时添加最小 allow rule；
 4. 若需要一次性人工判断，转 tty7 interactive fallback；
 5. 不直接全局 always-proceed。
+
+若错误明确来自写入权限（例如 `write_file` / `replace_file_content` 被拒绝），不要在 headless 中盲目重复同一 turn。保存真实 `conversation_id` 和错误证据，转到受控 tty7 做一次性人工批准；批准后仍需回到 Git Review。
 
 ### Sandbox
 

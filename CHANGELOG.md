@@ -2,6 +2,32 @@
 
 All notable changes to this Skill are documented here.
 
+## [3.2.0-alpha.3] - 2026-09-04
+
+### Changed
+
+- Added a versioned Sol High dependency manifest, portable completeness checker, full-checkout recovery helper, and fixture coverage for missing, incomplete, invalid, and existing-destination states.
+- Documented the proven AGY safeguards: command-level cwd verification after `init.cwd`, evidence-first handling of permission denials and terminal errors, same-conversation recovery, and Git-backed verification.
+- Documented the minimal tty7 fallback and current-Chrome Sol High runbook, including login handoff, visible model/High checks, one-send state tracking, and no automatic retry from `UNKNOWN`.
+- Expanded evals and deterministic documentation/readiness checks for these boundaries.
+
+## [3.2.0-alpha.1] - 2026-09-02
+
+### Added
+
+- Codex Plugin packaging metadata: `.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json`, and `skills/agy-supervised-development/SKILL.md` as the pluginized entrypoint routing to the canonical root kernel.
+- Thin AGY Adapter `scripts/agy-run.sh` standardizing repository binding, execution modes (`build` / `consult`), timeout, conversation resumption, and stream-json output without introducing custom harnesses or daemons.
+- Review Convergence contract (`resources/review-convergence.md`) defining `BLOCKING` / `NON_BLOCKING` / `BACKLOG` triage and the `NO_BLOCKING_FINDINGS` checkpoint.
+- Optional read-only AGY Consult workflow (`resources/agy-consult.md`) for advisory second opinions.
+- Deterministic verification scripts: `scripts/validate-structure.sh`, `scripts/validate-docs.sh`, `scripts/validate-runtime.sh`, and full entrypoint `scripts/test-readiness.sh`.
+
+### Preserved
+
+- Canonical Workflow Kernel (`SKILL.md`, `resources/`, `templates/`) as the single source of truth for supervised development.
+- Codex ownership of shaping, specification, Three-Axis Review, independent verification, knowledge closeout, and final acceptance.
+- Core acceptance boundaries: `NO_BLOCKING_FINDINGS != ACCEPTED`, `REVIEW PASS != CODE_VERIFIED`, `CODE_VERIFIED != ACCEPTED`.
+- AGY as the primary writer; `tty7` as the interactive fallback.
+
 ## [3.0.1] - 2026-08-22
 
 ### Architecture

@@ -160,6 +160,8 @@ GPT-5.6 Sol
 High reasoning
 ```
 
+Before browser work, run `scripts/check-sol-plan-review.sh`. If it reports `MISSING`, use the opt-in full-checkout helper and check again; `SKILL.md` alone is not a complete installation. For an explicitly requested existing Chrome session, preserve unrelated user tabs, use a verified ChatGPT tab in that same session, hand login to the user when needed, and confirm the visible model/reasoning state before Send.
+
 Loop:
 
 ```text
@@ -202,6 +204,12 @@ git status --short
 git diff --stat
 git branch --show-current
 git rev-parse HEAD
+```
+
+Also record the baseline-owned changed paths and a binary diff fingerprint outside the repository. At closeout, compare the original hunks rather than assuming a final `git diff` against `HEAD` can distinguish baseline from task changes.
+
+```bash
+git diff --binary -- <baseline paths> | shasum -a 256
 ```
 
 Record branch, base head and pre-existing changes.
@@ -258,6 +266,8 @@ scripts/agy-run.sh \
 ```
 
 AGY success or exit 0 only ends the writer turn. It does not prove delivery.
+
+After `init`, verify the first command's actual `pwd`, repository root, and branch. If command cwd differs from `repo_root`, stop relative-path writes. If headless writes are permission-denied, preserve the real conversation id and use the narrow tty7 fallback; if the CLI later errors after an edit, inspect Git before deciding what happened.
 
 Use tty7 only when real interaction is required.
 

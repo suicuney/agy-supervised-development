@@ -59,8 +59,10 @@ args=(-p "$prompt" --output-format stream-json --print-timeout "$timeout")
 if [[ -n "$conversation" ]]; then
   args+=(--conversation "$conversation")
 fi
-for dir in "${add_dirs[@]}"; do
-  args+=(--add-dir "$dir")
-done
+if [[ ${#add_dirs[@]} -gt 0 ]]; then
+  for dir in "${add_dirs[@]}"; do
+    args+=(--add-dir "$dir")
+  done
+fi
 
 exec agy "${args[@]}"

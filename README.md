@@ -76,7 +76,15 @@ Sol High 立即退出本次任务，后续 AGY Build / Review / Rework / Verify 
 ```bash
 codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy-supervised-v3.2-pluginized
 codex plugin add agy-supervised-development@agy-supervised-development
+
+# 首次运行前检查独立的 Sol High plan-review skill
+scripts/check-sol-plan-review.sh
+# 若返回 MISSING，再显式安装完整私有源并复查
+scripts/install-sol-plan-review.sh
+scripts/check-sol-plan-review.sh
 ```
+
+`SKILL.md` 单独存在不代表依赖完整；检查器会核对版本化 manifest 中的全部 references、scripts、tests 和元数据文件。安装器只做全量 checkout，不覆盖已有目录。若返回 `INCOMPLETE`，先保留并报告该目录，确认是失败安装产物后移走，再重新安装；不要自动删除或覆盖。
 
 ## AGY Runtime
 
@@ -91,6 +99,18 @@ PLAN FROZEN
 `agy-run.sh` 只是薄实现适配器，不再包含 consult mode，也不负责 workflow state、review 或 acceptance。
 
 需要真实交互时才使用 tty7。
+
+AGY 运行前必须同时确认 `init.cwd` 和首个实际命令的 `pwd`/repository root/branch。Headless 写入被拒绝时，保留真实 conversation id，转 tty7 做一次性批准；CLI 以错误结束也先查 Git，再由 Codex Review 和独立验证判断。
+
+本次运行的最短 fallback 顺序：
+
+```text
+headless AGY
+→ 检查 init + command cwd
+→ 检查 stream result / tool error / Git
+→ 必要时 tty7 one-off approval
+→ Codex Review / Verify
+```
 
 ## Review
 
@@ -135,6 +155,21 @@ Chrome DevTools MCP → target Web system → Runtime Verification
 
 不新增 MCP manager 或第二套 orchestration。
 
+## 运行前快速清单
+
+```text
+1. Sol dependency = COMPLETE
+2. Codex plan packet = safety check passed
+3. ChatGPT Web = authenticated in the approved browser session
+4. Model = GPT-5.6 Sol; reasoning = High
+5. Unrelated user tabs = untouched
+6. Send = one action-time confirmation; UNKNOWN = no retry
+7. AGY init cwd + command cwd = verified
+8. AGY result = runtime evidence only; Git + Codex Review = delivery evidence
+```
+
+自动化可以准备 packet、扫描安全性、确认模型和填充草稿；外部 Send 仍保留最后的明确确认。
+
 ## Active Structure
 
 ```text
@@ -147,6 +182,7 @@ resources/
 ├── spec-contract.md
 ├── execution-slicing.md
 ├── sol-plan-review.md
+├── sol-plan-review-manifest.json
 ├── agy-execution.md
 ├── tty7-supervision.md
 ├── bugfix-workflow.md

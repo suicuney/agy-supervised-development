@@ -17,6 +17,14 @@ Verification failure returns to Rework + full Review
 Chrome DevTools MCP remains Codex-owned verification tooling
 Required unavailable verification cannot become CODE_VERIFIED
 Closeout remains required before ACCEPTED
+Sol skill completeness is checked before ChatGPT Web
+Existing Chrome tabs are preserved and login is a user handoff
+GPT-5.6 Sol and High are verified from visible state
+Unknown browser Send state never triggers an automatic resend
+AGY command cwd is verified after init.cwd
+Headless permission denial uses a narrow tty7 fallback
+CLI terminal errors are reconciled against Git, not treated as verdicts
+Baseline evidence is captured before AGY writes
 ```
 
 ## 原则

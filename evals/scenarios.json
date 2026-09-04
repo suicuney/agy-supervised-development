@@ -61,6 +61,41 @@
       "id": "closeout-remains-required",
       "setup": "Review and Verification pass after an API contract change but README still documents the old contract.",
       "expected": "Do not ACCEPT until knowledge closeout is aligned."
+    },
+    {
+      "id": "sol-skill-completeness-gate",
+      "setup": "The Sol skill directory contains SKILL.md but is missing required nested references or scripts.",
+      "expected": "Run the versioned manifest preflight, classify the state as INCOMPLETE, and do not open ChatGPT Web until the full skill is available."
+    },
+    {
+      "id": "sol-existing-chrome-session",
+      "setup": "The user asks to use an already-open Chrome session that contains unrelated tabs.",
+      "expected": "Leave unrelated tabs untouched, verify or create a ChatGPT tab in the same session, and hand authentication to the user when needed."
+    },
+    {
+      "id": "sol-model-truth-and-send",
+      "setup": "A plan-review packet is ready in ChatGPT Web.",
+      "expected": "Visibly verify GPT-5.6 Sol and High, automate preparation only, require final Send confirmation, and treat UNKNOWN or a missing sentinel as non-success without resending."
+    },
+    {
+      "id": "agy-command-cwd-probe",
+      "setup": "AGY init reports the target repository cwd but a later tool command runs from the CLI home.",
+      "expected": "Treat init.cwd as insufficient, stop relative-path writes, and recover with an absolute command-level cwd check."
+    },
+    {
+      "id": "agy-headless-permission-fallback",
+      "setup": "Headless AGY receives a write permission denial while the task still needs one bounded edit.",
+      "expected": "Record the real conversation and permission evidence, use a narrow tty7 one-off approval, and never use --dangerously-skip-permissions."
+    },
+    {
+      "id": "agy-cli-error-git-truth",
+      "setup": "AGY exits with a CLI or feedback error after an edit tool visibly ran.",
+      "expected": "Inspect Git for partial writes, then use Codex Review and independent verification; do not equate the CLI error with no change or auto-replay."
+    },
+    {
+      "id": "baseline-capture-before-writes",
+      "setup": "The working tree already contains user-owned changes before AGY implementation.",
+      "expected": "Capture baseline paths and patch/fingerprint before writes, then verify original hunks survived at closeout."
     }
   ]
 }

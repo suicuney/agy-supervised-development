@@ -82,6 +82,28 @@ git status --short
 
 不要因为 TUI 标题或历史内容“看起来像正确项目”就跳过验证。
 
+如果当前不在 tty7 pane，使用 `tty7 new --json "$repo_root"` 创建本轮专属 workspace，保存返回的 workspace/pane ID；只操作本轮创建的 pane，完成后关闭它。
+
+### 最小启动与批准序列
+
+新 pane 的第一次 send 之后立即 capture，确认启动命令确实执行；如果仍停在 shell prompt，只补一次 Enter，不要重复整条 `agy` 命令：
+
+```bash
+tty7 send "$PANE" "agy --add-dir '$repo_root'" --enter
+tty7 capture "$PANE" --plain
+tty7 send "$PANE" --key enter
+```
+
+后两行只在第一行被启动期吞掉时执行。每次继续发送文字或按键前都先 capture 当前 pane，避免把输入送进旧 prompt、旧错误或别的 agent。
+
+交互式 Edit/Write 出现单文件批准菜单时，只批准已核对的目标文件。按 Enter 应使用：
+
+```bash
+tty7 send "$PANE" --key enter
+```
+
+不要把无文字的 `--enter` 当成按键；该形式可能被 tty7 拒绝。不要使用 `--dangerously-skip-permissions` 绕过确认。
+
 ---
 
 ## 4. Conversation Continuity
@@ -183,6 +205,8 @@ REVIEWING
 ```
 
 不能因为 TUI 显示“Done”或模型说“完成”直接 PASS。
+
+如果 `tty7 wait` 因 `no-agent` 或缺少 status hook 超时，改用最新 `capture --plain` 和 Git 状态确认，不要把超时当成 worker 失败或成功。若 TUI 在已完成编辑后显示 CLI/反馈问卷错误，也先保留现场并检查 Git；Git 中的改动只证明写入发生，不证明实现正确。
 
 如果 interactive session 中运行了 tests，Codex 仍按 Test Strategy 做独立 Verification。
 
