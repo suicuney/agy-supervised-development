@@ -1,14 +1,14 @@
-# Example — Bugfix RED → GREEN with Pi Native Harness (v3.0.1)
+# Example — Bugfix RED → GREEN with AGY (v3.2)
 
-场景：`CacheService` 在空 key 时仍访问 backend，导致异常；现有 contract 要求空 key 返回 empty result。
+场景：CacheService 在空 key 时仍访问 backend，导致异常；现有 contract 要求空 key 返回 empty result。
 
 ---
 
-## 1. Task Contract
+## 1. Compact Task Contract
 
-Codex先定义：
+这是一个 Small、确定性 Bug：
 
-```text
+~~~text
 Goal
 - 修复 empty/null key 导致的 backend access。
 
@@ -33,173 +33,195 @@ Regression Proof
 - required：该 bug 可确定性、无外部副作用自动复现。
 
 Execution Policy
+- preserve baseline
 - no push/merge/deploy
-```
+~~~
+
+Small 任务可以保持 Shape/Spec 紧凑。Sol High 默认只评审 PLAN FROZEN 之前的计划；用户可以显式要求跳过该评审。
 
 ---
 
-## 2. 启动 Pi Session
+## 2. PLAN FROZEN / BASELINE
 
-如果 `pi-agent-modes` 已安装并验证：
+记录实现前的仓库事实：
 
-```bash
-pi --mode json --modes build --name "agy:cache-null-key" "<Task Contract>"
-```
+~~~bash
+repo_root="$(git rev-parse --show-toplevel)"
+git status --short
+git diff --stat
+git branch --show-current
+git rev-parse HEAD
+~~~
 
-否则：
-
-```bash
-pi --mode json --name "agy:cache-null-key" "<Task Contract>"
-```
-
-Codex从 session header 保存真实 `pi_session_id` 和 `cwd`，确认 `cwd == repo_root`。
-
-Task Contract 明确要求：**先写 regression test，再改 production code。**
+如果存在用户已有改动，保存 baseline-owned paths 和原始 diff 指纹。不要清理或回滚这些改动。
 
 ---
 
-## 3. 先建立 RED Evidence
+## 3. AGY 建立 RED Evidence
 
-测试目标：
+把一个 bounded Execution Unit 交给 AGY，并明确先写 regression test，再改 production code：
 
-```text
-null key returns empty and never calls backend
-blank key returns empty and never calls backend
-```
+~~~bash
+scripts/agy-run.sh \
+  --repo "$repo_root" \
+  --timeout 30m \
+  "Execution Unit: first add a regression test for null/blank keys returning
+   empty without backend access, prove the unfixed behavior is RED, then fix
+   the root cause and rerun the same test. Preserve normal-key behavior."
+~~~
 
-Pi运行：
+收到 stream-json 的 init 后保存真实 conversation_id，并验证：
 
-```bash
+~~~text
+init.cwd == repo_root
+~~~
+
+首个实际命令还必须输出：
+
+~~~bash
+pwd
+git -C "$repo_root" rev-parse --show-toplevel
+git -C "$repo_root" branch --show-current
+~~~
+
+如果命令 cwd 不正确，停止相对路径写入。若写入或测试动作被 headless 权限阻止，记录 blocked/not-run；只有需要一次性人工批准时才使用窄范围 tty7 fallback，不使用全局权限绕过。
+
+Regression test：
+
+~~~bash
 ./mvnw -Dtest=CacheServiceTest test
-```
+~~~
 
 必须观察到 unfixed behavior 因目标缺陷而失败：
 
-```text
+~~~text
 Regression proof
 - Test: CacheServiceTest#nullKeyReturnsEmptyWithoutBackend
 - Before fix: FAIL
 - Evidence: backend interaction observed / expected empty result mismatch
-```
+~~~
 
-如果测试一开始就是 GREEN，说明它没有捕获原 bug，不能算 regression proof。
+如果测试一开始就是 GREEN，说明它没有捕获原始 Bug，不能算 regression proof。
 
 ---
 
-## 4. 修 Root Cause + GREEN
+## 4. Root Cause + GREEN
 
-RED 成立后，Pi修改 production code，并说明：
+RED 成立后，AGY 修复 root cause，并说明：
 
-```text
+~~~text
 Symptom
 - null/blank key causes backend access
 
 Root cause
-- public service entry lacks the empty-key guard used by sibling operation
+- public service entry lacks the empty-key guard used by the sibling operation
 
 Same cause elsewhere
 - searched sibling cache methods; no other exposed path lacks the guard
 
 Regression boundary
 - null + blank + normal key
-```
+~~~
 
 然后运行同一测试：
 
-```bash
+~~~bash
 ./mvnw -Dtest=CacheServiceTest test
-```
+~~~
 
 得到：
 
-```text
+~~~text
 Before fix: FAIL
 After fix: PASS
-```
+~~~
 
-Pi JSON `agent_end` / 正常进程退出只说明本次 turn 返回，不是 `CODE_VERIFIED`。
+result.status = SUCCESS 只说明 AGY Writer turn 返回；Codex 仍必须读取 Git 并独立 Review/Verify。
 
 ---
 
-## 5. Codex Diff + Completeness Review
+## 5. Codex Three-Axis Review
 
-Codex自己：
+Codex 自己检查：
 
-```bash
+~~~bash
 git diff --check
 git diff
 git status --short
 rg "CacheService|cache\.get|cache\.put" src test
-```
+~~~
 
 确认：
 
-- 所有 public caller 是否可能传空 key；
-- sibling method 是否缺少同类 guard；
-- error/fallback path 是否仍访问 backend；
-- 没有新增 dead workaround；
-- 正常 key 行为仍有测试。
+~~~text
+Spec Fidelity
+- 空 key contract 和正常 key 行为都满足。
 
-示例：
+Engineering Quality
+- 修复的是 root cause，而不是吞异常或隐藏 backend failure。
 
-```text
-Completeness Sweep: PASS
-Remainders: none
-```
+Completeness
+- public caller、sibling method、error/fallback path 没有遗漏。
 
-如果发现漏改，Codex形成完整 Rework Contract，并 resume 同一 session：
+Regression
+- 同一测试确实经历了 RED → GREEN。
+~~~
 
-```bash
-pi --mode json --session <pi-session> --modes debug "<Rework Contract>"
-```
+如发现漏改，形成带有 Issue/Evidence/Expected/Required Change/Re-run 的 Rework Contract，并用真实 agy_conversation_id 恢复：
 
-`debug` 不可用时使用已验证 writable mode 或省略 `--modes`，但不要虚构 enforcement。
+~~~bash
+scripts/agy-run.sh \
+  --repo "$repo_root" \
+  --conversation "$agy_conversation_id" \
+  --timeout 30m \
+  "<Rework Contract>"
+~~~
+
+返工后重新执行完整三轴 Review。
 
 ---
 
 ## 6. Codex Independent Verification
 
-Codex独立重跑：
+Codex 独立重跑：
 
-```bash
+~~~bash
 ./mvnw -Dtest=CacheServiceTest test
-```
+~~~
 
-最终代码证据：
+同时重新执行原始反馈环，确认：
 
-```text
-Unit: required → PASS
-Integration: not-applicable
-E2E: not-applicable
-Regression proof: RED → GREEN
+~~~text
+Original repro before: RED
+Minimal regression: RED
+After fix: GREEN
+Original repro after: GREEN
 Codex re-run: PASS
-Completeness Sweep: PASS
-```
+Completeness Review: PASS
+~~~
 
-只有这些成立才：
+只有必要验证全部通过，才能进入：
 
-```text
+~~~text
 VERIFYING → CODE_VERIFIED
-```
+~~~
 
 ---
 
 ## 7. Knowledge Closeout
 
-这是纯内部 bugfix，假设 README/public API/config 均未受影响：
+这是纯内部 bugfix，假设 README、public API、config 均未受影响：
 
-```text
+~~~text
 README              verified-current
-AGENTS / CLAUDE     verified-current
+Agent rules         verified-current
 API Contract        not-applicable
 Runtime Config      not-applicable
 Residue             verified-current
-```
+~~~
 
-不需要为了制造 closeout diff 再调用 Pi 写文档。
+Closeout 可以是零文档 diff；不为了制造变更而改 README。Codex 完成 Closeout Review 后，才可以：
 
-Codex完成 Closeout Review 后：
-
-```text
+~~~text
 ACCEPTED
-```
+~~~
