@@ -2,6 +2,34 @@
 
 All notable changes to this Skill are documented here.
 
+## [3.3.0-alpha.1] - 2026-09-04
+
+### Architecture
+
+- Made **Herdr the sole AGY runtime**: `Codex Governance → Herdr → Antigravity CLI / AGY → Repository`.
+- Removed the active direct AGY invocation adapter and removed the alternate terminal-runtime branch.
+- Kept Herdr strictly below governance: Herdr owns launch, agent identity, interaction, lifecycle state and native session restore; Codex still owns plan, Review, Verification and Acceptance.
+- Kept 3.3 single-writer and serial. Multi-agent/multi-worktree orchestration remains out of scope.
+
+### Added
+
+- `scripts/check-herdr.sh` preflight for Herdr, AGY, running Herdr server, `--kind agy` support and the Antigravity integration.
+- Herdr-only execution contract in `resources/agy-execution.md` covering task-owned workspace creation, returned pane identity, stable task-local agent names, prompt/wait/read, blocked interaction and session restore.
+- Deterministic Herdr runtime contract tests and semantic evals for preflight failure, returned pane identity, blocked read-before-interaction, lifecycle-vs-delivery boundaries and no-guess session recovery.
+
+### Changed
+
+- Bumped plugin, kernel, entrypoint and eval metadata to `3.3.0-alpha.1`.
+- Reworked README and examples so every AGY Build/Rework path uses Herdr Agent APIs.
+- Reworked failure modes around Herdr runtime evidence and Git/Codex delivery evidence.
+- Strengthened structure/docs validation so active documentation cannot reintroduce the removed AGY runtime paths.
+
+### Removed
+
+- `scripts/agy-run.sh` from the active codebase.
+- `resources/tty7-supervision.md` from the active codebase.
+- Direct-vs-interactive runtime selection and fallback logic from the 3.3 workflow.
+
 ## [3.2.0-alpha.3] - 2026-09-04
 
 ### Changed
@@ -100,8 +128,7 @@ All notable changes to this Skill are documented here.
 - Three-layer Tool Guard: tool visibility + `tool_call` policy + per-operation system policy injection.
 - Structured Evidence Bundle with run/operation/session identity, provider/model, repository evidence, tests, policy blocks, scope findings and unresolved items.
 - New Gate 12 — Harness Policy & Credential Hygiene.
-- v3 failure modes for provider auth/quota/transport/capability errors, stale operation results, harness bridge crash, read-only policy escape, credential leakage and non-silent provider failover.
-- v3 eval cases for provider auth, stale operation correlation, read-only blocking, provider failover and credential redaction.
+- v3 failure modes for provider auth, stale operation correlation, read-only blocking, provider failover and credential redaction.
 
 ### Changed
 
