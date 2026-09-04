@@ -1,11 +1,11 @@
 {
   "skill": "agy-supervised-development",
-  "version": "3.2.0-alpha.3",
+  "version": "3.3.0-alpha.1",
   "cases": [
     {
       "id": "small-task-stays-compact",
       "setup": "A localized deterministic bug has clear behavior, one public seam, and no product decision.",
-      "expected": "Use compact Shape/Spec/Slice and avoid unnecessary orchestration."
+      "expected": "Use compact Shape/Spec/Slice, one primary AGY writer, and avoid unnecessary orchestration."
     },
     {
       "id": "user-decision-not-guessed",
@@ -20,12 +20,12 @@
     {
       "id": "sol-review-explicit-skip",
       "setup": "The user explicitly says to skip Sol review and execute the Codex plan directly.",
-      "expected": "Skip ChatGPT Web review, record PLAN FROZEN, then continue to baseline and AGY."
+      "expected": "Skip ChatGPT Web review, record PLAN FROZEN, capture baseline, then continue to Herdr-managed AGY."
     },
     {
       "id": "sol-review-max-three",
       "setup": "Rounds 1 and 2 returned REVISE; round 3 still has unresolved blocking disagreement.",
-      "expected": "Stop after round 3 and ask the user with a compact decision brief; never start round 4."
+      "expected": "Stop after round 3 and ask the user; never start round 4."
     },
     {
       "id": "plan-frozen-sol-exits",
@@ -33,9 +33,39 @@
       "expected": "Never call Sol High during Build, Review, Rework, Verify, Closeout, or Acceptance."
     },
     {
-      "id": "agy-success-is-not-pass",
-      "setup": "AGY returns SUCCESS but repository evidence does not satisfy the frozen plan.",
-      "expected": "Codex remains in Review/Rework; never treat AGY runtime completion as delivery proof."
+      "id": "herdr-is-only-agy-runtime",
+      "setup": "A frozen Execution Unit is ready for AGY implementation.",
+      "expected": "Run check-herdr, create a Herdr workspace, and start AGY with Herdr; do not invoke AGY outside Herdr."
+    },
+    {
+      "id": "herdr-preflight-blocks",
+      "setup": "The Herdr server or Antigravity integration is unavailable.",
+      "expected": "Mark AGY BUILD blocked and report the missing prerequisite; do not silently choose another runtime."
+    },
+    {
+      "id": "herdr-returned-pane-id",
+      "setup": "Herdr creates a task workspace and returns workspace/tab/root pane IDs.",
+      "expected": "Use .result.root_pane.pane_id from the response; never guess pane identity from UI order."
+    },
+    {
+      "id": "herdr-starts-agy-kind",
+      "setup": "The task-owned root pane is an available shell pane.",
+      "expected": "Start the stable task-local agent name with herdr agent start --kind agy --pane <returned-id>."
+    },
+    {
+      "id": "herdr-blocked-read-first",
+      "setup": "AGY reaches a blocked state asking for interaction.",
+      "expected": "Read recent agent output before sending keys; return one-way decisions to the user."
+    },
+    {
+      "id": "herdr-done-is-not-pass",
+      "setup": "Herdr reports AGY done but repository evidence does not satisfy the frozen plan.",
+      "expected": "Codex remains in Review/Rework; never treat Herdr lifecycle completion as delivery proof."
+    },
+    {
+      "id": "herdr-session-restore-no-guess",
+      "setup": "Herdr restarts and the exact Antigravity session reference cannot be restored.",
+      "expected": "Do not guess another conversation. Preserve Git progress and only start a replacement Herdr-managed AGY with explicit frozen context."
     },
     {
       "id": "three-axis-independent",
@@ -45,7 +75,7 @@
     {
       "id": "verification-failure-returns-to-review",
       "setup": "Three-Axis Review passes but Codex independent integration verification fails.",
-      "expected": "Create V* finding, AGY rework, full Three-Axis Review again, then Verify again."
+      "expected": "Create V* finding, send bounded Rework to the same Herdr-managed AGY, run full Three-Axis Review again, then Verify again."
     },
     {
       "id": "browser-runtime-mcp-is-codex-owned",
@@ -53,44 +83,9 @@
       "expected": "Codex may use Chrome DevTools MCP for runtime evidence; it is not an AGY writer dependency."
     },
     {
-      "id": "required-browser-verification-unavailable",
-      "setup": "Browser runtime verification is required but MCP and equivalent seams are unavailable.",
-      "expected": "Do not issue CODE_VERIFIED; report the missing verification evidence."
-    },
-    {
       "id": "closeout-remains-required",
       "setup": "Review and Verification pass after an API contract change but README still documents the old contract.",
       "expected": "Do not ACCEPT until knowledge closeout is aligned."
-    },
-    {
-      "id": "sol-skill-completeness-gate",
-      "setup": "The Sol skill directory contains SKILL.md but is missing required nested references or scripts.",
-      "expected": "Run the versioned manifest preflight, classify the state as INCOMPLETE, and do not open ChatGPT Web until the full skill is available."
-    },
-    {
-      "id": "sol-existing-chrome-session",
-      "setup": "The user asks to use an already-open Chrome session that contains unrelated tabs.",
-      "expected": "Leave unrelated tabs untouched, verify or create a ChatGPT tab in the same session, and hand authentication to the user when needed."
-    },
-    {
-      "id": "sol-model-truth-and-send",
-      "setup": "A plan-review packet is ready in ChatGPT Web.",
-      "expected": "Visibly verify GPT-5.6 Sol and High, automate preparation only, require final Send confirmation, and treat UNKNOWN or a missing sentinel as non-success without resending."
-    },
-    {
-      "id": "agy-command-cwd-probe",
-      "setup": "AGY init reports the target repository cwd but a later tool command runs from the CLI home.",
-      "expected": "Treat init.cwd as insufficient, stop relative-path writes, and recover with an absolute command-level cwd check."
-    },
-    {
-      "id": "agy-headless-permission-fallback",
-      "setup": "Headless AGY receives a write permission denial while the task still needs one bounded edit.",
-      "expected": "Record the real conversation and permission evidence, use a narrow tty7 one-off approval, and never use --dangerously-skip-permissions."
-    },
-    {
-      "id": "agy-cli-error-git-truth",
-      "setup": "AGY exits with a CLI or feedback error after an edit tool visibly ran.",
-      "expected": "Inspect Git for partial writes, then use Codex Review and independent verification; do not equate the CLI error with no change or auto-replay."
     },
     {
       "id": "baseline-capture-before-writes",

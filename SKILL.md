@@ -1,14 +1,14 @@
 ---
 name: agy-supervised-development
-description: Codex-supervised development workflow. Codex shapes, specifies, slices, owns the executable plan, optionally converges that plan with GPT-5.6 Sol High before freeze, then delegates bounded implementation to AGY and independently reviews/verifies delivery evidence.
-version: 3.2.0-alpha.3
+description: Codex-supervised development workflow. Codex owns the executable plan and final acceptance; Herdr is the only AGY runtime; Antigravity CLI implements bounded work; Git and independent verification prove delivery.
+version: 3.3.0-alpha.1
 ---
 
-# AGY Supervised Development 3.2
+# AGY Supervised Development 3.3
 
-> **Codex shapes and proves. AGY builds. Git tells the truth.**
+> **Codex governs. Herdr runs. AGY builds. Git tells the truth.**
 
-Use this workflow when Codex should supervise implementation performed by AGY.
+Use this workflow when Codex should supervise implementation performed by Antigravity CLI (AGY) through Herdr.
 
 ## Core Flow
 
@@ -21,14 +21,14 @@ INTAKE
 → SOL HIGH PLAN REVIEW      # default enabled; max 3 rounds
 → PLAN FROZEN
 → BASELINE
-→ AGY BUILD
+→ AGY BUILD                 # Herdr only
 → THREE-AXIS REVIEW
 → CODEX VERIFY
 → CLOSEOUT
 → ACCEPTED
 ```
 
-Explicit user opt-out:
+If the user explicitly opts out of Sol plan review:
 
 ```text
 SLICE
@@ -37,38 +37,36 @@ SLICE
 → AGY BUILD
 ```
 
-Optional runtime hook:
-
-```text
-Browser-facing verification → Chrome DevTools MCP
-```
-
 ## Roles
 
 ```text
 User     = product / one-way decision authority
 Codex    = supervisor / plan owner / reviewer / verifier / acceptance authority
 Sol High = pre-implementation plan reviewer only
+Herdr    = sole AGY runtime / agent control plane
 AGY      = primary writer
 Git      = repository source of truth
 ```
 
-Chrome DevTools MCP is a Codex-owned browser tool. It may transport Sol High plan review before freeze and provide runtime verification after implementation, but it never owns workflow decisions.
+Chrome DevTools MCP remains Codex-owned. It may transport Sol High plan review before freeze and provide browser-runtime verification after implementation, but it never owns workflow decisions.
 
 ## Non-Negotiable Boundaries
 
 1. Only Codex may mark `ACCEPTED`.
 2. Codex remains the authoritative executable-plan owner.
 3. Sol High only reviews the plan before `PLAN FROZEN`.
-4. `AGY SUCCESS != REVIEW PASS`.
-5. `REVIEW PASS != CODE_VERIFIED`.
-6. `CODE_VERIFIED != ACCEPTED`.
-7. Repository state is authoritative delivery evidence.
-8. AGY does not decide unresolved product or architecture trade-offs.
-9. One-way decisions require explicit user authority.
-10. Do not push, merge, release, deploy, mutate production, or perform irreversible deletion unless explicitly authorized.
-11. Do not use `--dangerously-skip-permissions` as a normal workaround.
-12. Preserve user pre-existing changes.
+4. Every AGY execution runs through Herdr. Do not invoke `agy` directly from this workflow.
+5. Do not add a second terminal runtime, fallback runtime, or runtime-selection layer.
+6. Herdr lifecycle state is runtime evidence only: `done` / `idle` / `blocked` are not delivery verdicts.
+7. `AGY SUCCESS != REVIEW PASS`.
+8. `REVIEW PASS != CODE_VERIFIED`.
+9. `CODE_VERIFIED != ACCEPTED`.
+10. Repository state is authoritative delivery evidence.
+11. AGY does not decide unresolved product or architecture trade-offs.
+12. One-way decisions require explicit user authority.
+13. Do not push, merge, release, deploy, mutate production, or perform irreversible deletion unless explicitly authorized.
+14. Do not use blanket permission bypass as a normal workaround.
+15. Preserve user pre-existing changes.
 
 ## 1. INTAKE
 
@@ -145,22 +143,15 @@ See `resources/execution-slicing.md` and `templates/execution-unit.md`.
 
 ## 6. SOL HIGH PLAN REVIEW
 
-Default:
+Plan Review is enabled by default. If the user explicitly says to skip Sol review / skip plan review / execute directly, skip this step.
 
-```text
-Plan Review = enabled
+Otherwise Codex sends the executable plan through the installed `sol-high-plan-review` Skill, using Chrome DevTools MCP to ChatGPT Web with GPT-5.6 Sol + High reasoning.
+
+Before browser work, run:
+
+```bash
+scripts/check-sol-plan-review.sh
 ```
-
-If the user explicitly says to skip Sol review / skip plan review / execute directly, skip this step.
-
-Otherwise Codex sends the executable plan through the installed `sol-high-plan-review` Skill, using Chrome DevTools MCP to ChatGPT Web with:
-
-```text
-GPT-5.6 Sol
-High reasoning
-```
-
-Before browser work, run `scripts/check-sol-plan-review.sh`. If it reports `MISSING`, use the opt-in full-checkout helper and check again; `SKILL.md` alone is not a complete installation. For an explicitly requested existing Chrome session, preserve unrelated user tabs, use a verified ChatGPT tab in that same session, hand login to the user when needed, and confirm the visible model/reasoning state before Send.
 
 Loop:
 
@@ -171,15 +162,7 @@ Codex Plan
 → Revised Plan
 ```
 
-Maximum Sol review rounds:
-
-```text
-3
-```
-
-Stop early on `PASS` or when only non-blocking suggestions remain.
-
-If Sol returns `USER_DECISION_REQUIRED`, or round 3 still has blocking disagreement, stop the loop and ask the user. Never start round 4.
+Maximum Sol review rounds: `3`. Stop early on PASS or when only non-blocking suggestions remain. If Sol returns `USER_DECISION_REQUIRED`, or round 3 still has blocking disagreement, stop and ask the user. Never start round 4.
 
 See `resources/sol-plan-review.md`.
 
@@ -191,9 +174,7 @@ Codex owns the final plan and records:
 PLAN FROZEN
 ```
 
-From this point forward, Sol High exits the task completely.
-
-No Sol High calls during AGY Build, Review, Rework, Verify, Closeout, or Acceptance.
+From this point forward, Sol High exits the task completely. No Sol High calls during AGY Build, Review, Rework, Verify, Closeout, or Acceptance.
 
 ## 8. BASELINE
 
@@ -206,13 +187,11 @@ git branch --show-current
 git rev-parse HEAD
 ```
 
-Also record the baseline-owned changed paths and a binary diff fingerprint outside the repository. At closeout, compare the original hunks rather than assuming a final `git diff` against `HEAD` can distinguish baseline from task changes.
+Record baseline-owned changed paths and a binary patch fingerprint outside the repository when needed:
 
 ```bash
 git diff --binary -- <baseline paths> | shasum -a 256
 ```
-
-Record branch, base head and pre-existing changes.
 
 Rule:
 
@@ -239,43 +218,72 @@ reproduce
 → regression proof
 ```
 
-Do not turn the first plausible code reading into root cause without a symptom-capable feedback loop.
-
 After `PLAN FROZEN`, Sol High is not reopened for bug discussion.
 
 See `resources/bugfix-workflow.md`.
 
-## 10. AGY BUILD
+## 10. AGY BUILD — HERDR ONLY
 
-Prefer the thin adapter:
-
-```bash
-scripts/agy-run.sh \
-  --repo "$repo_root" \
-  --timeout 30m \
-  "<Execution Unit>"
-```
-
-Resume bounded rework with the real conversation id when available:
+Preflight:
 
 ```bash
-scripts/agy-run.sh \
-  --repo "$repo_root" \
-  --conversation "$agy_conversation_id" \
-  "<Rework Contract>"
+scripts/check-herdr.sh
 ```
 
-AGY success or exit 0 only ends the writer turn. It does not prove delivery.
+If Herdr, AGY, the running Herdr server, AGY kind support, or the Antigravity integration is unavailable, stop as `BLOCKED`. Runtime setup is explicit; the task flow never silently installs or rewrites user-level integrations.
 
-After `init`, verify the first command's actual `pwd`, repository root, and branch. If command cwd differs from `repo_root`, stop relative-path writes. If headless writes are permission-denied, preserve the real conversation id and use the narrow tty7 fallback; if the CLI later errors after an edit, inspect Git before deciding what happened.
+Create a task-owned Herdr workspace bound to the repository and use the IDs returned by Herdr:
 
-Use tty7 only when real interaction is required.
+```bash
+created="$(herdr workspace create --cwd "$repo_root" --label "$task_label" --no-focus)"
+workspace_id="$(printf '%s' "$created" | jq -r '.result.workspace.workspace_id')"
+pane_id="$(printf '%s' "$created" | jq -r '.result.root_pane.pane_id')"
+```
 
-See `resources/agy-execution.md` and `resources/tty7-supervision.md`.
+Create one stable task-local AGY name matching Herdr's agent naming rules, then start AGY in that exact pane:
+
+```bash
+herdr agent start "$agy_agent" --kind agy --pane "$pane_id"
+```
+
+Send the current Execution Unit through Herdr:
+
+```bash
+herdr agent prompt "$agy_agent" "$execution_unit" \
+  --wait \
+  --until idle \
+  --until done \
+  --until blocked \
+  --timeout "$timeout_ms"
+```
+
+If the agent becomes blocked, read before interacting:
+
+```bash
+herdr agent read "$agy_agent" --source recent-unwrapped --lines 120
+```
+
+Codex may send the minimum safe key interaction only when it is within the frozen Execution Unit and existing authority. A one-way decision still returns to the user.
+
+After a settled runtime state, read the worker report and inspect Git independently:
+
+```bash
+herdr agent read "$agy_agent" --source recent-unwrapped --lines 160
+git status --short
+git diff --stat
+git diff --check
+git diff
+```
+
+Herdr `done` / `idle` only means the runtime reached a recognized state. It never skips repository Review or Verification.
+
+Use the same named AGY worker for bounded Rework while the task session remains valid. Herdr's Antigravity integration owns native conversation identity and restore; this workflow does not call `agy --conversation` itself.
+
+See `resources/agy-execution.md` and `resources/failure-modes.md`.
 
 ## 11. THREE-AXIS REVIEW
 
-Codex independently reads repository state and reviews three axes:
+Codex independently reviews repository state on three axes:
 
 ```text
 A. Spec Fidelity       — did we build the right thing?
@@ -290,8 +298,6 @@ A PASS + B PASS + C PASS → REVIEW PASS
 any REWORK               → REWORK_REQUIRED
 any unresolved BLOCKED   → BLOCKED
 ```
-
-Finding severity and convergence live in the same review contract.
 
 Sol High is not part of this stage.
 
@@ -313,7 +319,7 @@ Scope Reminder
 Forbidden Actions
 ```
 
-After AGY rework, rerun the full Three-Axis Review before verification.
+Send the Rework Contract to the same Herdr-managed AGY worker. After AGY rework, rerun the full Three-Axis Review before verification.
 
 See `templates/rework-contract.md`.
 
@@ -333,9 +339,7 @@ original bug repro
 browser runtime / performance when required
 ```
 
-Worker self-report cannot replace this step.
-
-Verification failure becomes `V*` and returns to AGY rework, then full Review again, then Verify again.
+Worker self-report cannot replace this step. Verification failure becomes `V*` and returns to AGY rework, then full Review again, then Verify again.
 
 For browser-facing tasks, Chrome DevTools MCP may be used according to `resources/runtime-verification.md`.
 
@@ -343,9 +347,7 @@ All required verification passing produces `CODE_VERIFIED`.
 
 ## 14. CLOSEOUT
 
-After code verification, scan only knowledge surfaces affected by the task.
-
-No documentation diff is required when existing knowledge is already current.
+After code verification, scan only knowledge surfaces affected by the task. No documentation diff is required when existing knowledge is already current.
 
 A code defect found during closeout returns to Rework → Review → Verify.
 
@@ -365,9 +367,13 @@ No unauthorized side effect
 Final diff explainable
 ```
 
+A task-owned Herdr workspace may be closed after acceptance. Never close or mutate a user-owned unrelated workspace.
+
 ## Recovery
 
-If the AGY conversation id is lost, do not guess the latest session. Start a replacement conversation with the frozen plan, current unit, repository state, findings and verification state.
+Herdr owns runtime/session continuity. With the official Antigravity integration installed, Herdr can restore the reported AGY conversation after a Herdr server restart.
+
+If the exact AGY session cannot be restored, do not guess another conversation. Preserve repository state and mark the runtime blocked. A replacement Herdr-managed AGY worker may be started only with the frozen plan, current unit, repository state, findings and verification state explicitly re-supplied.
 
 ## Final Report
 
@@ -377,6 +383,7 @@ Keep the final report compact:
 Task size
 Plan review status / rounds
 Plan frozen state
+Herdr runtime status
 What changed
 AGY execution status
 Three-Axis Review result
@@ -397,7 +404,7 @@ spec-contract
 execution-slicing
 sol-plan-review
 agy-execution
-tty7-supervision
+failure-modes
 bugfix-workflow
 review-gates
 completeness-regression
@@ -405,4 +412,4 @@ runtime-verification
 closeout-governance
 ```
 
-Keep the workflow serial and small. Add no new orchestration layer when an existing step or resource can express the requirement.
+Keep the workflow serial and small. Herdr is infrastructure, not governance. One task uses one primary AGY writer; multi-writer orchestration is out of scope for 3.3.

@@ -1,17 +1,18 @@
-# AGY Supervised Development 3.2
+# AGY Supervised Development 3.3
 
-当前开发版本：**3.2.0-alpha.3**
+当前开发版本：**3.3.0-alpha.1**
 
-一个串行、简单的监督式开发插件：
+一个串行、单 Writer、Herdr-only 的监督式开发插件：
 
 ```text
 Codex 负责方案、评审、验证和最终裁决
 Sol High 只负责实现前的方案评审
+Herdr 负责 AGY 的运行、交互、状态和会话恢复
 AGY 负责实现
 Git / Tests / Runtime Evidence 负责证明交付
 ```
 
-> **Codex shapes and proves. AGY builds. Git tells the truth.**
+> **Codex governs. Herdr runs. AGY builds. Git tells the truth.**
 
 ## 主流程
 
@@ -22,24 +23,105 @@ SIZE
 → SLICE
 → SOL HIGH PLAN REVIEW
 → PLAN FROZEN
-→ BUILD
+→ BASELINE
+→ AGY BUILD          # Herdr only
 → THREE-AXIS REVIEW
 → VERIFY
 → CLOSEOUT
 → ACCEPTED
 ```
 
-如果用户明确要求跳过 Sol 方案评审：
+## 3.3 的核心变化
+
+3.3 只有一条 AGY 执行链：
 
 ```text
-SLICE
-→ PLAN FROZEN
-→ BUILD
+AGY Supervised Development
+→ Herdr
+→ Antigravity CLI / AGY
+→ Repository
+→ Git
+→ Codex Review / Verify
 ```
+
+不再维护第二套 AGY Runtime，也不再保留 Runtime selection。Herdr 是基础设施，不是 Supervisor。
+
+```text
+Herdr done != REVIEW PASS
+AGY SUCCESS != REVIEW PASS
+REVIEW PASS != CODE_VERIFIED
+CODE_VERIFIED != ACCEPTED
+```
+
+## 安装插件
+
+```bash
+codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy-supervised-v3.3-herdr-runtime
+codex plugin add agy-supervised-development@agy-supervised-development
+```
+
+## Herdr / Antigravity 一次性准备
+
+3.3 要求 Herdr 和 `agy` 已安装，并要求官方 Antigravity integration 可用。
+
+显式安装 integration：
+
+```bash
+herdr integration install antigravity-cli
+```
+
+这个命令会修改当前用户的 Antigravity hooks 配置，因此插件任务执行阶段不会偷偷安装或覆盖它。
+
+启动 Herdr（交互使用 `herdr`，服务式环境可使用 `herdr server`），然后检查：
+
+```bash
+scripts/check-herdr.sh
+```
+
+预检会确认：
+
+```text
+herdr executable
+agy executable
+Herdr server reachable
+Herdr supports --kind agy
+Antigravity integration present and usable
+```
+
+失败就 `BLOCKED`，不会绕开 Herdr 直接启动 AGY。
+
+## AGY Runtime
+
+AGY Build 固定使用 Herdr Agent API：
+
+```text
+PLAN FROZEN
+→ BASELINE
+→ herdr workspace create --cwd <repo_root>
+→ capture returned root pane ID
+→ herdr agent start <task-agent> --kind agy --pane <pane_id>
+→ herdr agent prompt ... --wait
+→ blocked 时先 read 再最小交互
+→ agent read
+→ Git Review
+```
+
+Herdr workspace 创建响应中的：
+
+```text
+.result.workspace.workspace_id
+.result.root_pane.pane_id
+```
+
+是本轮 Runtime 身份来源，不从 UI 顺序猜 ID。
+
+Antigravity integration 会在首个 prompt 后报告 native conversation identity；Herdr 可在 server restart 后按该 identity 恢复 AGY session。插件自身不再维护 AGY conversation 恢复命令。
+
+详见 `resources/agy-execution.md`。
 
 ## Sol High Plan Review
 
-默认开启。
+默认开启：
 
 ```text
 Codex Executable Plan
@@ -50,71 +132,24 @@ Codex Executable Plan
 → Codex Adopt / Reject / Modify
 ```
 
-最多 **3 轮 Sol Review**，但可以提前结束：
+最多 3 轮；`PLAN FROZEN` 后 Sol High 立即退出任务。
 
-```text
-PASS                     → PLAN FROZEN
-only non-blocking notes  → PLAN FROZEN
-USER_DECISION_REQUIRED   → ask user
-round 3 still blocking   → ask user, never round 4
-```
-
-Codex 永远是 Plan Owner。Sol High 不直接拥有最终方案。
-
-一旦进入：
-
-```text
-PLAN FROZEN
-```
-
-Sol High 立即退出本次任务，后续 AGY Build / Review / Rework / Verify / Closeout 均不再调用 Sol High。
-
-详见 `resources/sol-plan-review.md` 和独立仓库 `suicuney/sol-consult-skill` 中的 `sol-high-plan-review` Skill。
-
-## 安装
+首次运行前检查独立 Sol Skill：
 
 ```bash
-codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy-supervised-v3.2-pluginized
-codex plugin add agy-supervised-development@agy-supervised-development
-
-# 首次运行前检查独立的 Sol High plan-review skill
 scripts/check-sol-plan-review.sh
-# 若返回 MISSING，再显式安装完整私有源并复查
+```
+
+如果缺失，再显式运行：
+
+```bash
 scripts/install-sol-plan-review.sh
 scripts/check-sol-plan-review.sh
 ```
 
-`SKILL.md` 单独存在不代表依赖完整；检查器会核对版本化 manifest 中的全部 references、scripts、tests 和元数据文件。安装器只做全量 checkout，不覆盖已有目录。若返回 `INCOMPLETE`，先保留并报告该目录，确认是失败安装产物后移走，再重新安装；不要自动删除或覆盖。
+## Review / Verification
 
-## AGY Runtime
-
-```text
-PLAN FROZEN
-→ Codex Execution Unit
-→ scripts/agy-run.sh
-→ official AGY CLI
-→ Repository
-```
-
-`agy-run.sh` 只是薄实现适配器，不再包含 consult mode，也不负责 workflow state、review 或 acceptance。
-
-需要真实交互时才使用 tty7。
-
-AGY 运行前必须同时确认 `init.cwd` 和首个实际命令的 `pwd`/repository root/branch。Headless 写入被拒绝时，保留真实 conversation id，转 tty7 做一次性批准；CLI 以错误结束也先查 Git，再由 Codex Review 和独立验证判断。
-
-本次运行的最短 fallback 顺序：
-
-```text
-headless AGY
-→ 检查 init + command cwd
-→ 检查 stream result / tool error / Git
-→ 必要时 tty7 one-off approval
-→ Codex Review / Verify
-```
-
-## Review
-
-AGY 完成后，Codex 独立执行：
+AGY runtime settled 后，Codex 独立执行：
 
 ```text
 A. Spec Fidelity
@@ -122,17 +157,7 @@ B. Engineering Quality
 C. Completeness
 ```
 
-```text
-AGY SUCCESS != REVIEW PASS
-REVIEW PASS != CODE_VERIFIED
-CODE_VERIFIED != ACCEPTED
-```
-
-Sol High 不参与这里的 Review。
-
-## Verification / Chrome DevTools MCP
-
-实现后，Codex 根据 Verification Seam 独立验证：
+通过后再独立运行：
 
 ```text
 lint / typecheck / build
@@ -141,34 +166,22 @@ original repro
 browser runtime when applicable
 ```
 
-对于 browser-facing 任务，Chrome DevTools MCP 可作为 Codex-owned runtime verification adapter。
-
-因此同一个 MCP 有两个严格分开的使用阶段：
-
-```text
-Before PLAN FROZEN:
-Chrome DevTools MCP → ChatGPT Web → Sol High Plan Review
-
-After AGY Review PASS:
-Chrome DevTools MCP → target Web system → Runtime Verification
-```
-
-不新增 MCP manager 或第二套 orchestration。
+对于 browser-facing 任务，Chrome DevTools MCP 仍是 Codex-owned runtime verification adapter。
 
 ## 运行前快速清单
 
 ```text
-1. Sol dependency = COMPLETE
-2. Codex plan packet = safety check passed
-3. ChatGPT Web = authenticated in the approved browser session
-4. Model = GPT-5.6 Sol; reasoning = High
-5. Unrelated user tabs = untouched
-6. Send = one action-time confirmation; UNKNOWN = no retry
-7. AGY init cwd + command cwd = verified
-8. AGY result = runtime evidence only; Git + Codex Review = delivery evidence
+1. Sol dependency = COMPLETE（除非用户明确跳过 Sol review）
+2. Herdr preflight = HERDR_READY
+3. PLAN FROZEN before AGY writes
+4. Baseline captured before AGY writes
+5. Herdr workspace cwd = repo_root
+6. pane ID = Herdr create response, never guessed
+7. AGY launched with --kind agy
+8. blocked → read before interaction
+9. Herdr done/idle = runtime evidence only
+10. Git + Codex Review + independent Verify = delivery evidence
 ```
-
-自动化可以准备 packet、扫描安全性、确认模型和填充草稿；外部 Send 仍保留最后的明确确认。
 
 ## Active Structure
 
@@ -184,19 +197,22 @@ resources/
 ├── sol-plan-review.md
 ├── sol-plan-review-manifest.json
 ├── agy-execution.md
-├── tty7-supervision.md
+├── failure-modes.md
 ├── bugfix-workflow.md
 ├── review-gates.md
 ├── completeness-regression.md
 ├── runtime-verification.md
 └── closeout-governance.md
 
-templates/
-├── execution-unit.md
-├── review-report.md
-├── rework-contract.md
-├── browser-verification.md
-└── closeout-contract.md
+scripts/
+├── check-herdr.sh
+├── check-sol-plan-review.sh
+├── install-sol-plan-review.sh
+├── test-sol-plan-review.sh
+├── validate-structure.sh
+├── validate-docs.sh
+├── validate-runtime.sh
+└── test-readiness.sh
 ```
 
 ## 自检
@@ -213,7 +229,8 @@ scripts/test-readiness.sh
 简单
 一个 Writer
 一个 Plan Owner
+一个 AGY Runtime：Herdr
+Herdr 管运行，不管结论
 Sol 只评方案
-方案冻结后 Evidence > 额外模型意见
-同一条规则只定义一次
+Git 是 repository truth
 ```

@@ -1,421 +1,191 @@
-# AGY Native Execution Adapter — Headless First
+# AGY Execution — Herdr Only
 
-AGY Supervised Development 3.1 把 Runtime 与 Workflow 解耦。`SIZE → SHAPE → SPEC → SLICE` 决定做什么和如何切；本文件只负责把一个已经批准的 **Execution Unit** 可靠交给官方 AGY CLI。
-
-核心原则：
-
-> **Headless first. Interactive only when interaction is genuinely required.**
+AGY Supervised Development 3.3 has one runtime path:
 
 ```text
-Codex App
-  ↓ Execution Unit
-AGY official CLI
-  ├─ headless / stream-json   ← default
-  └─ tty7 interactive         ← fallback
+Codex Governance
+  ↓ Execution Unit / Rework Contract
+Herdr
+  ↓
+Antigravity CLI (AGY)
   ↓
 Repository
   ↓
-Codex Review
+Git + Codex Review / Verify
 ```
+
+> **Herdr is infrastructure, not governance.**
+
+Herdr owns agent launch, identity, terminal lifecycle, interaction and native session restore. Codex owns scope, decisions, Review, Verification and Acceptance.
 
 ---
 
-## 1. 为什么默认 Headless
+## 1. One-time setup
 
-官方 AGY CLI 已提供足够的程序化边界：
-
-```text
--p / --print
---output-format json | stream-json
---conversation <id>
--c / --continue
---print-timeout
---sandbox
-fine-grained permissions
-```
-
-因此 3.1 不再默认依赖：
-
-```text
-tty7 capture/wait
-PTY screen parsing
-Turn Nonce
-AGY conversation DB reverse engineering
-status hook inference
-```
-
-这些只在真正需要交互式 TUI 时才回退使用。
-
----
-
-## 2. Preflight
-
-每次正式实现前做 capability detection，不按旧版本文档猜：
+Herdr and AGY must already be installed. Install the official Antigravity integration explicitly once for the user account:
 
 ```bash
-command -v agy
-agy --version
-agy --help
+herdr integration install antigravity-cli
 ```
 
-至少确认：
+The integration writes Antigravity user-level hook configuration, so task execution must never install it silently.
 
-```text
-agy executable available
--p / --print available
---output-format stream-json available
---conversation available
-repo cwd known
-auth/session usable
-```
-
-可选确认：
-
-```text
---sandbox
---model / --effort / --agent
---print-timeout
-```
-
-若当前安装不支持所需 headless 能力：
-
-```text
-headless_ready = false
-```
-
-再决定升级 CLI、使用受控 tty7 fallback，或 `BLOCKED`。不要静默换成第三方 Antigravity Provider。
+The Antigravity integration reports native conversation identity for restore. Herdr still derives `working` / `idle` / `blocked` / `done` from Antigravity's terminal screen detection.
 
 ---
 
-## 3. Workspace Binding
+## 2. Per-task preflight
 
-调用前：
+Before AGY BUILD:
+
+```bash
+scripts/check-herdr.sh
+```
+
+Required:
+
+```text
+herdr executable available
+agy executable available
+Herdr server reachable
+Herdr supports --kind agy
+antigravity-cli integration installed/current enough to be usable
+```
+
+If any requirement fails:
+
+```text
+AGY BUILD → BLOCKED
+```
+
+Do not silently switch runtimes. Do not invoke AGY directly.
+
+---
+
+## 3. Workspace binding
+
+Create a task-owned workspace directly on the repository root:
 
 ```bash
 repo_root="$(git rev-parse --show-toplevel)"
-cd "$repo_root"
-git branch --show-current
-git rev-parse HEAD
+created="$(herdr workspace create \
+  --cwd "$repo_root" \
+  --label "$task_label" \
+  --no-focus)"
 ```
 
-启动：
+Herdr returns JSON. Use the IDs it returns; never guess topology IDs:
 
 ```bash
-agy -p "<Execution Unit>" --output-format stream-json
+workspace_id="$(printf '%s' "$created" | jq -r '.result.workspace.workspace_id')"
+pane_id="$(printf '%s' "$created" | jq -r '.result.root_pane.pane_id')"
 ```
 
-`init` event 中必须检查：
+Validate both values are non-empty before launch.
 
-```text
-init.cwd == repo_root
-```
-
-不一致：立即停止把该 run 当作当前任务执行证据，并检查错误 workspace 是否已有副作用。
-
-AGY conversation history 由当前 working directory 做 workspace scoping；不能用 `-c` 代替显式身份校验。
-
-`init.cwd == repo_root` 只是第一道检查，不足以证明后续工具命令的 cwd。首个 `run_command` 后还要核对命令输出中的：
-
-```bash
-pwd
-git -C "$repo_root" rev-parse --show-toplevel
-git -C "$repo_root" branch --show-current
-```
-
-如果 `pwd` 落到 AGY CLI home 或其他目录，停止写入；改用绝对路径或重新绑定 workspace。不要因为 `init` 看起来正确就继续使用相对路径。
+This workspace is runtime state, not task truth. Git remains repository truth.
 
 ---
 
-## 4. 默认单次执行
+## 4. Agent identity and launch
 
-MVP 默认一轮一个进程：
+Create one stable task-local agent name that matches:
 
-```bash
-agy -p "<Execution Unit>" \
-  --output-format stream-json \
-  --print-timeout 30m
+```text
+[a-z][a-z0-9_-]{0,31}
 ```
 
-`30m` 只是示例。实际 timeout 根据 task size / repository tests 调整，不在 Skill 中写死唯一值。
+Example:
 
-为什么优先单次进程：
+```text
+agy-orders-4f2a
+```
 
-- 生命周期简单；
-- 每轮 Review 后 Codex 可以决定是否继续；
-- crash/retry 更容易与 repository state 对齐；
-- 不需要维护常驻自定义 daemon。
+Use the same name for the task's Build and Rework chain.
+
+Start AGY only through Herdr:
+
+```bash
+herdr agent start "$agy_agent" \
+  --kind agy \
+  --pane "$pane_id"
+```
+
+`agent start` requires an existing available shell pane and returns only after Herdr recognizes the expected AGY process as ready for interaction.
 
 ---
 
-## 5. Stream JSON Contract
+## 5. Prompt and wait
 
-Headless `stream-json` 的关键事件：
+Send an Execution Unit atomically through the Agent API:
 
-```text
-init
-step_update *
-result
+```bash
+herdr agent prompt "$agy_agent" "$execution_unit" \
+  --wait \
+  --until idle \
+  --until done \
+  --until blocked \
+  --timeout "$timeout_ms"
 ```
 
-### `init`
+Use milliseconds for Herdr timeouts. Pick a bounded value appropriate to task size; do not encode one global timeout for every repository.
 
-至少读取：
-
-```text
-conversation_id
-cwd
-tools
-permission_mode
-model/agent if observable
-```
-
-保存真实：
+Important semantic boundary:
 
 ```text
-agy_conversation_id
-agy_cwd
-```
-
-不要自己生成 conversation id。
-
-### `step_update`
-
-可用于观察：
-
-```text
-agent_response
-工具调用
-tool error
-subagent activity
-usage
-```
-
-不要把每一个 step 再复制成自己的 runtime state machine。
-
-### `result`
-
-终态可见：
-
-```text
-SUCCESS
-ERROR
-CANCELED
-INTERRUPTED
-INVALID
-WAITING
-RUNNING
-```
-
-关键语义：
-
-```text
-result.status == SUCCESS
+Herdr settled state
 !=
 Execution Unit PASS
 ```
 
-它只说明 AGY 本轮完成并产生响应；随后必须由 Codex 读取 Git。
-
-同理，`ERROR` 也不自动等于“没有改动”：若 CLI 在已执行编辑后因反馈问卷、TUI 或其他运行时错误退出，先检查 Git 是否已有部分写入，再由 Codex Review 和独立验证判断正确性。不要自动回滚或自动重放可能产生重复副作用的单元。
+Herdr wait is lifecycle-oriented, not a turn-level delivery proof. Always read current output and Git afterward.
 
 ---
 
-## 6. 不要只看 Exit Code
+## 6. Read before interaction
 
-这是 3.1 的重要 Runtime 规则。
-
-Headless 模式无法弹出人工确认时，某些默认 `Ask` 的 tool action 会被 soft-deny。本轮仍可能继续，甚至最终 exit code 为 0。
-
-因此执行结果判断至少同时看：
-
-```text
-process exit code
-result.status / result.error
-stderr permission notices
-step_update.tool_info.error
-repository state
-```
-
-禁止：
-
-```text
-exit 0 → implementation success
-```
-
-如果 AGY 想运行测试但 `run_command` 被 soft-deny，必须记录：
-
-```text
-worker_test_execution = blocked/not-run
-```
-
-不能转述成“测试通过”。
-
----
-
-## 7. Permission Strategy
-
-官方 AGY CLI 使用 fine-grained permissions。
-
-3.1 默认：
-
-```text
-Deny > Ask > Allow
-```
-
-只为本项目长期稳定需要的行为配置窄范围规则，例如项目测试/build 命令。
-
-禁止默认使用：
+When state is `blocked`, inspect first:
 
 ```bash
---dangerously-skip-permissions
+herdr agent read "$agy_agent" \
+  --source recent-unwrapped \
+  --lines 120
 ```
 
-这个 flag 会自动批准所有 tool calls，包括文件写入和命令执行；它不是 supervised workflow 的正常入口。
+Then classify:
 
-如果某 Execution Unit 必须运行命令但 headless policy 会 soft-deny，优先顺序：
+```text
+Within frozen scope + already authorized + reversible
+→ minimum safe key interaction may proceed
 
-1. 判断命令是否真的属于本任务；
-2. 使用现有项目 permission policy；
-3. 用户明确同意时添加最小 allow rule；
-4. 若需要一次性人工判断，转 tty7 interactive fallback；
-5. 不直接全局 always-proceed。
+One-way / product / architecture decision
+→ USER_DECISION_REQUIRED
 
-若错误明确来自写入权限（例如 `write_file` / `replace_file_content` 被拒绝），不要在 headless 中盲目重复同一 turn。保存真实 `conversation_id` 和错误证据，转到受控 tty7 做一次性人工批准；批准后仍需回到 Git Review。
+Out of scope / unsafe
+→ refuse or keep BLOCKED
+```
 
-### Sandbox
-
-`--sandbox` 可作为额外终端限制，但不是所有仓库都适配。只有当前 CLI 和项目验证可用时启用，不把它当 OS 级完整安全边界。
-
----
-
-## 8. Rework Resume
-
-Codex Review 发现问题后，优先继续**同一个真实 AGY conversation**：
+When a terminal key is genuinely required:
 
 ```bash
-agy -p "<Rework Contract>" \
-  --conversation "$agy_conversation_id" \
-  --output-format stream-json \
-  --print-timeout 30m
+herdr agent send-keys "$agy_agent" enter
 ```
 
-不要默认使用：
+Never blindly approve based only on `blocked` status.
+
+---
+
+## 7. Worker report and Git handoff
+
+After `idle` or `done`, collect enough recent output to index the worker's claims:
 
 ```bash
-agy -c
+herdr agent read "$agy_agent" \
+  --source recent-unwrapped \
+  --lines 160
 ```
 
-作为自动化精确关联方式。
-
-`-c` 适合人工快速继续当前 workspace 最近 conversation；监督流程已经知道真实 `conversation_id` 时，优先显式 `--conversation`。
-
-Rework Contract 必须重新包含：
-
-```text
-Issue
-Evidence
-Expected
-Required Change
-Re-run
-Scope Reminder
-Forbidden Actions
-```
-
-Conversation history 是辅助上下文，不是 Contract 的替代品。
-
----
-
-## 9. Conversation 丢失
-
-如果真实 conversation 已不可恢复：
-
-```text
-Do not guess another conversation.
-```
-
-创建新 AGY conversation，并重新提供：
-
-```text
-approved Spec / current Execution Unit
-repo/branch/baseline summary
-current diff
-Codex Review findings
-Completeness findings
-verification status
-```
-
-Repository progress 不因为 conversation 丢失而作废。
-
-不要默认从头重写已经存在的实现。
-
----
-
-## 10. Continuous Stream Input：Optional
-
-官方 AGY CLI 支持：
-
-```bash
-agy --input-format stream-json --output-format stream-json
-```
-
-一个进程内连续提交多轮 prompt。
-
-3.1 Alpha 2 **不把它设为默认**。只有以后真实使用证明以下收益明显时再启用：
-
-```text
-频繁连续 rework
-进程启动成本明显
-需要程序即时读 result 后决定下一 prompt
-```
-
-原因：常驻 stdin process 会增加 abort/recovery/process ownership 复杂度，而单轮 `--conversation` 已足够覆盖当前监督流程。
-
----
-
-## 11. tty7 Interactive Fallback
-
-只有真正需要 TUI 交互时使用 tty7，例如：
-
-```text
-首次登录 / auth interaction
-/permissions 管理
-/resume picker
-需要人工批准 Ask action
-slash commands / TUI-only operation
-长时间 exploratory session 且用户希望直接观察
-headless capability 临时不可用
-```
-
-Fallback 拓扑：
-
-```text
-Codex
-  ↓
-tty7
-  ↓
-AGY interactive CLI
-```
-
-进入 fallback 前记录：
-
-```text
-why_interactive_required
-repo_root
-branch
-baseline
-current execution unit/rework contract
-known conversation id if any
-```
-
-退出 fallback 后仍回 Codex Git Review。
-
-**tty7 是 transport/UI fallback，不是新的 Supervisor。**
-
----
-
-## 12. Worker Report
-
-Execution Unit 要求 AGY 最终报告：
+Worker report should include:
 
 ```text
 Changed behavior
@@ -427,9 +197,7 @@ Known limitations
 Unresolved items
 ```
 
-这些都是 worker self-report，只作为 Review 索引。
-
-Codex 仍自己执行：
+Then Codex independently inspects:
 
 ```bash
 git status --short
@@ -438,83 +206,108 @@ git diff --check
 git diff
 ```
 
-并根据 Spec/Verification Seam 独立验证。
+Herdr state and AGY self-report are runtime evidence only.
 
 ---
 
-## 13. Failure / Interrupted Run
+## 8. Rework
 
-若：
+After a Review finding, reuse the same live Herdr-managed AGY worker:
 
-```text
-无 terminal result
-status = ERROR/CANCELED/INTERRUPTED/INVALID/WAITING/RUNNING
-process crash
-stream-json 截断
+```bash
+herdr agent prompt "$agy_agent" "$rework_contract" \
+  --wait \
+  --until idle \
+  --until done \
+  --until blocked \
+  --timeout "$timeout_ms"
 ```
 
-处理顺序：
+Conversation history helps context, but the Rework Contract remains explicit:
 
-1. 检查 repository 是否已发生部分写入；
-2. 检查真实 conversation id 是否已取得；
-3. 保存可见 error/permission evidence；
-4. 不自动 replay 可能重复副作用的 Execution Unit；
-5. 能安全 resume 时用 `--conversation`；
-6. 否则新 conversation + current repository evidence。
+```text
+Issue
+Evidence
+Expected
+Required Change
+Re-run
+Scope Reminder
+Forbidden Actions
+```
+
+After rework, perform the full Three-Axis Review again.
 
 ---
 
-## 14. Runtime 与 Governance 的分界
+## 9. Session restore
 
-AGY Runtime 只回答：
+With the official `antigravity-cli` integration installed, Antigravity reports its conversation on `PreInvocation`. Herdr can then restore that pane after a Herdr server restart using the native AGY conversation reference.
+
+The workflow itself never executes a direct resume command.
+
+If the exact session reference is missing, invalid, stale, or cannot be restored:
 
 ```text
-本轮是否启动？
-在哪个 cwd？
-conversation 是谁？
-调用了什么工具？
-哪些被阻止？
-本轮如何结束？
+Do not guess another conversation.
 ```
 
-Codex Governance 回答：
+Preserve current repository evidence. Start a replacement Herdr-managed AGY only when safe, supplying:
 
 ```text
-需求是否满足？
-实现质量是否合格？
-有没有漏改？
-测试是否正确？
-是否可以验收？
+frozen Spec / current Execution Unit
+repo + branch + baseline summary
+current diff
+review findings
+verification state
 ```
 
-所以：
+---
 
-```text
-AGY result SUCCESS
-→ Codex REVIEWING
+## 10. Workspace ownership and close
+
+The workflow may close only a workspace it created for the current task, and only after the work no longer needs the live AGY session:
+
+```bash
+herdr workspace close "$workspace_id"
 ```
 
-而不是：
+Do not close, rename, reuse as task-owned, or otherwise mutate unrelated user Herdr workspaces.
+
+---
+
+## 11. Runtime / Governance boundary
+
+Herdr answers:
 
 ```text
-AGY result SUCCESS
+Where is the AGY worker?
+What agent/session is in that pane?
+Is it working / idle / blocked / done?
+What is visible in recent output?
+Can the native session be restored?
+```
+
+Codex answers:
+
+```text
+Is the implementation within scope?
+Does it satisfy the Spec?
+Is engineering quality acceptable?
+Is propagation complete?
+Did independent verification pass?
+Can the task be accepted?
+```
+
+Therefore:
+
+```text
+Herdr done
+→ CODEX REVIEWING
+```
+
+never:
+
+```text
+Herdr done
 → ACCEPTED
 ```
-
----
-
-## 15. 3.1 不再默认做的事
-
-```text
-Pi Antigravity OAuth Provider
-custom Pi harness
-pi-supervisor
-custom daemon
-custom AGY conversation DB
-PTY parsing as default
-screen scraping as primary evidence
-Turn Nonce as primary identity
---dangerously-skip-permissions as normal path
-```
-
-只在真实缺口出现时补最薄的一层，不预先重建 Runtime 平台。

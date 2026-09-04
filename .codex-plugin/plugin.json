@@ -1,7 +1,7 @@
 {
   "name": "agy-supervised-development",
-  "version": "3.2.0-alpha.3+codex.20260904030756",
-  "description": "Codex-supervised development with pre-implementation Sol High plan review, AGY as the primary writer, and Codex-owned review/runtime verification.",
+  "version": "3.3.0-alpha.1",
+  "description": "Codex-governed development with Sol High pre-plan review, Herdr as the sole AGY runtime, AGY as the primary writer, and Git-backed independent verification.",
   "author": {
     "name": "suicuney"
   },
@@ -9,6 +9,7 @@
   "license": "MIT",
   "keywords": [
     "codex",
+    "herdr",
     "antigravity",
     "agy",
     "sol-high",
@@ -19,18 +20,19 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "AGY Supervised Development",
-    "shortDescription": "Codex plans and proves; Sol High critiques plans; AGY builds.",
-    "longDescription": "A serial supervised-development workflow. Codex owns Shape/Spec/Slice and the executable plan; GPT-5.6 Sol High may review that plan for up to three rounds before PLAN FROZEN; AGY implements the frozen plan; Codex independently reviews and verifies repository/runtime evidence before acceptance.",
+    "shortDescription": "Codex governs; Herdr runs; AGY builds; Git proves.",
+    "longDescription": "A serial supervised-development workflow. Codex owns Shape/Spec/Slice and the executable plan; GPT-5.6 Sol High may review that plan before PLAN FROZEN; every AGY execution then runs through Herdr; Codex independently reviews and verifies repository/runtime evidence before acceptance.",
     "developerName": "suicuney",
     "category": "Productivity",
     "capabilities": [
       "Shape, specify, and slice executable plans",
       "Review executable plans with GPT-5.6 Sol High before implementation",
-      "Delegate bounded execution units to AGY",
+      "Run every AGY writer through Herdr",
+      "Preserve Antigravity session identity through Herdr integration",
       "Run Three-Axis Review and independent verification",
       "Use Chrome DevTools MCP for applicable browser runtime verification",
       "Perform knowledge closeout"
     ],
-    "defaultPrompt": "Use AGY Supervised Development. Build a Codex-owned executable plan, use the default Sol High plan review gate unless I explicitly opt out, freeze the plan, then delegate to AGY and keep post-implementation review and verification Codex-owned."
+    "defaultPrompt": "Use AGY Supervised Development. Build a Codex-owned executable plan, use the default Sol High plan review gate unless I explicitly opt out, freeze the plan, then run AGY only through Herdr and keep all review, verification, and acceptance Codex-owned."
   }
 }

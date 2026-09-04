@@ -1,538 +1,185 @@
-# AGY Supervised Development 3.1 Failure Modes — Alpha 3
+# AGY Supervised Development 3.3 Failure Modes
 
-本文件覆盖 Workflow-First + 官方 AGY CLI + Three-Axis Review 的常见失败。
+This file covers the active Herdr-only runtime and the Codex governance boundaries around it.
 
-原则：
+> **Collect evidence first. Herdr state is runtime evidence. Git and Codex verification decide delivery.**
 
-> **先收证据，再动作；Runtime 成功不等于交付成功；Review 三个轴互不抵消；失败不自动清空 repository progress。**
+## 1. Herdr or AGY is unavailable
 
----
-
-## 1. AGY CLI 不存在 / Headless Capability 不足
+Run:
 
 ```bash
-command -v agy
-agy --version
-agy --help
+scripts/check-herdr.sh
 ```
 
-缺失当前流程需要的 headless 能力时：
+If Herdr, AGY, the running Herdr server, AGY kind support, or the Antigravity integration is unavailable:
 
 ```text
-headless_ready = false
-```
-
-选择：受控升级、tty7 interactive fallback、或 `BLOCKED`。
-
-不要静默切到第三方 Antigravity OAuth Provider。
-
----
-
-## 2. AGY cwd mismatch
-
-`init.cwd != repo_root`：
-
-1. 停止把该 run 当当前任务证据；
-2. 检查错误 workspace 是否有副作用；
-3. 不自动 rollback 来源不明修改；
-4. 在正确 repo root 重启；
-5. 重新确认 baseline。
-
----
-
-## 3. Conversation identity 丢失 / 错 resume
-
-- 不猜 conversation id；
-- 自动监督有真实 ID 时优先 `--conversation <id>`；
-- 不用 `-c` 把未知最近 conversation 冒充当前任务；
-- 原 conversation 丢失时，用 Spec + Execution Unit + current diff + findings 重建上下文。
-
-Repository progress 不因为 conversation 丢失而作废。
-
----
-
-## 4. AGY `SUCCESS` / exit 0，但没有交付
-
-如果：
-
-```text
-result.status = SUCCESS
-exit = 0
-```
-
-但 Git 没有对应 Execution Unit 的实现：
-
-```text
-→ REWORK_REQUIRED
-```
-
-`SUCCESS` 只证明本轮返回，不证明 Spec 满足。
-
----
-
-## 5. Headless permission soft-deny
-
-Ask 类命令在 headless 中可能被拒绝，但 run 继续甚至 exit 0。
-
-必须同时检查：
-
-```text
-result.status/error
-stderr
-tool/step error
-actual Git state
-```
-
-被拒绝的测试：
-
-```text
-blocked/not-run
-```
-
-不能写 PASS。
-
----
-
-## 6. 为了解阻塞默认使用 `--dangerously-skip-permissions`
-
-禁止把它当普通 fallback。
-
-优先：
-
-```text
-已有安全 allow
-→ 最窄 fine-grained allow
-→ tty7 one-off human approval
 → BLOCKED
 ```
 
-不要为一条 test command 全局解除边界。
+Do not silently start AGY outside Herdr and do not introduce another runtime path.
 
----
+## 2. Antigravity integration missing or outdated
 
-## 7. tty7 重新变成默认 Runtime
-
-正常 headless 可用时，不应恢复：
-
-```text
-每轮都 tty7 send/capture/wait
-screen parse = completion evidence
-```
-
-tty7 只用于真实交互需求。
-
----
-
-## 8. Pi 重新变成永久父 Agent
-
-禁止无收益地恢复：
-
-```text
-Codex → Pi → AGY
-```
-
-Pi 仅在 research / second opinion / blast-radius / specialized extension 有明确价值时旁路使用。
-
----
-
-## Additional Runtime Cases
-
-### Sol skill 缺失或半安装
-
-先运行：
+The integration is an explicit user-level setup step:
 
 ```bash
-scripts/check-sol-plan-review.sh
+herdr integration install antigravity-cli
 ```
 
-`SKILL.md` 存在但 references/scripts/tests 缺失时是 `INCOMPLETE`，不是可用。使用全量安装路径后重新检查；不要把根目录 sparse checkout 当成完整 skill，也不要自动删除已有的半安装目录。
+Task execution reports the missing prerequisite. It does not rewrite user-level hooks automatically.
 
-### ChatGPT Web 会话或模型状态不可信
+## 3. Workspace created against the wrong repository
 
-- 用户要求现有 Chrome 时，保留无关标签页只读；创建或核对同一会话中的 ChatGPT 标签。
-- 未登录就停在用户登录交接，不检查 cookies/passwords。
-- 只有可见状态同时证明 `GPT-5.6 Sol` 与 `High` 才能发送；默认按钮文字不足以证明模型。
-- Send 前自动准备和填充草稿可以复用；最终外发仍需 action-time confirmation。
+Use:
 
-### Send 状态不明
+```text
+herdr workspace create --cwd <repo_root>
+```
 
-网络或页面在点击附近中断时标为 `UNKNOWN`。恢复原会话并寻找可见证据；在状态确定前不重发、不新开重复评审。
+and consume `.result.workspace.workspace_id` plus `.result.root_pane.pane_id` from the returned JSON.
 
-### AGY init cwd 正确但命令 cwd 错误
+If the workspace cwd or repository facts do not match the intended task, stop before writes and inspect for side effects.
 
-`init.cwd == repo_root` 不是充分证据。首个命令必须核对 `pwd`、仓库根目录和 branch；若落到 AGY CLI home，停止相对路径写入，改用绝对路径或重新绑定。
+## 4. Wrong or stale pane identity
 
-### 长 prompt 或工具调用在写入前直接 ERROR
+Never guess pane IDs from UI order or old output. Use the ID returned by Herdr for the task-owned workspace.
 
-先确认 Git 没有部分改动，再把 Execution Unit 缩成一个小 writer turn；不要连续重放同一个长 prompt。若仍无法写入，记录 runtime error 并按权限/tty7 fallback 处理。
+If the expected pane no longer exists, do not send input elsewhere. Re-establish task-owned runtime state explicitly.
 
-### Headless 写入被拒绝、tty7 wait 无 status
+## 5. Agent name collision
 
-保存真实 conversation id 和 permission/tool error，转 tty7 做一次性批准。`tty7 wait` 因 `no-agent`/缺少 hook 超时不是完成判定；用最新 `capture --plain` 加 Git 状态核实。TUI 的反馈问卷或终端错误也不覆盖 Git 与独立验证结果。
+Herdr agent names are unique among live agents. Generate one stable task-local name and reuse it for the Build/Rework chain.
 
-# Workflow Failures
+If the name already belongs to another live agent, do not take it over. Choose a different task-local name.
 
-## 9. Small task 被过度流程化
+## 6. `agent start` is not ready
 
-明确的小修复不要为了形式建立大 Decision Map / Ticket DAG。
+If startup times out or returns not-ready/blocked:
 
-允许：
+1. inspect `herdr agent read` / pane state;
+2. confirm the pane was an available shell pane;
+3. resolve login or bounded interaction explicitly;
+4. do not bypass Herdr by starting AGY separately.
+
+## 7. AGY becomes blocked
+
+Read before interacting:
+
+```bash
+herdr agent read "$agy_agent" --source recent-unwrapped --lines 120
+```
+
+Then distinguish:
+
+```text
+safe + in scope + already authorized → minimum interaction
+one-way decision                  → user
+out of scope / unsafe             → refuse / BLOCKED
+```
+
+A runtime permission prompt is not product authorization.
+
+## 8. Herdr says `done` but Git does not satisfy the plan
+
+`done` only means Herdr recognized a settled lifecycle state.
+
+```text
+Herdr done != REVIEW PASS
+```
+
+Read Git. If the frozen Execution Unit is not satisfied, create a bounded Rework finding.
+
+## 9. Herdr wait returns for the wrong lifecycle transition
+
+Wait conditions are not a unique turn correlation protocol. A lifecycle change may satisfy the wait without proving that the just-sent Execution Unit is complete.
+
+Therefore always pair wait with:
+
+```text
+agent read
++ repository diff
++ Codex Review
+```
+
+Do not invent another turn-state machine unless a proven correctness gap requires it.
+
+## 10. Session restore fails
+
+Herdr owns native session restore. If the exact Antigravity session cannot be restored:
+
+```text
+Do not guess another conversation.
+```
+
+Preserve Git progress. If safe, start a replacement Herdr-managed AGY and explicitly re-supply frozen task context, current diff, findings and verification state.
+
+## 11. Herdr server restarts after partial edits
+
+A runtime restart does not imply no writes occurred.
+
+1. inspect Git;
+2. let Herdr restore the exact native session when available;
+3. do not replay a possibly side-effecting Execution Unit automatically;
+4. return to Review once the worker turn settles.
+
+## 12. Worker reports tests passed but Codex has not verified
+
+AGY self-report is an index only.
+
+```text
+worker tests green != CODE_VERIFIED
+```
+
+Codex independently runs the Verification Seam/Test Strategy after Three-Axis Review PASS.
+
+## 13. User baseline is modified
+
+Never clean the tree simply to make AGY execution easier. Compare task-introduced changes against the recorded baseline and preserve original user hunks.
+
+## 14. Small task is over-orchestrated
+
+3.3 still defaults to one primary writer and a serial flow. A localized task should remain:
 
 ```text
 Compact Shape/Spec
 → one Execution Unit
-→ AGY
+→ one Herdr-managed AGY
 → Review
+→ Verify
 ```
 
----
+Do not turn Herdr into a multi-agent DAG merely because it can host many agents.
 
-## 10. Complex task 被伪装成 Small
+## 15. Open decision is guessed by AGY
 
-出现：
+Unresolved product/architecture semantics return to Shaping/User authority. Herdr being able to keep AGY running does not expand AGY decision authority.
 
-```text
-新 Open Decision
-跨模块 contract
-复杂 data propagation
-one-way door
-multi-session uncertainty
-```
+## 16. Completeness is mistaken for scope expansion
 
-应升级 Medium/Large，而不是继续塞进一个 Worker turn。
+If an omitted change is required for the current behavior to be complete, it is Completeness work. If not, keep it out of scope.
 
----
+## 17. Verification fails after Review PASS
 
-## 11. Open Decision 被 Worker 猜掉
-
-真正产品/架构语义未决定时：
+Create `V*` evidence and return through:
 
 ```text
-→ SHAPING / BLOCKED
-```
-
-不要让 AGY 用“实现一个看起来合理的版本”替用户决定。
-
----
-
-## 12. Fog 被提前伪造成 Ticket
-
-当前问题无法精确陈述，只依赖前置决定时，保留：
-
-```text
-Not Yet Specified
-```
-
-不要为了计划完整而生成假精度 Execution Units。
-
----
-
-## 13. Horizontal Slicing
-
-默认不要拆成：
-
-```text
-all DB
-all API
-all UI
-all tests
-```
-
-能按行为切时使用 Vertical Slice；Wide Refactor 才用 Expand → Migrate → Contract。
-
----
-
-# Three-Axis Review Failures
-
-## 14. Quality 很高掩盖 Spec 漏做
-
-典型：代码漂亮、测试完善，但 Acceptance Criterion 缺一项。
-
-结论：
-
-```text
-Axis A = REWORK
-Overall = REWORK_REQUIRED
-```
-
-不能用 Quality PASS 抵消 Spec failure。
-
----
-
-## 15. Spec 全做对掩盖 Engineering Defect
-
-典型：Acceptance 全覆盖，但：
-
-- exception 被吞；
-- auth boundary 错；
-- transaction/race 不安全；
-- speculative abstraction；
-- tests 绑定内部实现。
-
-结论：
-
-```text
-Axis B = REWORK
-Overall = REWORK_REQUIRED
-```
-
----
-
-## 16. Changed-file tests green 掩盖 Missing Diff
-
-当前 diff 全绿，但 hidden caller / consumer / schema / script 仍旧：
-
-```text
-Axis C = REWORK
-```
-
-不能直接 VERIFYING。
-
----
-
-## 17. Completeness 被误用成 Scope Expansion
-
-判断：
-
-> 不做这一项，当前 change 会被称为 unfinished 吗？
-
-不会 → `out-of-scope-different-ticket`。
-
-不要借 Axis C 做邻近重构、依赖升级、新产品功能。
-
----
-
-## 18. Scope Creep 被包装成“有用增强”
-
-Spec 未要求的新行为，即使有测试、看起来有价值，也先产生 `S*` finding。
-
-若是必然传播面，Axis C 会证明；否则移除或回 Shaping。
-
----
-
-## 19. Three-Axis Review 做平均分 / 多数投票
-
-禁止：
-
-```text
-Spec PASS
-Quality PASS
-Completeness REWORK
-→ overall PASS  # 错
-```
-
-正确：
-
-```text
-any REWORK → REWORK_REQUIRED
-any unresolved BLOCKED → BLOCKED
-```
-
----
-
-## 20. Finding 模糊，无法驱动 Rework
-
-禁止：
-
-```text
-“再检查一下”
-“这里似乎有问题”
-“看看还有没有漏的”
-```
-
-必须：
-
-```text
-Finding ID
-Axis/Source
-Issue
-Evidence
-Expected
-Required Change
-Re-run
-```
-
----
-
-## 21. Rework 后只复查原 finding
-
-修一个 Q finding 可能破坏 Spec 或引入新 missing diff。
-
-因此 Rework 后：
-
-```text
+REWORK_REQUIRED
+→ same Herdr-managed AGY
 → full Three-Axis Review
+→ CODEX VERIFY again
 ```
 
-不是只检查 Q1 消失就直接 VERIFY。
+Do not patch a test and jump directly back to verification.
 
----
+## 18. CODE_VERIFIED is treated as final completion
 
-# Bug Intelligence Failures
+Knowledge Closeout still runs before `ACCEPTED`. A stale public contract, README, config description or runbook remains a closeout defect.
 
-## 22. Complex Bug 没 feedback loop 就开始猜修复
+## 19. One-way action is treated as runtime approval
 
-如果 Bug flaky / cross-service / performance / multiple hypotheses，却没有能抓用户症状的反馈环：
-
-```text
-→ DIAGNOSING
-```
-
-不要把第一 plausible theory 当 root cause。
-
----
-
-## 23. Feedback Loop 抓到的是错误症状
-
-如果测试复现的是附近异常，不是用户真实问题：
-
-- 不继续 root-cause claim；
-- 调整 feedback loop；
-- 重新 reproduce/minimise。
-
-Wrong bug → wrong fix。
-
----
-
-## 24. 单一 hypothesis 锚定
-
-复杂 Bug 默认形成 3~5 ranked/falsifiable hypotheses。
-
-每个至少有：
-
-```text
-Prediction
-Probe
-What falsifies it
-```
-
-无法证伪的“感觉”不是强 hypothesis。
-
----
-
-## 25. Instrumentation 无目标 / 残留
-
-避免“到处加 log 再 grep”。
-
-Instrumentation 要对应某个 hypothesis prediction，并在最终 Review 前清理临时 debug/profiling residue。
-
----
-
-## 26. Fix 绿了但 Root Cause 说不清
-
-如果只能说明：
-
-```text
-“改这里后测试绿了”
-```
-
-但无法回答 cause → symptom 链路及排除证据，仍不能把它包装成高置信 root cause。
-
-Axis B 可要求更健康的根因修复。
-
----
-
-## 27. Regression test 只有 post-fix GREEN
-
-确定性 Bug 如果从未证明同一 proof 在 unfixed behavior 上 RED：
-
-```text
-Regression Proof incomplete
-```
-
-能安全复现时要求 before/after。
-
----
-
-## 28. Minimal regression 绿，但原始 repro 没重跑
-
-复杂 Bug：
-
-```text
-minimal GREEN != original user symptom proven fixed
-```
-
-Independent Verification 还要重跑原始 feedback loop / 原始未最小化场景。
-
----
-
-# Verification / Closeout Failures
-
-## 29. Three-Axis PASS 后 Verification 失败
-
-产生 `V*` finding：
-
-```text
-VERIFYING
-→ REWORK_REQUIRED
-→ AGY
-→ Three-Axis Review again
-→ Verify again
-```
-
-不能修完测试后直接跳回 VERIFYING。
-
----
-
-## 30. Worker 自述测试通过替代 Codex Verification
-
-AGY Worker evidence 只是线索。
-
-Codex 必须独立执行相关 Verification Seam/Test Strategy 命令。
-
----
-
-## 31. Verification Seam 错
-
-如果 Spec 的公共 seam 是 API/CLI/UI 行为，却只验证 private helper：
-
-- Axis A 可能 seam fidelity REWORK；
-- Axis B 可能 test quality REWORK；
-- 不能因为测试数量多而 PASS。
-
----
-
-## 32. CODE_VERIFIED 被当成最终完成
-
-`CODE_VERIFIED` 后仍需 Knowledge Impact Scan。
-
-API/schema/config/workflow 等变化若 docs stale：
-
-```text
-K* finding → Closeout Rework
-```
-
----
-
-## 33. Closeout 为制造 diff 而改文档
-
-纯内部修复且知识面都 current 时，零文档 diff 是正常 PASS。
-
-不要为了证明“做了 Closeout”修改 README。
-
----
-
-## 34. Closeout 用文档掩盖代码缺陷
-
-Closeout 发现实现本身错误时：
-
-```text
-→ K finding
-→ REWORK_REQUIRED
-→ Three-Axis Review
-→ Verification
-→ Closeout again
-```
-
-不能只把文档改成符合错误实现。
-
----
-
-# Safety / Scope Failures
-
-## 35. One-way Door 被 Runtime permission 当成授权
-
-AGY permission engine 允许执行，不代表用户授权：
+The following remain user-authority boundaries unless already explicitly authorized:
 
 ```text
 destructive migration
@@ -545,55 +192,17 @@ irreversible delete
 push/merge/release/deploy
 ```
 
-无明确授权：`BLOCKED / blocked-decision-needed`。
+## 20. User cancellation
 
----
+Stop further runtime input, then inspect repository partial progress. Do not auto-rollback. Preserve Herdr/session identifiers when useful for safe recovery and report the actual state.
 
-## 36. 用户 baseline 被 Worker/Rework 清理
-
-禁止为“恢复干净状态”执行粗暴 reset/rollback。
-
-只处理明确属于当前任务的 task-introduced changes。
-
----
-
-## 37. Credential 泄漏
-
-如果日志/diagnostics 出现 token、Authorization、secret：
-
-- 不继续复制；
-- 不写入 Contract/repo/final report；
-- 只记录 auth status；
-- 按项目安全流程处理。
-
----
-
-## 38. 用户取消
-
-停止当前 process/interactive action，然后：
+## Summary
 
 ```text
-inspect repository partial progress
-do not auto rollback
-preserve real conversation id if available
-CANCELLED or BLOCKED if risk unresolved
+Herdr failure → preserve repository evidence
+AGY runtime settled → Codex Review
+Review failure → bounded Rework through same Herdr worker
+Verification failure → Rework + full Review + Verify
+Session loss → never guess another conversation
+User-owned changes → never silently clean
 ```
-
----
-
-# Failure Handling Summary
-
-所有失败都优先保留：
-
-```text
-baseline
-approved Spec
-Execution Unit
-current repository progress
-real AGY conversation identity
-Three-Axis findings
-bug diagnosis evidence
-verification evidence
-```
-
-不要因为 Runtime/Review 某一步失败就默认从头重写。
