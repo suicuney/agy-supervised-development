@@ -8,13 +8,10 @@ fail() {
 
 command -v herdr >/dev/null 2>&1 || fail 'HERDR_MISSING'
 command -v agy >/dev/null 2>&1 || fail 'AGY_MISSING'
+command -v jq >/dev/null 2>&1 || fail 'JQ_MISSING'
 
 herdr --version >/dev/null 2>&1 || fail 'HERDR_UNUSABLE'
 herdr status server >/dev/null 2>&1 || fail 'HERDR_SERVER_UNAVAILABLE'
-
-start_help="$(herdr agent start --help 2>&1 || true)"
-printf '%s\n' "$start_help" | grep -Eq '(^|[^[:alnum:]_-])agy([^[:alnum:]_-]|$)' \
-  || fail 'HERDR_AGY_KIND_UNSUPPORTED'
 
 integration_status="$(herdr integration status 2>&1)" \
   || fail 'HERDR_INTEGRATION_STATUS_FAILED'

@@ -62,7 +62,7 @@ codex plugin add agy-supervised-development@agy-supervised-development
 
 ## Herdr / Antigravity 一次性准备
 
-3.3 要求 Herdr 和 `agy` 已安装，并要求官方 Antigravity integration 可用。
+3.3 要求 Herdr、`agy` 和 `jq` 已安装，并要求官方 Antigravity integration 可用。Herdr 当前正式支持 `agent start --kind agy`。
 
 显式安装 integration：
 
@@ -83,8 +83,8 @@ scripts/check-herdr.sh
 ```text
 herdr executable
 agy executable
+jq executable
 Herdr server reachable
-Herdr supports --kind agy
 Antigravity integration present and usable
 ```
 

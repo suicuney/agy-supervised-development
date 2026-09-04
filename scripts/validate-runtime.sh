@@ -11,6 +11,12 @@ exit 0
 SH
 chmod +x "$tmp/bin/agy"
 
+cat > "$tmp/bin/jq" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "$tmp/bin/jq"
+
 cat > "$tmp/bin/herdr" <<'SH'
 #!/usr/bin/env bash
 case "${1:-} ${2:-} ${3:-}" in
@@ -20,9 +26,6 @@ case "${1:-} ${2:-} ${3:-}" in
   'status server ')
     [[ "${FAKE_HERDR_SERVER_DOWN:-0}" == 1 ]] && exit 1
     printf '{"ok":true}\n'
-    ;;
-  'agent start --help')
-    printf 'Supported kinds: pi claude codex agy hermes\n'
     ;;
   'integration status ')
     printf '%s\n' "${FAKE_INTEGRATION_STATUS:-Antigravity CLI current v1}"
