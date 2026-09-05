@@ -53,7 +53,7 @@ assert marketplace['name']=='agy-supervised-development'
 assert marketplace['plugins'][0]['name']=='agy-supervised-development'
 assert marketplace['plugins'][0]['source']['path']=='.'
 assert plugin['name']=='agy-supervised-development'
-assert re.fullmatch(r'3\.3\.0-alpha\.1(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?', plugin['version'])
+assert re.fullmatch(r'3\.3\.0-alpha\.2(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?', plugin['version'])
 assert plugin['skills']=='./skills/'
 assert 'herdr' in plugin['keywords']
 PY
