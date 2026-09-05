@@ -59,7 +59,7 @@ Risks / One-way Decisions
 Codex Local Judgment
 ```
 
-Use the installed `sol-high-plan-review` Skill for packet format, verdict parsing, and model-truth expectations. Transport selection and browser operations are governed strictly by `resources/ego-browser-runbook.md`; the paired skill cannot override transport.
+Use the installed `sol-high-plan-review` Skill for packet format, verdict parsing, and model-truth expectations. Transport selection and browser operations are governed strictly by `resources/ego-browser-runbook.md`; the paired skill cannot override transport or reintroduce a manual confirmation gate. Interaction and send policies are authoritatively owned by the plugin kernel (`SKILL.md`) and entrypoint.
 
 ## 用户可见计划
 
@@ -87,20 +87,26 @@ Use the installed `sol-high-plan-review` Skill for packet format, verdict parsin
 - 中文；
 - 言简意赅；
 - 重点说明“这次准备怎么做”；
+- 语义上忠实于同一份待冻结可执行计划（完整 packet 可额外包含评审元数据、sentinels、验收准则及契约包装）；
 - 不用 packet 字符数、文件大小、附件大小代替计划内容；
 - 不需要把完整技术 packet 原样倒给用户。
 
-展示后只询问一次：是否发送给 GPT-5.6 Sol High 评审。
+**自动发送策略（无需确认）**：
+展示中文计划预览后，**不向用户请求发送确认**。Codex 自动执行数据包安全性检查（确保无凭据或敏感信息）及 ego-browser 预检。各项 Fail-Closed 门禁均通过后，**自动发送且仅发送一次**。
+配套的 `sol-high-plan-review` Skill 仅提供数据包结构与裁决语义，无权重新引入人工确认门禁。
 
-用户确认第一轮发送后，后续 `REVISE` 轮次由 Codex 自动 `Adopt / Reject / Modify` 并继续同一会话，**不反复要求发送确认**。
+后续 `REVISE` 轮次由 Codex 自动 `Adopt / Reject / Modify` 并继续同一会话，**不要求发送确认**。
 
-只有以下情况才重新打断用户：
+只有以下情况才打断用户：
 
 ```text
+数据包包含凭据等敏感内容（Credential findings / Hard Stop）
+AUTH_REQUIRED（登录交接）
+USER_CONTROLLING（用户正在控制，严禁未经授权接管）
+MODEL_MISMATCH（模型非 GPT-5.6 Sol 或推理深度非 High，严禁静默降级）
 USER_DECISION_REQUIRED
 真正 one-way / product / architecture decision
-登录交接
-Send 状态 UNKNOWN
+Send 状态 UNKNOWN（终态，无重试跃迁，严禁自动重发）
 其他真实 blocker
 ```
 
@@ -117,7 +123,8 @@ The execution flow uses:
    Model family = GPT-5.6 Sol
    Reasoning     = High
    ```
-5. Inspection for three pre-send failure states:
+5. Inspection for pre-send failure states and hard stops:
+   - Credential-like packet findings: hard stop, do not submit secrets.
    - Login / auth missing (`AUTH_REQUIRED`): hand off to user with `handOffTaskSpace`.
    - Control conflict (`USER_CONTROLLING`): hard stop, wait for user confirmation before `takeOverTaskSpace`.
    - Model / reasoning mismatch (`MODEL_MISMATCH`): hard stop, do not silently substitute.
@@ -127,14 +134,16 @@ The execution flow uses:
 
 ## Packet and Send State
 
-Track only:
+Track explicitly:
 
 ```text
-NOT_SENT → SENT
-NOT_SENT → UNKNOWN
+NOT_SENT → SENT | UNKNOWN
 ```
 
-If the result around Send is ambiguous, keep `UNKNOWN` terminal until the same conversation visibly proves whether it was sent. Never resend automatically (duplicate-send safety).
+- `NOT_SENT → SENT`: 必须有同一会话内的可见证据（证明 packet 已送达且 assistant 开始生成）。
+- `NOT_SENT → UNKNOWN`: 若发送前后网络、超时或 UI 状态存在歧义，状态立即转为 `UNKNOWN`。
+- `UNKNOWN` 是终态（terminal state），**不存在向重试的跃迁（no retry transition）**。严禁自动重新发送（Duplicate-Send Safety）。
+- 若要排查 `UNKNOWN`，在同一会话中调用 `await snapshotText()` 检查是否已送达。若仍未解决，停机并向用户汇报真实状态，绝不自动重发。
 
 After Send, wait for assistant generation to finish, then read the same conversation. A review is complete only when the required sentinel is present and the response contains exactly one of `PASS`, `REVISE`, or `USER_DECISION_REQUIRED`.
 
@@ -143,7 +152,7 @@ After Send, wait for assistant generation to finish, then read the same conversa
 ```text
 Codex Plan
 → 第一轮中文计划预览
-→ 用户确认一次
+→ 预检通过后自动发送（不请求确认）
 → Sol High Review
 → Codex Adopt / Reject / Modify
 → 必要时自动下一轮

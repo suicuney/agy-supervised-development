@@ -12,7 +12,7 @@ Local Web App / Testbed = Optional Browser Runtime Verification Seam
 ## Transport Precedence & Authority Boundary
 
 1. **Transport Selection & Operation Authority**: This file (`resources/ego-browser-runbook.md`) authoritatively owns browser transport selection, task space lifecycle, tab routing, observation, and browser execution.
-2. **Semantic Boundary**: The paired `sol-high-plan-review` skill supplies only review packet structure, verdict sentinels (`PASS`, `REVISE`, `USER_DECISION_REQUIRED`), and model truth expectations. It cannot override, substitute, or dictate browser transport.
+2. **Interaction & Send Policy Authority**: The plugin kernel (`SKILL.md`) and entrypoint authoritatively own interaction and send policy (automatic send after preflight, no manual confirmation requirement). The paired `sol-high-plan-review` skill supplies only review packet structure, verdict sentinels (`PASS`, `REVISE`, `USER_DECISION_REQUIRED`), and model truth expectations. It cannot override, substitute, or dictate browser transport, nor can it reintroduce a manual confirmation gate.
 3. **Sole Transport**: `ego-browser` / `ego-lite` is the sole documented browser transport for this plugin's Sol High review and optional browser runtime verification. Direct, unmanaged, or legacy browser transports are not supported.
 
 ## Execution Model
@@ -71,15 +71,23 @@ cliLog(snapshot)
 - Inspect the snapshot to verify page state, locate active input fields, and identify buttons.
 - Never act blindly without inspecting the snapshot.
 
-## 4. Pre-Send Verification & Three Pre-Send Failure States
+## 4. Pre-Send Verification & Fail-Closed Preflight Gates
 
-Before submitting any review packet, verify visible model and reasoning depth:
+Before submitting any review packet, verify packet safety and browser preconditions:
+
+### Packet Safety Check (Hard Stop)
+- Inspect the review packet for credential-like findings, tokens, passwords, or secrets.
+- Any credential finding is an immediate hard stop.
+
+### Model and Reasoning Preflight
+Verify visible model and reasoning depth:
 
 ```text
 Model family = GPT-5.6 Sol
 Reasoning     = High
 ```
 
+### Three Pre-Send Failure States (Hard Stops)
 Inspect page state for the three distinct pre-send failure states:
 
 ### State A: Login / Authentication Missing (`AUTH_REQUIRED`)
@@ -96,23 +104,23 @@ Inspect page state for the three distinct pre-send failure states:
 
 ## 5. Packet Fill & Single-Send Rule (Duplicate-Send Safety)
 
-Fill the review packet and submit:
+After the Chinese plan preview is shown and all preflight gates pass, fill the review packet and send automatically:
 
 ```js
 await fillInput('@<input_ref>', reviewPacket)
 await click('@<submit_ref>', { label: 'send plan review packet' })
 ```
 
-### Duplicate-Send Safety
-- Send **exactly once**.
-- Track send state:
+### Duplicate-Send Safety & State Machine
+- Send **automatically exactly once** after preflight gates pass. Do not ask for human send confirmation.
+- Track send state machine explicitly:
   ```text
-  NOT_SENT → SENT
-  NOT_SENT → UNKNOWN
+  NOT_SENT → SENT | UNKNOWN
   ```
-- If network, timeout, or UI state around Send is ambiguous, mark state as `UNKNOWN`.
-- **Never automatically resend from `UNKNOWN`**. Resending risks duplicate submission, corrupted conversation thread, or prompt flooding.
-- To resolve `UNKNOWN`, inspect the same conversation using `await snapshotText()` to verify whether the packet was received or generation started.
+- **`SENT`**: Requires visible same-conversation evidence that the packet was received and assistant generation started.
+- **`UNKNOWN`**: If network, timeout, or UI state around Send is ambiguous, mark state as `UNKNOWN`.
+- **Terminal UNKNOWN / No Retry Transition**: `UNKNOWN` is terminal and has **no retry transition**. **Never automatically resend from `UNKNOWN`**. Resending risks duplicate submission, corrupted conversation thread, or prompt flooding.
+- To inspect `UNKNOWN`, check the same conversation using `await snapshotText()` to verify whether the packet was received or generation started. If unresolved, report to the user as a blocker without resending.
 
 ## 6. Polling & Reading the Same Conversation
 

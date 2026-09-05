@@ -18,14 +18,14 @@
       "expected": "Use sol-high-plan-review through ego-browser / ego-lite following resources/ego-browser-runbook.md before PLAN FROZEN."
     },
     {
-      "id": "sol-first-send-chinese-plan-once",
+      "id": "sol-first-send-chinese-plan-automatic-send",
       "setup": "Codex is ready to send round 1 of the executable plan to Sol High.",
-      "expected": "Show a concise Chinese plan with goal, key steps and important risks, then ask for one Send confirmation. Do not show only packet/file size."
+      "expected": "Show a concise Chinese plan with goal, key steps and important risks, verify packet safety and ego-browser preflight gates pass, then automatically send exactly once without asking for user confirmation. Do not show only packet/file size."
     },
     {
-      "id": "sol-revise-no-repeat-confirmation",
-      "setup": "The user already confirmed round 1 and Sol High returns REVISE without any user decision requirement.",
-      "expected": "Codex applies Adopt/Reject/Modify and continues the next review round automatically in the same verified conversation without asking for Send confirmation again."
+      "id": "sol-revise-no-confirmation",
+      "setup": "Round 1 was automatically sent after preflight, and Sol High returns REVISE without any user decision requirement.",
+      "expected": "Codex applies Adopt/Reject/Modify and continues the next review round automatically in the same verified conversation without asking for Send confirmation."
     },
     {
       "id": "sol-final-plan-visible-no-confirm",
@@ -103,14 +103,19 @@
       "expected": "resources/ego-browser-runbook.md authoritatively governs transport selection and operations; sol-high-plan-review supplies packet/verdict semantics only and cannot override transport."
     },
     {
+      "id": "sol-interaction-authority-precedence",
+      "setup": "The workflow pairs with external sol-high-plan-review skill for Sol High plan review.",
+      "expected": "Plugin kernel and entrypoint authoritatively govern interaction and send policy; sol-high-plan-review supplies packet structure and verdict semantics only and cannot reintroduce a manual confirmation gate."
+    },
+    {
       "id": "sol-send-duplicate-safety-unknown",
       "setup": "During Sol High plan review, the send operation result is ambiguous and recorded as UNKNOWN.",
-      "expected": "Never resend automatically. Poll and inspect the same conversation via snapshotText to determine if packet was received before proceeding."
+      "expected": "Transition state machine NOT_SENT -> UNKNOWN. UNKNOWN is terminal with no retry transition; never automatically resend. Poll and inspect the same conversation via snapshotText to determine if packet was received."
     },
     {
       "id": "sol-pre-send-three-failure-states",
-      "setup": "Pre-send verification detects missing login, user controlling the task space, or model/reasoning mismatch.",
-      "expected": "Handle as distinct failure states: hand off on missing auth, hard stop without takeover on user control, and hard stop without silent substitution on model/reasoning mismatch."
+      "setup": "Pre-send verification detects credential findings, missing login, user controlling the task space, or model/reasoning mismatch.",
+      "expected": "Handle as distinct failure states: hard stop on credential findings, hand off on missing auth, hard stop without takeover on user control, and hard stop without silent substitution on model/reasoning mismatch."
     },
     {
       "id": "closeout-remains-required",

@@ -18,7 +18,7 @@ INTAKE
 → SHAPE
 → SPEC
 → SLICE
-→ SOL HIGH PLAN REVIEW      # 中文发送前计划 + 一次确认；max 3 rounds
+→ SOL HIGH PLAN REVIEW      # 中文发送前计划 + 预检通过后自动发送；max 3 rounds
 → PLAN FROZEN               # 中文最终计划展示；无需再次确认
 → BASELINE
 → AGY BUILD                 # Herdr only
@@ -122,11 +122,32 @@ Before the **first** Send, Codex must show a concise Chinese summary of the plan
 - <真正重要的风险；没有可省略>
 ```
 
-The summary must be Chinese, concise, and focused on what Codex plans to do. Do not substitute packet size, character count, filenames, or attachment size for the actual plan content.
+The summary must be Chinese, concise, and focused on what Codex plans to do. Do not substitute packet size, character count, filenames, or attachment size for the actual plan content. The concise preview is semantically faithful to the same frozen executable plan, while the full packet may include review metadata, sentinels, acceptance criteria, and contract wrappers.
 
-Ask the user to confirm the **first Send once**. After that confirmation, later `REVISE` rounds continue automatically in the same verified conversation after Codex applies `Adopt / Reject / Modify`. Do not repeatedly ask for Send confirmation.
+**Authority Precedence**: The plugin kernel (`SKILL.md`) and entrypoint authoritatively own interaction and send policy. The paired `sol-high-plan-review` skill supplies only packet structure, model/reasoning requirements, and verdict semantics; it cannot reintroduce a manual confirmation gate or override transport.
 
-Only return to the user during the review loop for `USER_DECISION_REQUIRED`, a real one-way/product/architecture decision, authentication handoff, `UNKNOWN` Send state, or another genuine blocker.
+Do **not** ask the user to confirm the Send. After displaying the preview, Codex automatically runs packet safety checks (verifying no credential-like findings or secrets exist in the packet) and ego-browser preflight gates (verifying dependency check passes, isolated task space is ready, ChatGPT tab is open, and visible `GPT-5.6 Sol` + `High` reasoning is selected). When all preflight gates pass, send the packet automatically exactly once.
+
+Send state machine:
+
+```text
+NOT_SENT → SENT | UNKNOWN
+```
+
+- `SENT` requires visible same-conversation evidence that the packet was received and assistant generation started.
+- `UNKNOWN` is terminal and has no retry transition. Never resend automatically. If the result around Send is ambiguous, inspect the same conversation via `snapshotText()`. If still unresolved, treat `UNKNOWN` as a hard stop and report to the user without resending.
+
+Preserve hard stops before and during review:
+- Credential-like packet findings (e.g. tokens, secrets, credentials)
+- `AUTH_REQUIRED` (ChatGPT login / auth missing; hand off to user via `handOffTaskSpace`)
+- `USER_CONTROLLING` (control conflict; do not takeover without explicit user instruction)
+- `MODEL_MISMATCH` (missing `GPT-5.6 Sol` or reasoning depth != `High`; never silently substitute)
+- `USER_DECISION_REQUIRED` (Sol requests product/architecture decision)
+- Any other genuine blocker.
+
+Later `REVISE` rounds continue automatically in the same verified conversation after Codex applies `Adopt / Reject / Modify`. Do not ask for Send confirmation.
+
+Only return to the user during the review loop for `USER_DECISION_REQUIRED`, a real one-way/product/architecture decision, authentication handoff, terminal `UNKNOWN` Send state, or another genuine blocker.
 
 Maximum review rounds: `3`. Stop early on PASS or non-blocking notes. `USER_DECISION_REQUIRED` or blocking round 3 returns to the user. Never start round 4. See `resources/sol-plan-review.md`.
 

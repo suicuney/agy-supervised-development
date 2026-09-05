@@ -10,11 +10,18 @@ All notable changes to this Skill are documented here.
 - Added `resources/ego-browser-runbook.md` establishing the task space execution process: isolated context via `useOrCreateTaskSpace`, tab management with `openOrReuseTab`, semantic observation via `snapshotText`, visible `GPT-5.6 Sol` + `High` verification, single Send with duplicate-send safety, polling/reading the same conversation, three distinct pre-send failure states (auth missing, control conflict, model mismatch), user handoff/takeover protocol, and dedicated `completeTaskSpace` cleanup.
 - Stated transport authority boundary explicitly: `resources/ego-browser-runbook.md` authoritatively governs transport selection and operations; the external `sol-high-plan-review` skill supplies packet/verdict semantics and cannot override transport.
 - Added deterministic documentation and evaluation assertions for transport precedence, runbook references, stale active Chrome transport terms, duplicate-send safety, and pre-send failure states.
-- Before the first Sol High browser Send, Codex now shows a concise **Chinese plan summary** with the task goal, key plan steps, and important risks instead of exposing only packet/file size metadata.
-- The user confirms the **first Send once**. Later `REVISE` rounds continue automatically in the same verified Sol conversation after Codex applies `Adopt / Reject / Modify`; repeated per-round Send confirmation was removed.
+- Earlier v3.3 iterations established the concise **Chinese plan summary** before the first Sol High browser Send, with the task goal, key plan steps, and important risks instead of packet/file size metadata.
+- Earlier v3.3 iterations used a one-time **first Send confirmation**; the current automatic-send policy supersedes that gate. Later `REVISE` rounds continue automatically in the same verified Sol conversation after Codex applies `Adopt / Reject / Modify`.
 - After Sol review converges, Codex now shows a concise **Chinese final execution plan** and key review adjustments, then records `PLAN FROZEN` and continues automatically without a second confirmation.
-- Added semantic evals and documentation validators for pre-send Chinese plan visibility, single confirmation, automatic revise rounds, and final-plan visibility.
+- Added semantic evals and documentation validators for pre-send Chinese plan visibility, automatic revise rounds, and final-plan visibility.
 - Updated the paired `sol-high-plan-review` Skill contract so the browser-review layer follows the same interaction model.
+- **Automatic Sol Send After Fail-Closed Preflight**:
+  - Removed human Send confirmation requirement for Sol High plan review. The concise Chinese plan preview (`目标 / 计划 / 重点风险`) remains visible, but after fail-closed preflight gates pass (packet safety, ego-browser readiness, `GPT-5.6 Sol` + `High`), the first Sol packet is sent automatically exactly once.
+  - Clarified plan semantic faithfulness: the concise Chinese preview faithfully reflects the executable plan, while the full packet wraps it with review metadata, sentinels, and acceptance criteria.
+  - Established authority precedence: plugin kernel (`SKILL.md`) and entrypoint (`skills/agy-supervised-development/SKILL.md`) authoritatively govern interaction and send policy; paired `sol-high-plan-review` cannot reintroduce a manual confirmation gate.
+  - Explicit send state machine: `NOT_SENT → SENT | UNKNOWN`, where `SENT` requires visible same-conversation evidence, and `UNKNOWN` is terminal with no retry transition (never automatically resend).
+  - Preserved fail-closed hard stops: credential-like packet findings, `AUTH_REQUIRED`, `USER_CONTROLLING`, `MODEL_MISMATCH`, and `USER_DECISION_REQUIRED`.
+  - Updated validators and evals for automatic-send-after-preflight, authority precedence, explicit state machine, and scanned active workflow surfaces to eliminate stale first-Send confirmation wording.
 
 ## [3.3.0-alpha.1] - 2026-09-04
 

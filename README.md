@@ -33,7 +33,7 @@ SIZE
 
 ## 计划评审时你会看到什么
 
-发送给网页版 GPT 前，只展示一份简洁中文计划：
+发送给网页版 GPT 前，展示一份简洁中文计划预览：
 
 ```text
 【准备发送给 Sol High 的计划】
@@ -50,9 +50,11 @@ SIZE
 - 真正需要注意的风险
 ```
 
-这时只确认**一次**是否发送。
+展示中文计划预览后，**不要求用户确认发送**。在完成数据包安全检查（无凭据泄露）与 ego-browser 预检（`GPT-5.6 Sol` + `High` 推理已就绪）后，**自动发送且仅发送一次**。该简版计划与待执行的可执行计划在语义上完全一致（完整数据包仅额外包含评审元数据、sentinels、验收准则与契约包装）。
 
-第一轮已经确认后，如果 Sol High 返回 `REVISE`，Codex 会自行 `Adopt / Reject / Modify` 并继续下一轮，不会每轮重新要求确认。只有真正需要用户决定的产品/架构/one-way 问题才会打断。
+插件内核与入口统一拥有交互与发送策略；配套的 `sol-high-plan-review` Skill 仅提供数据包结构与结论语义，不可重新引入人工确认门禁。
+
+发送后，如果 Sol High 返回 `REVISE`，Codex 会自行 `Adopt / Reject / Modify` 并在同一会话中自动继续下一轮，不要求确认。只有真正需要用户决定的产品/架构/one-way 问题、`AUTH_REQUIRED` 登录交接、`USER_CONTROLLING` 冲突、`MODEL_MISMATCH` 或终态 `UNKNOWN` 等真实 blocker 才会打断。
 
 评审收敛后，再展示一份中文最终计划：
 
@@ -175,18 +177,21 @@ Antigravity integration 会在首个 prompt 后报告 native conversation identi
 
 ```text
 Codex Executable Plan
-→ 中文简版计划
-→ 用户确认一次
+→ 中文简版计划预览
+→ 预检通过后自动发送（不要求确认）
 → ego-browser / ego-lite (resources/ego-browser-runbook.md)
 → ChatGPT Web
 → GPT-5.6 Sol + High
 → Sol Review
 → Codex Adopt / Reject / Modify
+→ 必要时自动下一轮
 → 中文最终计划
 → PLAN FROZEN
 ```
 
-`resources/ego-browser-runbook.md` 拥有浏览器 transport 选型与执行权；独立的 `sol-high-plan-review` Skill 仅提供数据包与结论语义，不可覆盖 transport。
+`resources/ego-browser-runbook.md` 拥有浏览器 transport 选型与执行权；独立的 `sol-high-plan-review` Skill 仅提供数据包与结论语义，不可覆盖 transport，亦不可重新引入人工确认门禁。
+
+发送状态机遵循 `NOT_SENT → SENT | UNKNOWN`，`SENT` 需同会话可见证据，`UNKNOWN` 为终态且无重试跃迁（禁止自动重发）。
 
 最多 3 轮；`PLAN FROZEN` 后 Sol High 立即退出任务。
 
@@ -228,7 +233,7 @@ browser runtime when applicable
 
 ```text
 1. Sol dependency = COMPLETE（除非用户明确跳过 Sol review）
-2. 首轮 Sol Send 前 = 中文简版计划 + 一次确认
+2. 首轮 Sol Send 前 = 中文简版计划，预检通过后自动发送（不要求确认）
 3. 后续 REVISE = 自动继续，不重复确认
 4. Sol 收敛后 = 中文最终计划，只展示不确认
 5. Herdr preflight = HERDR_READY
@@ -290,7 +295,7 @@ scripts/test-readiness.sh
 一个 Writer
 一个 Plan Owner
 一个 AGY Runtime：Herdr
-Sol 首轮发送只确认一次
+预检通过后自动发送 Sol，不要求确认
 最终计划必须中文可见
 Herdr 管运行，不管结论
 Sol 只评方案

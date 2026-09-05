@@ -8,8 +8,8 @@
 Small task stays compact
 Real user decision is not guessed
 Sol High plan review defaults on
-First Sol Send shows a concise Chinese plan
-First Sol Send asks for confirmation once
+First Sol Send shows a concise Chinese plan preview
+First Sol Send executes automatically after preflight without confirmation
 Later REVISE rounds do not repeat confirmation
 Final reviewed plan is shown in Chinese without a second confirmation
 Explicit user opt-out skips Sol review
@@ -26,8 +26,9 @@ Three-Axis verdicts remain independent
 Verification failure returns to Rework + full Review
 ego-browser / ego-lite remains Codex-owned verification tooling and sole browser transport
 Transport precedence belongs to resources/ego-browser-runbook.md
-Duplicate-send safety prevents automatic resend from UNKNOWN
-Three pre-send failure states (auth, control conflict, model mismatch) trigger explicit handling
+Interaction and send authority belongs to plugin kernel and entrypoint
+Send state machine uses NOT_SENT -> SENT | UNKNOWN with terminal UNKNOWN and duplicate-send safety
+Pre-send hard stops (credentials, auth, control conflict, model mismatch) trigger fail-closed handling
 Closeout remains required before ACCEPTED
 Baseline evidence is captured before AGY writes
 ```
@@ -38,7 +39,7 @@ Baseline evidence is captured before AGY writes
 一条核心边界一个场景
 Deterministic validators 检查机器契约
 Semantic evals 检查 Agent 行为
-用户只在第一轮 Sol Send 前确认一次
+预检通过后首轮 Sol 自动发送且不请求确认
 最终计划必须中文可见
 Herdr 管运行，不管结论
 ```
@@ -48,7 +49,7 @@ Herdr 管运行，不管结论
 ```text
 workflow transition correct
 + plan ownership remains Codex-owned
-+ first Sol Send is informed and confirmed once
++ first Sol Send shows concise Chinese plan preview and sends automatically after preflight without confirmation
 + later Sol rounds do not repeatedly interrupt the user
 + final reviewed plan is visible before PLAN FROZEN
 + Sol High exits after PLAN FROZEN
