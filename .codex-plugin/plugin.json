@@ -1,7 +1,7 @@
 {
   "name": "agy-supervised-development",
-  "version": "3.3.0-alpha.1",
-  "description": "Codex-governed development with Sol High pre-plan review, Herdr as the sole AGY runtime, AGY as the primary writer, and Git-backed independent verification.",
+  "version": "3.3.0-alpha.2",
+  "description": "Codex-governed development with visible Chinese Sol plan summaries, Herdr as the sole AGY runtime, AGY as the primary writer, and Git-backed independent verification.",
   "author": {
     "name": "suicuney"
   },
@@ -21,11 +21,12 @@
   "interface": {
     "displayName": "AGY Supervised Development",
     "shortDescription": "Codex governs; Herdr runs; AGY builds; Git proves.",
-    "longDescription": "A serial supervised-development workflow. Codex owns Shape/Spec/Slice and the executable plan; GPT-5.6 Sol High may review that plan before PLAN FROZEN; every AGY execution then runs through Herdr; Codex independently reviews and verifies repository/runtime evidence before acceptance.",
+    "longDescription": "A serial supervised-development workflow. Codex owns Shape/Spec/Slice and the executable plan; before the first GPT-5.6 Sol High review Send it shows a concise Chinese plan and asks once; after review convergence it shows the final Chinese plan and continues automatically; every AGY execution then runs through Herdr; Codex independently reviews and verifies repository/runtime evidence before acceptance.",
     "developerName": "suicuney",
     "category": "Productivity",
     "capabilities": [
       "Shape, specify, and slice executable plans",
+      "Show concise Chinese plans before and after Sol High review",
       "Review executable plans with GPT-5.6 Sol High before implementation",
       "Run every AGY writer through Herdr",
       "Preserve Antigravity session identity through Herdr integration",
@@ -33,6 +34,6 @@
       "Use Chrome DevTools MCP for applicable browser runtime verification",
       "Perform knowledge closeout"
     ],
-    "defaultPrompt": "Use AGY Supervised Development. Build a Codex-owned executable plan, use the default Sol High plan review gate unless I explicitly opt out, freeze the plan, then run AGY only through Herdr and keep all review, verification, and acceptance Codex-owned."
+    "defaultPrompt": "Use AGY Supervised Development. Build a Codex-owned executable plan, show me a concise Chinese plan before the first Sol High Send and ask once, let later review rounds converge without repeated confirmation, show the final Chinese plan after review, freeze it, then run AGY only through Herdr and keep all review, verification, and acceptance Codex-owned."
   }
 }
