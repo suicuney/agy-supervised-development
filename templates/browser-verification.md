@@ -6,7 +6,7 @@ Use only when Browser Runtime Verification is applicable and enabled/auto-select
 
 ```text
 Applicability: YES / N/A
-Provider: Chrome DevTools MCP / fallback
+Provider: ego-browser / ego-lite (resources/ego-browser-runbook.md)
 Mode: enabled / auto
 Diagnosis: allowed / disallowed
 Final Verification: required / optional

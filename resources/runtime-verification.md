@@ -1,6 +1,6 @@
 # Runtime Verification — Browser Capability
 
-Browser runtime verification is an optional **Codex-owned** capability. It does not change the core workflow and Chrome DevTools MCP never becomes part of the AGY writer runtime.
+Browser runtime verification is an optional **Codex-owned** capability. It does not change the core workflow and ego-browser / ego-lite never becomes part of the AGY writer runtime.
 
 ## Applicability
 
@@ -11,7 +11,7 @@ Web UI / routing / forms
 authentication or browser session behavior
 frontend ↔ backend integration
 browser storage or cookies
-Chrome Extension
+browser extension
 console/runtime JavaScript errors
 browser-observable network failures
 browser performance requirements
@@ -19,7 +19,7 @@ browser performance requirements
 
 Pure backend, CLI, SQL, batch, library, or JVM-only work is normally `N/A` unless the acceptance path explicitly requires a browser.
 
-Do not ask about Chrome DevTools MCP mechanically for every task.
+Do not ask about ego-browser mechanically for every task.
 
 ## Capability Negotiation
 
@@ -31,7 +31,7 @@ Disable
 Auto-decide
 ```
 
-Keep the question short. Do not turn it into MCP configuration setup.
+Keep the question short. Do not turn it into browser configuration setup.
 
 Preference order:
 
@@ -57,14 +57,14 @@ Persist a project preference only when the user explicitly asks to remember it.
 ```text
 AGY = Primary Writer
 Codex = Reviewer / QA / Runtime Verifier / Acceptance Authority
-Chrome DevTools MCP = optional Codex verification adapter
+ego-browser / ego-lite = optional Codex verification adapter (see resources/ego-browser-runbook.md)
 ```
 
 AGY may receive browser findings through a Rework Contract, but AGY's own browser self-check never replaces Codex Independent Verification.
 
 ## Two Hooks
 
-Chrome DevTools MCP has only two workflow hooks:
+ego-browser / ego-lite has only two workflow hooks:
 
 ```text
 Complex browser bug
@@ -106,7 +106,7 @@ Do not skip renewed Review because the browser journey becomes green.
 
 ## Provider Unavailable
 
-If Chrome DevTools MCP is unavailable:
+If ego-browser / ego-lite is unavailable:
 
 ```text
 record TOOL_UNAVAILABLE

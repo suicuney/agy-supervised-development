@@ -177,7 +177,7 @@ Antigravity integration 会在首个 prompt 后报告 native conversation identi
 Codex Executable Plan
 → 中文简版计划
 → 用户确认一次
-→ Chrome DevTools MCP
+→ ego-browser / ego-lite (resources/ego-browser-runbook.md)
 → ChatGPT Web
 → GPT-5.6 Sol + High
 → Sol Review
@@ -185,6 +185,8 @@ Codex Executable Plan
 → 中文最终计划
 → PLAN FROZEN
 ```
+
+`resources/ego-browser-runbook.md` 拥有浏览器 transport 选型与执行权；独立的 `sol-high-plan-review` Skill 仅提供数据包与结论语义，不可覆盖 transport。
 
 最多 3 轮；`PLAN FROZEN` 后 Sol High 立即退出任务。
 
@@ -220,7 +222,7 @@ original repro
 browser runtime when applicable
 ```
 
-对于 browser-facing 任务，Chrome DevTools MCP 仍是 Codex-owned runtime verification adapter。
+对于 browser-facing 任务，ego-browser / ego-lite 仍是 Codex-owned runtime verification adapter（操作规范遵循 `resources/ego-browser-runbook.md`）。
 
 ## 运行前快速清单
 
@@ -253,6 +255,7 @@ resources/
 ├── execution-slicing.md
 ├── sol-plan-review.md
 ├── sol-plan-review-manifest.json
+├── ego-browser-runbook.md
 ├── agy-execution.md
 ├── failure-modes.md
 ├── bugfix-workflow.md

@@ -15,7 +15,7 @@
     {
       "id": "sol-review-default-on",
       "setup": "Codex has completed Shape/Spec/Slice and the user did not opt out of plan review.",
-      "expected": "Use sol-high-plan-review through Chrome DevTools MCP before PLAN FROZEN."
+      "expected": "Use sol-high-plan-review through ego-browser / ego-lite following resources/ego-browser-runbook.md before PLAN FROZEN."
     },
     {
       "id": "sol-first-send-chinese-plan-once",
@@ -93,9 +93,24 @@
       "expected": "Create V* finding, send bounded Rework to the same Herdr-managed AGY, run full Three-Axis Review again, then Verify again."
     },
     {
-      "id": "browser-runtime-mcp-is-codex-owned",
+      "id": "browser-runtime-ego-is-codex-owned",
       "setup": "A browser-facing task requires runtime verification after Review PASS.",
-      "expected": "Codex may use Chrome DevTools MCP for runtime evidence; it is not an AGY writer dependency."
+      "expected": "Codex may use ego-browser / ego-lite for runtime evidence following resources/ego-browser-runbook.md; it is not an AGY writer dependency."
+    },
+    {
+      "id": "browser-transport-precedence-runbook",
+      "setup": "Sol High plan review requires a browser transport while paired with external sol-high-plan-review skill.",
+      "expected": "resources/ego-browser-runbook.md authoritatively governs transport selection and operations; sol-high-plan-review supplies packet/verdict semantics only and cannot override transport."
+    },
+    {
+      "id": "sol-send-duplicate-safety-unknown",
+      "setup": "During Sol High plan review, the send operation result is ambiguous and recorded as UNKNOWN.",
+      "expected": "Never resend automatically. Poll and inspect the same conversation via snapshotText to determine if packet was received before proceeding."
+    },
+    {
+      "id": "sol-pre-send-three-failure-states",
+      "setup": "Pre-send verification detects missing login, user controlling the task space, or model/reasoning mismatch.",
+      "expected": "Handle as distinct failure states: hand off on missing auth, hard stop without takeover on user control, and hard stop without silent substitution on model/reasoning mismatch."
     },
     {
       "id": "closeout-remains-required",

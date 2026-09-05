@@ -6,6 +6,10 @@ All notable changes to this Skill are documented here.
 
 ### Changed
 
+- Replaced Chrome DevTools MCP with **ego-browser / ego-lite** as the sole documented browser transport for Codex-owned Sol High plan review and optional browser runtime verification.
+- Added `resources/ego-browser-runbook.md` establishing the task space execution process: isolated context via `useOrCreateTaskSpace`, tab management with `openOrReuseTab`, semantic observation via `snapshotText`, visible `GPT-5.6 Sol` + `High` verification, single Send with duplicate-send safety, polling/reading the same conversation, three distinct pre-send failure states (auth missing, control conflict, model mismatch), user handoff/takeover protocol, and dedicated `completeTaskSpace` cleanup.
+- Stated transport authority boundary explicitly: `resources/ego-browser-runbook.md` authoritatively governs transport selection and operations; the external `sol-high-plan-review` skill supplies packet/verdict semantics and cannot override transport.
+- Added deterministic documentation and evaluation assertions for transport precedence, runbook references, stale active Chrome transport terms, duplicate-send safety, and pre-send failure states.
 - Before the first Sol High browser Send, Codex now shows a concise **Chinese plan summary** with the task goal, key plan steps, and important risks instead of exposing only packet/file size metadata.
 - The user confirms the **first Send once**. Later `REVISE` rounds continue automatically in the same verified Sol conversation after Codex applies `Adopt / Reject / Modify`; repeated per-round Send confirmation was removed.
 - After Sol review converges, Codex now shows a concise **Chinese final execution plan** and key review adjustments, then records `PLAN FROZEN` and continues automatically without a second confirmation.

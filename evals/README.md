@@ -24,7 +24,10 @@ Herdr done/idle is not Review PASS
 Native session restore failure never guesses another conversation
 Three-Axis verdicts remain independent
 Verification failure returns to Rework + full Review
-Chrome DevTools MCP remains Codex-owned verification tooling
+ego-browser / ego-lite remains Codex-owned verification tooling and sole browser transport
+Transport precedence belongs to resources/ego-browser-runbook.md
+Duplicate-send safety prevents automatic resend from UNKNOWN
+Three pre-send failure states (auth, control conflict, model mismatch) trigger explicit handling
 Closeout remains required before ACCEPTED
 Baseline evidence is captured before AGY writes
 ```

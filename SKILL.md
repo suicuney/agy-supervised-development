@@ -48,7 +48,7 @@ AGY      = primary writer
 Git      = repository source of truth
 ```
 
-Chrome DevTools MCP remains Codex-owned. It may transport Sol High plan review before freeze and provide browser-runtime verification after implementation, but it never owns workflow decisions.
+ego-browser / ego-lite remains Codex-owned. It serves as the sole browser transport for Sol High plan review before freeze and optional browser-runtime verification after implementation, but it never owns workflow decisions. Browser operations are governed strictly by `resources/ego-browser-runbook.md`.
 
 ## Non-Negotiable Boundaries
 
@@ -97,7 +97,7 @@ Prefer small, complete, independently reviewable units. Normal behavior change u
 
 ## 6. SOL HIGH PLAN REVIEW
 
-Plan Review is enabled by default unless the user explicitly opts out. Codex sends the executable plan through the installed `sol-high-plan-review` Skill using Chrome DevTools MCP to ChatGPT Web with GPT-5.6 Sol + High reasoning.
+Plan Review is enabled by default unless the user explicitly opts out. Codex sends the executable plan through the installed `sol-high-plan-review` Skill using the ego-browser / ego-lite transport (guided by `resources/ego-browser-runbook.md`) to ChatGPT Web with GPT-5.6 Sol + High reasoning.
 
 Before browser work:
 
@@ -291,6 +291,7 @@ shaping
 spec-contract
 execution-slicing
 sol-plan-review
+ego-browser-runbook
 agy-execution
 failure-modes
 bugfix-workflow

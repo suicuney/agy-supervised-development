@@ -32,13 +32,13 @@ SIZE
 3. Before the first Sol High Send, show a concise Chinese plan summary (`目标 / 计划 / 重点风险`) and ask for one confirmation only.
 4. After the first Send is confirmed, later `REVISE` rounds continue automatically unless Sol returns `USER_DECISION_REQUIRED` or another genuine blocker occurs.
 5. When Sol review converges, show the concise Chinese final execution plan, do not ask for a second confirmation, record `PLAN FROZEN`, and continue.
-6. Run `../../scripts/check-sol-plan-review.sh` before Sol browser work and use `../../resources/sol-plan-review.md` for the review loop. Maximum three rounds.
+6. Run `../../scripts/check-sol-plan-review.sh` before Sol browser work and use `../../resources/sol-plan-review.md` and `../../resources/ego-browser-runbook.md` for the review loop. ego-browser / ego-lite is the sole browser transport. Maximum three rounds.
 7. `PLAN FROZEN` is a hard boundary: Sol High never participates in Build, Review, Rework, Verification, Closeout or Acceptance.
 8. Every AGY invocation in this workflow must be Herdr-managed. Run `../../scripts/check-herdr.sh` before AGY BUILD.
 9. Use `../../resources/agy-execution.md` for workspace creation, returned pane identity, `--kind agy`, prompt/wait/read, blocked interaction and native session restore boundaries.
 10. Herdr lifecycle state is runtime evidence only. `done` or `idle` never bypasses repository Review.
 11. Rework reuses the same Herdr-managed AGY worker while its exact session remains valid.
-12. Use `../../resources/review-gates.md` for Three-Axis Review and `../../resources/runtime-verification.md` for browser runtime verification when applicable.
+12. Use `../../resources/review-gates.md` for Three-Axis Review and `../../resources/runtime-verification.md` together with `../../resources/ego-browser-runbook.md` for browser runtime verification when applicable.
 13. Run `../../scripts/test-readiness.sh` when local execution is available before treating the plugin as release-ready.
 
 ## Runtime Boundary

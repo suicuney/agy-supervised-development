@@ -5,7 +5,7 @@ Use this gate only before implementation.
 ```text
 Codex = Plan Owner
 Sol High = Independent Plan Reviewer
-Chrome DevTools MCP / approved Chrome session = Browser Transport
+ego-browser / ego-lite = Sole Browser Transport
 User = Product / One-way Decision Authority
 ```
 
@@ -59,7 +59,7 @@ Risks / One-way Decisions
 Codex Local Judgment
 ```
 
-Use the installed `sol-high-plan-review` Skill for packet and browser details.
+Use the installed `sol-high-plan-review` Skill for packet format, verdict parsing, and model-truth expectations. Transport selection and browser operations are governed strictly by `resources/ego-browser-runbook.md`; the paired skill cannot override transport.
 
 ## 用户可见计划
 
@@ -106,16 +106,24 @@ Send 状态 UNKNOWN
 
 ## Browser Runbook
 
-Use the approved Chrome browser surface and keep the semantic contract in the installed `sol-high-plan-review` Skill.
+All browser operations use `ego-browser` / `ego-lite` following `resources/ego-browser-runbook.md`.
 
-Before Send, verify visible state:
-
-```text
-Model family = GPT-5.6 Sol
-Reasoning     = High
-```
-
-Do not silently switch to another browser, model, reasoning level, or transport.
+The execution flow uses:
+1. Isolated task space (`useOrCreateTaskSpace`) reusing `task.id`.
+2. Exact tab selection (`openOrReuseTab`, `listTabs`, `switchTab`).
+3. Semantic observation with `snapshotText()` before consequential actions.
+4. Pre-send verification of visible state:
+   ```text
+   Model family = GPT-5.6 Sol
+   Reasoning     = High
+   ```
+5. Inspection for three pre-send failure states:
+   - Login / auth missing (`AUTH_REQUIRED`): hand off to user with `handOffTaskSpace`.
+   - Control conflict (`USER_CONTROLLING`): hard stop, wait for user confirmation before `takeOverTaskSpace`.
+   - Model / reasoning mismatch (`MODEL_MISMATCH`): hard stop, do not silently substitute.
+6. Single Send with duplicate-send safety (never resend automatically from `UNKNOWN`).
+7. Polling and reading in the same conversation.
+8. Dedicated task space cleanup with `completeTaskSpace(task.id, { keep: false })`.
 
 ## Packet and Send State
 
@@ -126,7 +134,7 @@ NOT_SENT → SENT
 NOT_SENT → UNKNOWN
 ```
 
-If the result around Send is ambiguous, keep `UNKNOWN` terminal until the same conversation visibly proves whether it was sent. Never resend automatically.
+If the result around Send is ambiguous, keep `UNKNOWN` terminal until the same conversation visibly proves whether it was sent. Never resend automatically (duplicate-send safety).
 
 After Send, wait for assistant generation to finish, then read the same conversation. A review is complete only when the required sentinel is present and the response contains exactly one of `PASS`, `REVISE`, or `USER_DECISION_REQUIRED`.
 
@@ -190,6 +198,6 @@ After freeze, implementation and runtime evidence—not another model opinion—
 
 ## Failure
 
-If Chrome DevTools MCP, ChatGPT login, GPT-5.6 Sol, or High is unavailable, do not silently substitute another model or transport.
+If ego-browser / ego-lite, ChatGPT login, GPT-5.6 Sol, or High is unavailable, do not silently substitute another model or transport.
 
 Report the capability failure. The user may fix the capability or explicitly disable plan review for the task.
