@@ -1,6 +1,6 @@
 # AGY Supervised Development 3.3
 
-当前开发版本：**3.3.0-alpha.1**
+当前开发版本：**3.3.0-alpha.2**
 
 一个串行、单 Writer、Herdr-only 的监督式开发插件：
 
@@ -30,6 +30,56 @@ SIZE
 → CLOSEOUT
 → ACCEPTED
 ```
+
+## 计划评审时你会看到什么
+
+发送给网页版 GPT 前，只展示一份简洁中文计划：
+
+```text
+【准备发送给 Sol High 的计划】
+
+目标
+- 这次要完成什么
+
+计划
+1. 关键步骤
+2. 关键步骤
+3. 关键步骤
+
+重点风险
+- 真正需要注意的风险
+```
+
+这时只确认**一次**是否发送。
+
+第一轮已经确认后，如果 Sol High 返回 `REVISE`，Codex 会自行 `Adopt / Reject / Modify` 并继续下一轮，不会每轮重新要求确认。只有真正需要用户决定的产品/架构/one-way 问题才会打断。
+
+评审收敛后，再展示一份中文最终计划：
+
+```text
+【最终执行计划】
+
+Sol High 评审：PASS / 已收敛
+评审轮次：2
+
+最终计划
+1. ...
+2. ...
+3. ...
+
+评审后的主要调整
+- ...
+```
+
+这里只展示，不再次确认。随后自动：
+
+```text
+PLAN FROZEN
+→ BASELINE
+→ AGY BUILD
+```
+
+不会再用 packet 字符数、文件大小或附件大小代替真正的计划内容。
 
 ## 3.3 的核心变化
 
@@ -125,11 +175,15 @@ Antigravity integration 会在首个 prompt 后报告 native conversation identi
 
 ```text
 Codex Executable Plan
+→ 中文简版计划
+→ 用户确认一次
 → Chrome DevTools MCP
 → ChatGPT Web
 → GPT-5.6 Sol + High
 → Sol Review
 → Codex Adopt / Reject / Modify
+→ 中文最终计划
+→ PLAN FROZEN
 ```
 
 最多 3 轮；`PLAN FROZEN` 后 Sol High 立即退出任务。
@@ -172,15 +226,18 @@ browser runtime when applicable
 
 ```text
 1. Sol dependency = COMPLETE（除非用户明确跳过 Sol review）
-2. Herdr preflight = HERDR_READY
-3. PLAN FROZEN before AGY writes
-4. Baseline captured before AGY writes
-5. Herdr workspace cwd = repo_root
-6. pane ID = Herdr create response, never guessed
-7. AGY launched with --kind agy
-8. blocked → read before interaction
-9. Herdr done/idle = runtime evidence only
-10. Git + Codex Review + independent Verify = delivery evidence
+2. 首轮 Sol Send 前 = 中文简版计划 + 一次确认
+3. 后续 REVISE = 自动继续，不重复确认
+4. Sol 收敛后 = 中文最终计划，只展示不确认
+5. Herdr preflight = HERDR_READY
+6. PLAN FROZEN before AGY writes
+7. Baseline captured before AGY writes
+8. Herdr workspace cwd = repo_root
+9. pane ID = Herdr create response, never guessed
+10. AGY launched with --kind agy
+11. blocked → read before interaction
+12. Herdr done/idle = runtime evidence only
+13. Git + Codex Review + independent Verify = delivery evidence
 ```
 
 ## Active Structure
@@ -230,6 +287,8 @@ scripts/test-readiness.sh
 一个 Writer
 一个 Plan Owner
 一个 AGY Runtime：Herdr
+Sol 首轮发送只确认一次
+最终计划必须中文可见
 Herdr 管运行，不管结论
 Sol 只评方案
 Git 是 repository truth
