@@ -1,7 +1,7 @@
 ---
 name: agy-supervised-development
 description: Pluginized entrypoint for AGY Supervised Development v3.3. Codex owns the plan and acceptance; Herdr is the only AGY runtime; AGY implements bounded work; Git and independent verification prove delivery.
-version: 3.3.0-alpha.1
+version: 3.3.0-alpha.2
 ---
 
 # AGY Supervised Development 3.3
@@ -29,14 +29,17 @@ SIZE
 
 1. Codex is the executable-plan owner and final acceptance authority.
 2. Plan review is enabled by default unless the user explicitly opts out.
-3. Run `../../scripts/check-sol-plan-review.sh` before Sol browser work and use `../../resources/sol-plan-review.md` for the review loop. Maximum three rounds.
-4. `PLAN FROZEN` is a hard boundary: Sol High never participates in Build, Review, Rework, Verification, Closeout or Acceptance.
-5. Every AGY invocation in this workflow must be Herdr-managed. Run `../../scripts/check-herdr.sh` before AGY BUILD.
-6. Use `../../resources/agy-execution.md` for workspace creation, returned pane identity, `--kind agy`, prompt/wait/read, blocked interaction and native session restore boundaries.
-7. Herdr lifecycle state is runtime evidence only. `done` or `idle` never bypasses repository Review.
-8. Rework reuses the same Herdr-managed AGY worker while its exact session remains valid.
-9. Use `../../resources/review-gates.md` for Three-Axis Review and `../../resources/runtime-verification.md` for browser runtime verification when applicable.
-10. Run `../../scripts/test-readiness.sh` when local execution is available before treating the plugin as release-ready.
+3. Before the first Sol High Send, show a concise Chinese plan summary (`目标 / 计划 / 重点风险`) and ask for one confirmation only.
+4. After the first Send is confirmed, later `REVISE` rounds continue automatically unless Sol returns `USER_DECISION_REQUIRED` or another genuine blocker occurs.
+5. When Sol review converges, show the concise Chinese final execution plan, do not ask for a second confirmation, record `PLAN FROZEN`, and continue.
+6. Run `../../scripts/check-sol-plan-review.sh` before Sol browser work and use `../../resources/sol-plan-review.md` for the review loop. Maximum three rounds.
+7. `PLAN FROZEN` is a hard boundary: Sol High never participates in Build, Review, Rework, Verification, Closeout or Acceptance.
+8. Every AGY invocation in this workflow must be Herdr-managed. Run `../../scripts/check-herdr.sh` before AGY BUILD.
+9. Use `../../resources/agy-execution.md` for workspace creation, returned pane identity, `--kind agy`, prompt/wait/read, blocked interaction and native session restore boundaries.
+10. Herdr lifecycle state is runtime evidence only. `done` or `idle` never bypasses repository Review.
+11. Rework reuses the same Herdr-managed AGY worker while its exact session remains valid.
+12. Use `../../resources/review-gates.md` for Three-Axis Review and `../../resources/runtime-verification.md` for browser runtime verification when applicable.
+13. Run `../../scripts/test-readiness.sh` when local execution is available before treating the plugin as release-ready.
 
 ## Runtime Boundary
 
