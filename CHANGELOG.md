@@ -2,6 +2,16 @@
 
 All notable changes to this Skill are documented here.
 
+## [3.3.0-alpha.2] - 2026-09-05
+
+### Changed
+
+- Before the first Sol High browser Send, Codex now shows a concise **Chinese plan summary** with the task goal, key plan steps, and important risks instead of exposing only packet/file size metadata.
+- The user confirms the **first Send once**. Later `REVISE` rounds continue automatically in the same verified Sol conversation after Codex applies `Adopt / Reject / Modify`; repeated per-round Send confirmation was removed.
+- After Sol review converges, Codex now shows a concise **Chinese final execution plan** and key review adjustments, then records `PLAN FROZEN` and continues automatically without a second confirmation.
+- Added semantic evals and documentation validators for pre-send Chinese plan visibility, single confirmation, automatic revise rounds, and final-plan visibility.
+- Updated the paired `sol-high-plan-review` Skill contract so the browser-review layer follows the same interaction model.
+
 ## [3.3.0-alpha.1] - 2026-09-04
 
 ### Architecture
