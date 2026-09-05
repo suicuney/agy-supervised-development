@@ -1,7 +1,7 @@
 ---
 name: agy-supervised-development
 description: Codex-supervised development workflow. Codex owns the executable plan and final acceptance; Herdr is the only AGY runtime; Antigravity CLI implements bounded work; Git and independent verification prove delivery.
-version: 3.3.0-alpha.1
+version: 3.3.0-alpha.2
 ---
 
 # AGY Supervised Development 3.3
@@ -18,8 +18,8 @@ INTAKE
 → SHAPE
 → SPEC
 → SLICE
-→ SOL HIGH PLAN REVIEW      # default enabled; max 3 rounds
-→ PLAN FROZEN
+→ SOL HIGH PLAN REVIEW      # 中文发送前计划 + 一次确认；max 3 rounds
+→ PLAN FROZEN               # 中文最终计划展示；无需再次确认
 → BASELINE
 → AGY BUILD                 # Herdr only
 → THREE-AXIS REVIEW
@@ -105,11 +105,61 @@ Before browser work:
 scripts/check-sol-plan-review.sh
 ```
 
+Before the **first** Send, Codex must show a concise Chinese summary of the plan being reviewed:
+
+```text
+【准备发送给 Sol High 的计划】
+
+目标
+- <本次任务目标>
+
+计划
+1. <关键步骤>
+2. <关键步骤>
+3. <关键步骤>
+
+重点风险
+- <真正重要的风险；没有可省略>
+```
+
+The summary must be Chinese, concise, and focused on what Codex plans to do. Do not substitute packet size, character count, filenames, or attachment size for the actual plan content.
+
+Ask the user to confirm the **first Send once**. After that confirmation, later `REVISE` rounds continue automatically in the same verified conversation after Codex applies `Adopt / Reject / Modify`. Do not repeatedly ask for Send confirmation.
+
+Only return to the user during the review loop for `USER_DECISION_REQUIRED`, a real one-way/product/architecture decision, authentication handoff, `UNKNOWN` Send state, or another genuine blocker.
+
 Maximum review rounds: `3`. Stop early on PASS or non-blocking notes. `USER_DECISION_REQUIRED` or blocking round 3 returns to the user. Never start round 4. See `resources/sol-plan-review.md`.
 
 ## 7. PLAN FROZEN
 
-Codex records `PLAN FROZEN`. From then on Sol High exits the task completely.
+When Sol review converges, Codex forms the final authoritative plan and shows a concise Chinese summary before freezing:
+
+```text
+【最终执行计划】
+
+Sol High 评审：PASS | 已收敛
+评审轮次：<n>
+
+最终计划
+1. <最终执行步骤>
+2. <最终执行步骤>
+3. <最终执行步骤>
+
+评审后的主要调整
+- <有则列出；没有则写“无关键调整”>
+```
+
+This is visibility output, not another approval gate. Do **not** ask the user to confirm again when no real decision remains.
+
+Then record:
+
+```text
+PLAN FROZEN
+```
+
+and continue automatically to `BASELINE → AGY BUILD`.
+
+From `PLAN FROZEN` onward, Sol High exits the task completely.
 
 ## 8. BASELINE
 
