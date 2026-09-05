@@ -39,9 +39,7 @@ scripts/install-sol-plan-review.sh
 scripts/check-sol-plan-review.sh
 ```
 
-The installer uses a full checkout, refuses to overwrite an existing destination, prints the source revision, and retains and reports a partial destination on failure. Do not treat an incomplete install as available and do not copy the private skill into this repository.
-
-If the result is `INCOMPLETE`, keep the directory for inspection and report it; after the user confirms it is the failed installer artifact, move it aside and rerun the installer. The helper intentionally refuses to overwrite or silently delete an existing destination.
+Do not treat an incomplete install as available and do not copy the private skill into this repository.
 
 ## Input
 
@@ -63,22 +61,63 @@ Codex Local Judgment
 
 Use the installed `sol-high-plan-review` Skill for packet and browser details.
 
+## 用户可见计划
+
+在**第一轮发送给网页版 GPT 之前**，先用中文输出一份简洁计划，让用户知道这次准备评审什么。
+
+默认格式保持简单：
+
+```text
+【准备发送给 Sol High 的计划】
+
+目标
+- <这次要完成什么>
+
+计划
+1. <关键步骤>
+2. <关键步骤>
+3. <关键步骤>
+
+重点风险
+- <真正重要的风险；没有可省略>
+```
+
+要求：
+
+- 中文；
+- 言简意赅；
+- 重点说明“这次准备怎么做”；
+- 不用 packet 字符数、文件大小、附件大小代替计划内容；
+- 不需要把完整技术 packet 原样倒给用户。
+
+展示后只询问一次：是否发送给 GPT-5.6 Sol High 评审。
+
+用户确认第一轮发送后，后续 `REVISE` 轮次由 Codex 自动 `Adopt / Reject / Modify` 并继续同一会话，**不反复要求发送确认**。
+
+只有以下情况才重新打断用户：
+
+```text
+USER_DECISION_REQUIRED
+真正 one-way / product / architecture decision
+登录交接
+Send 状态 UNKNOWN
+其他真实 blocker
+```
+
 ## Browser Runbook
 
-Use the approved Chrome browser surface and keep the semantic contract in the installed `sol-high-plan-review` Skill. When the user explicitly asks for an already-open Chrome session:
+Use the approved Chrome browser surface and keep the semantic contract in the installed `sol-high-plan-review` Skill.
 
-1. Discover the current user tabs from live browser state. Do not guess tab IDs or send input to unrelated tabs.
-2. Reuse a ChatGPT tab only when its current identity is verified. Otherwise create a new ChatGPT tab in the same Chrome session; leave the user's other tabs untouched.
-3. If ChatGPT is not authenticated, stop at the login handoff and ask the user to sign in. Never inspect or export cookies, passwords, session databases, or auth tokens.
-4. Read a fresh visible snapshot before every consequential action. Open the model/reasoning menu and verify `GPT-5.6 Sol` is selected and `High` is selected; do not infer either value from a default label.
+Before Send, verify visible state:
 
-For Codex desktop, the reliable sequence is: select the Chrome browser binding → list user tabs → claim only an exact verified ChatGPT tab or create a new tab in that same browser → navigate to ChatGPT Web → snapshot after each action. A fresh unauthenticated page is a login state, not a failed model state and not permission to switch browsers.
+```text
+Model family = GPT-5.6 Sol
+Reasoning     = High
+```
 
-Record the actual browser transport, selected model, and reasoning level as part of the evidence. Do not silently switch to an in-app browser, another browser controller, another model, or another reasoning level.
+Do not silently switch to another browser, model, reasoning level, or transport.
 
 ## Packet and Send State
-
-Automate everything that does not submit externally: build the packet, run the packet-safety check, verify the model state, and fill the draft. The final browser Send remains an action-time confirmation.
 
 Track only:
 
@@ -95,61 +134,57 @@ After Send, wait for assistant generation to finish, then read the same conversa
 
 ```text
 Codex Plan
+→ 第一轮中文计划预览
+→ 用户确认一次
 → Sol High Review
 → Codex Adopt / Reject / Modify
-→ Revised Plan
-→ optional next round
+→ 必要时自动下一轮
 ```
 
-Maximum Sol review rounds:
+Maximum Sol review rounds: `3`.
+
+Stop early when the plan has converged. Non-blocking suggestions and backlog ideas do not keep the loop open.
+
+If round 3 still has unresolved blocking disagreement, stop and ask the user. Never start round 4.
+
+## 最终计划展示
+
+当 Sol Review 已经 `PASS` 或只剩 non-blocking suggestions 时，Codex 形成最终权威执行计划，并用中文输出给用户看。
+
+默认格式：
 
 ```text
-3
+【最终执行计划】
+
+Sol High 评审：PASS | 已收敛
+评审轮次：<n>
+
+最终计划
+1. <最终执行步骤>
+2. <最终执行步骤>
+3. <最终执行步骤>
+
+评审后的主要调整
+- <有关键调整则列出；没有则写“无关键调整”>
 ```
 
-Three is a limit, not a target. Stop early when the plan has converged.
+这一步只是让用户看见最终要执行什么，**不再要求确认**。
 
-Sol verdicts:
-
-```text
-PASS
-REVISE
-USER_DECISION_REQUIRED
-```
-
-Continue only when a blocking finding remains and another round can materially improve the plan.
-
-Non-blocking suggestions and backlog ideas do not keep the loop open.
-
-## User Escalation
-
-Stop the model loop immediately when a real product/architecture/compatibility/security/cost/destructive trade-off needs user authority.
-
-If round 3 still has unresolved blocking disagreement, stop and present a compact user decision brief. Never start round 4.
-
-When a round returns `REVISE`, continue the same verified conversation with a complete revised packet. Record each blocking finding as `Adopt`, `Reject`, or `Modify` before sending the next round. If the browser or connection becomes ambiguous, stop rather than opening a duplicate conversation.
-
-## Freeze Boundary
-
-When Codex records:
+输出后直接：
 
 ```text
 PLAN FROZEN
+→ BASELINE
+→ AGY BUILD
 ```
 
-Sol High exits the task.
+如果 Sol 返回 `USER_DECISION_REQUIRED`，则不能冻结，必须先让用户决定。
 
-Do not use Sol High during:
+## Freeze Boundary
 
-```text
-AGY Build
-Three-Axis Review
-Rework
-Independent Verification
-Browser Runtime Verification
-Closeout
-Acceptance
-```
+When Codex records `PLAN FROZEN`, Sol High exits the task.
+
+Do not use Sol High during AGY Build, Three-Axis Review, Rework, Independent Verification, Browser Runtime Verification, Closeout, or Acceptance.
 
 After freeze, implementation and runtime evidence—not another model opinion—drive delivery decisions.
 
@@ -158,13 +193,3 @@ After freeze, implementation and runtime evidence—not another model opinion—
 If Chrome DevTools MCP, ChatGPT login, GPT-5.6 Sol, or High is unavailable, do not silently substitute another model or transport.
 
 Report the capability failure. The user may fix the capability or explicitly disable plan review for the task.
-
-Common capability states:
-
-```text
-skill missing/incomplete → install/check before browser work
-ChatGPT unauthenticated  → user login handoff
-wrong model or reasoning → correct it and re-verify visibly
-Send state UNKNOWN        → no retry; recover the same conversation
-sentinel/verdict missing  → review failed; do not infer PASS
-```
