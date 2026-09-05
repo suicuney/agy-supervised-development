@@ -1,6 +1,6 @@
 {
   "skill": "agy-supervised-development",
-  "version": "3.3.0-alpha.1",
+  "version": "3.3.0-alpha.2",
   "cases": [
     {
       "id": "small-task-stays-compact",
@@ -16,6 +16,21 @@
       "id": "sol-review-default-on",
       "setup": "Codex has completed Shape/Spec/Slice and the user did not opt out of plan review.",
       "expected": "Use sol-high-plan-review through Chrome DevTools MCP before PLAN FROZEN."
+    },
+    {
+      "id": "sol-first-send-chinese-plan-once",
+      "setup": "Codex is ready to send round 1 of the executable plan to Sol High.",
+      "expected": "Show a concise Chinese plan with goal, key steps and important risks, then ask for one Send confirmation. Do not show only packet/file size."
+    },
+    {
+      "id": "sol-revise-no-repeat-confirmation",
+      "setup": "The user already confirmed round 1 and Sol High returns REVISE without any user decision requirement.",
+      "expected": "Codex applies Adopt/Reject/Modify and continues the next review round automatically in the same verified conversation without asking for Send confirmation again."
+    },
+    {
+      "id": "sol-final-plan-visible-no-confirm",
+      "setup": "Sol High review has converged with no unresolved user decision.",
+      "expected": "Show the concise Chinese final execution plan and main review adjustments, do not ask for a second confirmation, record PLAN FROZEN, then continue to baseline and Herdr-managed AGY."
     },
     {
       "id": "sol-review-explicit-skip",
