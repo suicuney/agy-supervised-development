@@ -1,8 +1,49 @@
-# Example: 中型功能开发（v2.1）
+# Example — Feature Development with AGY Supervised Development 3.3
 
-场景：给现有服务增加“按状态过滤”的查询能力并补测试，不改变现有默认行为。
+场景：给现有 API 增加一个可选 currency 过滤条件，并同步必要测试和文档。
 
-## 1. Codex 建立 Baseline
+## 1. Codex 建立 Shape / Spec / Slice
+
+这是一个 Medium 任务：
+
+```text
+Goal
+- GET /orders 支持可选 currency query parameter。
+
+Resolved Decisions
+- currency 省略时保持现有行为。
+- invalid currency 沿用项目已有 validation contract。
+- auth 与 pagination semantics 不变。
+
+Out of Scope
+- unrelated billing refactor。
+- 未被 Completeness 证明受影响的相邻功能。
+
+Acceptance Criteria
+- valid currency filters results。
+- omitted currency preserves old behavior。
+- invalid value follows the current contract。
+
+Test Strategy
+- Unit: required
+- Integration: required if the repository query crosses a real DB adapter
+- E2E: not-applicable if no browser-facing cross-process flow changes
+```
+
+默认 Sol High Plan Review 只审实现前的 Executable Plan：
+
+```text
+Codex Plan
+→ Sol High Review
+→ Codex Adopt / Reject / Modify
+→ PLAN FROZEN
+```
+
+最多 3 轮；用户明确跳过时直接进入 PLAN FROZEN。冻结后不再调用 Sol High。
+
+## 2. BASELINE
+
+AGY 写入前记录：
 
 ```bash
 repo_root="$(git rev-parse --show-toplevel)"
@@ -12,134 +53,71 @@ git branch --show-current
 git rev-parse HEAD
 ```
 
-读取项目规则、查询实现、API contract 和测试约定。
-
-## 2. Preflight
+如果已有用户改动，记录 baseline-owned paths；需要时保存原始 patch 指纹：
 
 ```bash
-command -v agy
-agy --version 2>/dev/null || true
-agy --help
-
-tty7 doctor
-tty7 agents --json
-tty7 pane ls --all --json
+git diff --binary -- <baseline paths> | shasum -a 256
 ```
 
-记录：
+## 3. 通过 Herdr 启动唯一 AGY Writer
 
-```text
-agy capabilities = ...
-tty7 AGY status mode = native-status | capture-fallback
-```
-
-如果 AGY 可识别但没有 status hook，不阻塞，选择 `capture-fallback`。
-
-## 3. 创建 Worker Workspace
+先做 runtime preflight：
 
 ```bash
-read -r WS PANE < <(
-  tty7 new --json "$repo_root" |
-  python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["id"], "%%%d" % d["pane"])'
-)
+scripts/check-herdr.sh
 ```
 
-从此只操作 `$WS` / `$PANE`。
-
-## 4. 启动 AGY + Launch Proof
-
-假设当前 AGY 支持 `--add-dir`：
+创建本任务专属 workspace，并只使用 Herdr 返回的 ID：
 
 ```bash
-tty7 send "$PANE" "agy --add-dir '$repo_root'" --enter
-tty7 capture "$PANE" --plain | tail -5
+created="$(herdr workspace create \
+  --cwd "$repo_root" \
+  --label "agy-orders-currency" \
+  --no-focus)"
+
+workspace_id="$(printf '%s' "$created" | jq -r '.result.workspace.workspace_id')"
+pane_id="$(printf '%s' "$created" | jq -r '.result.root_pane.pane_id')"
+agy_agent="agy-orders-currency"
 ```
 
-如果命令仍停在 shell prompt，只补一次：
+启动 AGY：
 
 ```bash
-tty7 send "$PANE" --enter
+herdr agent start "$agy_agent" --kind agy --pane "$pane_id"
 ```
 
-然后：
+发送 Execution Unit：
 
 ```bash
-tty7 agents --json
-tty7 capture "$PANE" --plain
+execution_unit='Implement the optional currency filter for GET /orders. Preserve omitted-currency behavior, existing validation, auth and pagination. Update only the proven propagation path, tests and directly affected docs.'
+
+herdr agent prompt "$agy_agent" "$execution_unit" \
+  --wait \
+  --until idle \
+  --until done \
+  --until blocked \
+  --timeout 1800000
 ```
 
-确认 AGY 真正启动。
-
-## 5. Workspace Verification
-
-先 Read Before Send，然后要求 AGY 返回：
-
-```text
-- repository root
-- branch
-- 一个已知项目文件
-```
-
-并与 Codex 自己的 `git rev-parse --show-toplevel` / branch 比对。
-
-只有一致才进入正式 Turn。
-
-## 6. Task Contract
-
-```text
-Goal
-- 为现有查询接口增加可选 status 过滤。
-- 未提供 status 时保持当前行为完全不变。
-
-Scope
-- 只修改查询相关 controller/service/repository 和对应测试。
-
-Constraints
-- 不改变默认排序和分页语义。
-- 不新增第三方依赖。
-- 不修改无关模块。
-
-Acceptance Criteria
-- status 缺省：结果与改动前一致。
-- status 合法：只返回匹配状态。
-- status 非法：遵循现有参数错误规范。
-- 有覆盖以上行为的测试。
-
-Verification
-- 跑查询模块 targeted tests。
-
-Run Policy
-- AGY 是唯一主要 Writer。
-- 不 push / merge / deploy。
-- 不回滚 baseline 用户改动。
-- 不扩大 Scope。
-
-Completion Protocol
-- 本轮结束后输出 TURN_COMPLETE: A7F2E9
-```
-
-发送前先 capture 当前 pane。
-
-## 7. 等待本 Turn 返回
-
-### Native status
+如果 `blocked`，先：
 
 ```bash
-tty7 wait "$PANE" --until waiting,done --changed --timeout 1800
+herdr agent read "$agy_agent" --source recent-unwrapped --lines 120
 ```
 
-### Capture fallback
+再决定是否做最小交互；one-way decision 仍回用户。
+
+AGY settled 后读取 worker report：
 
 ```bash
-tty7 agents --json
-tty7 capture "$PANE" --plain
+herdr agent read "$agy_agent" --source recent-unwrapped --lines 160
 ```
 
-看到当前 `TURN_COMPLETE: A7F2E9`，或明确看到 AGY 已返回 prompt 后，进入 Review。
+`done` / `idle` 只表示 Runtime settled，不表示实现通过。
 
-`TURN_COMPLETE` 不等于 PASS。
+## 4. Codex Three-Axis Review
 
-## 8. Codex 独立 Review
+Codex 直接读取 Git：
 
 ```bash
 git status --short
@@ -148,72 +126,61 @@ git diff --check
 git diff
 ```
 
-重点：
-
-- status 缺省是否真的保持默认行为；
-- 是否复用已有过滤机制；
-- 非法参数是否符合 contract；
-- tests 是否覆盖缺省/合法/非法；
-- task-introduced changed paths 是否超出 Scope。
-
-## 9. Evidence-driven Rework
-
-假设发现 `status=null` 仍追加 SQL 条件。
-
-先 capture，确认 AGY 当前可以接收新输入。生成新 nonce `C291B4`，发送：
+分别判断：
 
 ```text
-REWORK
+A. Spec Fidelity
+- currency 省略、有效值、无效值是否符合 contract。
 
-Issue
-- status 缺省时仍进入新增过滤逻辑，会改变现有默认查询。
+B. Engineering Quality
+- controller/service/repository/DTO 的职责和错误处理是否合理。
 
-Evidence
-- <file>:<line> 对 null 进行了错误映射，repository 最终仍拼接 status 条件。
-
-Expected
-- 未提供 status 时查询语义必须与改动前一致。
-
-Required change
-- 复用现有 optional-filter 模式修正，并补缺省 status regression test。
-
-Re-run
-- <targeted test command>
-
-Completion Protocol
-- 完成本轮后输出 TURN_COMPLETE: C291B4
+C. Completeness
+- callers、validator、serializer、fixtures、sibling paths 和 docs 是否同步。
 ```
 
-AGY 修复后，Codex 从完整相关 diff 重新 Review，不只看最后几行。
+若发现漏改，形成 Evidence-driven Rework Contract，并发给同一个 Herdr AGY worker：
 
-## 10. 独立 Verification
+```bash
+herdr agent prompt "$agy_agent" "$rework_contract" \
+  --wait \
+  --until idle \
+  --until done \
+  --until blocked \
+  --timeout 1800000
+```
 
-Codex 自己运行相关门禁：
+返工后重新执行完整 Three-Axis Review。
+
+## 5. Codex Independent Verification
+
+只有 Review PASS 后才进入独立验证：
+
+```bash
+./mvnw -Dtest=OrdersTest test
+./mvnw test
+```
+
+按项目实际情况补充 lint、typecheck、integration、build 或 E2E。全部必要验证通过后：
 
 ```text
-lint / typecheck
-unit tests
-targeted integration tests
-build/package
+REVIEW PASS → CODEX VERIFY → CODE_VERIFIED
 ```
 
-再：
+## 6. Knowledge Closeout
+
+由于 public API query contract 发生变化，扫描 README/API examples 等知识面。若需要 AGY 修改知识文件，继续向同一个 Herdr worker 发送 bounded Closeout Contract，然后 Codex 再次检查 Git。
+
+最终：
+
+```text
+CODE_VERIFIED
+→ CLOSEOUT
+→ ACCEPTED
+```
+
+任务接受后，只有本流程自己创建的 workspace 才可以关闭：
 
 ```bash
-git status --short
-git diff --stat
-git diff --check
-git diff
+herdr workspace close "$workspace_id"
 ```
-
-只有真实 repository state、需求覆盖和独立测试都满足，Supervisor 才进入 `ACCEPTED`。
-
-## 11. Cleanup
-
-如果用户没有要求保留 AGY：
-
-```bash
-tty7 ws rm "$WS"
-```
-
-如果用户希望继续观察/接管，则保留并汇报稳定 `WS` / `PANE`。

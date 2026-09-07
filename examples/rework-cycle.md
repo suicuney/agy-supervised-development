@@ -1,100 +1,87 @@
-# Example: Review → Rework → Re-review
+# Example — Review → Rework → Re-review with AGY Supervised Development 3.3
 
-这个例子专门展示 v2.1 如何避免“AGY 说修好了，Codex 就结束”的假闭环。
+这个例子展示为什么 Worker/Runtime 说完成后仍必须回到 Git、Review 和 Verification。
 
 ## 初始状态
 
 ```text
 Supervisor State = REVIEWING
-Turn = 2
+Herdr Agent = <stable task-local AGY name>
 Rework count = 0
 ```
 
-Codex Review 发现：新增缓存逻辑没有处理 key 为空的场景，并且测试只覆盖 happy path。
+Codex Review 发现：新增缓存逻辑没有处理 key 为空的场景，测试只覆盖 happy path。
 
-## 1. 形成 Evidence
+## 1. Evidence-driven Rework Contract
 
 ```text
 Issue
-- CacheService.java:87 在 key 为空时仍调用 map.get(key)。
+- CacheService.java:87 在 key 为空时仍访问 cache backend。
 
 Evidence
 - 当前 diff 没有 empty/null guard。
 - CacheServiceTest 只有正常 key 场景。
 
 Expected
-- 空 key 按现有 service contract 返回 empty result，不访问缓存 backend。
+- 空 key 按现有 service contract 返回 empty result，不访问 backend。
 
-Rework
-- 按现有参数校验模式增加 guard。
+Required Change
+- 按项目现有 validation pattern 修 root cause。
 - 增加 null/blank regression tests。
+- 如果问题可确定性复现，保留 RED → GREEN 证据。
 
 Re-run
 - ./mvnw -Dtest=CacheServiceTest test
+
+Scope Reminder
+- 只处理 blocking issue 和被证明为 unfinished 的 propagation path。
 ```
 
-Review 结论：`REWORK`。
+结论：`REWORK_REQUIRED`。
 
-## 2. Read Before Send
+## 2. 继续同一个 Herdr-managed AGY
+
+不启动第二个并行 Writer：
 
 ```bash
-tty7 capture "$PANE" --plain
+herdr agent prompt "$agy_agent" "$rework_contract" \
+  --wait \
+  --until idle \
+  --until done \
+  --until blocked \
+  --timeout 1800000
 ```
 
-确认 AGY 已经结束上一 turn、当前界面可以接收输入。
-
-如果是 permission/menu/error，先处理那个状态，不能把返工 prompt 直接打进去。
-
-## 3. 新 Rework Turn
-
-生成新 nonce：
-
-```text
-D4B821
-```
-
-发送上面的 Evidence，并加：
-
-```text
-只处理上述 blocking issue，不做无关重构。
-完成本轮后输出：
-TURN_COMPLETE: D4B821
-```
-
-更新：
-
-```text
-Supervisor State = TURN_SENT → OBSERVING
-Turn = 3
-Rework count = 1
-```
-
-## 4. 观察
-
-如果 native status 可用：
+如果 AGY blocked：
 
 ```bash
-tty7 wait "$PANE" --until waiting,done --changed --timeout 1800
+herdr agent read "$agy_agent" --source recent-unwrapped --lines 120
 ```
 
-如果没有 AGY status hook：
+先读清楚请求，再按已有权限边界处理。
+
+Herdr/Antigravity integration 负责 native session identity 和 server restart 后的 exact-session restore。若 exact session 不可恢复，不猜别的 conversation；保留 Git progress，并在安全时用新的 Herdr-managed AGY 显式重灌 frozen context。
+
+## 3. AGY Runtime settled
 
 ```bash
-tty7 agents --json
-tty7 capture "$PANE" --plain
+herdr agent read "$agy_agent" --source recent-unwrapped --lines 160
 ```
 
-看到当前 nonce 后：
+需要区分：
 
 ```text
-Supervisor State = TURN_RETURNED
+Herdr done / idle
+- 表示 runtime settled。
+- 不等于 Review PASS。
+- 不等于 CODE_VERIFIED。
 ```
 
-注意旧的 `TURN_COMPLETE` 不算。
+Runtime 报错或 server restart 后，也先检查 Git 是否已有部分写入，不自动 replay 可能产生重复副作用的 Execution Unit。
 
-## 5. Re-review
+## 4. Re-review
 
-Codex 不接受 AGY 的“已修复”描述，重新检查：
+Codex 重新读取 repository：
 
 ```bash
 git diff --check
@@ -102,49 +89,53 @@ git diff
 git status --short
 ```
 
-并自己运行相关 test。
-
-### 情况 A：通过
+重新按完整三轴审查：
 
 ```text
-PASS
-→ VERIFYING
+A. Spec Fidelity
+B. Engineering Quality
+C. Completeness
 ```
 
-### 情况 B：同一问题仍存在
+### 三轴都通过
 
-再次形成 Evidence，`rework_count=2`，新 nonce，新 Turn。
+进入 Independent Verification。
 
-### 情况 C：修 A 坏 B
+### 同一问题仍存在
 
-记录新问题，同时注意是否开始出现 repair oscillation。
+形成新的证据完整 Rework Contract，继续同一个 Herdr AGY worker，然后再次完整 Review。
 
-## 6. Soft Limit
+### 修 A 坏 B
 
-如果已经完成三轮：
+记录新的 S*/Q*/C*/V* finding，不能因为旧 finding 消失就直接通过。
+
+### sibling site 仍有同一 root cause
+
+这是 Completeness REWORK，不能因 targeted test 已绿就跳过。
+
+## 5. RED → GREEN
+
+若 Bug 可安全、确定性复现：
 
 ```text
-Review → Rework → Re-review
+Before fix: regression test RED
+After fix: same test GREEN
+Codex re-run: PASS
+Original repro after fix: GREEN
 ```
 
-仍有 blocking issue，不直接继续第四轮。
+修完以后才补的 green test 不能包装成完整 RED → GREEN proof。
 
-先重新评估：
+## 6. 最终边界
 
-- Task Contract 是否不清；
-- Codex 的根因判断是否错；
-- AGY 是否反复修坏别处；
-- 是否需要先让 AGY只分析根因；
-- 是否是环境/测试问题。
-
-必要时：
+无论 Herdr/AGY 如何结束，最终判断都回到：
 
 ```text
-BLOCKED
-- 当前安全 repository state
-- 已发生 3 轮返工
-- 仍未解决的问题
-- 需要用户决定的下一步
+Git state
+→ Three-Axis Review
+→ Codex Independent Verification
+→ Closeout
+→ ACCEPTED
 ```
 
-这样避免 Supervisor 和 Implementer 无限互相修。
+Herdr 管运行，不管结论。

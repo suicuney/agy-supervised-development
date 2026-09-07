@@ -1,194 +1,303 @@
-# AGY Supervised Development
+# AGY Supervised Development 3.3
 
-一个面向 **Codex + tty7 + Antigravity CLI (`agy`)** 的监督式开发 Skill。
+当前开发版本：**3.3.0-alpha.2**
 
-它不是 AGY CLI 百科，也不是通用多 Agent Framework。v2.1 专门把这一条链路做稳：
-
-```text
-User Requirement
-      ↓
-Codex Supervisor
-      ↓
-tty7 Worker Runtime
-      ↓
-AGY Interactive Implementer
-      ↓
-Repository Changes
-      ↓
-Codex Independent Review
-   ↙                 ↘
-Rework → AGY       PASS → Independent Verification
-                         ↓
-                      ACCEPTED
-```
-
-## 核心原则
-
-- Codex 负责主控、Review、QA 和最终验收。
-- AGY 是唯一主要 Writer，负责实现和返工。
-- tty7 负责持久 PTY、独立 workspace/pane 和可观察运行时，不在 Skill 里重复造进程管理器。
-- 不相信 AGY 自己的 `done` / `TURN_COMPLETE`，只相信真实 repository state。
-- 每次任务先建立 Git baseline，保护用户已有改动。
-- 每个任务创建独立 tty7 workspace + pane，只操作自己创建的稳定 ID。
-- 不使用会漂移的 `@N` 作为 worker identity。
-- AGY 必须显式验证 repo root / branch，不能只相信 pane CWD。
-- AGY/tty7 能力按当前安装版本实时检测。
-- 默认不 push / merge / deploy，不默认全局跳过权限。
-
-## v2.1 的关键变化
-
-### 1. tty7-native Worker Lifecycle
-
-统一通过：
-
-```bash
-tty7 new --json "$repo_root"
-```
-
-保存稳定：
+一个串行、单 Writer、Herdr-only 的监督式开发插件：
 
 ```text
-workspace id
-pane id
+Codex 负责方案、评审、验证和最终裁决
+Sol High 只负责实现前的方案评审
+Herdr 负责 AGY 的运行、交互、状态和会话恢复
+AGY 负责实现
+Git / Tests / Runtime Evidence 负责证明交付
 ```
 
-正常结束清理本次 workspace，而不是碰用户其他终端。
+> **Codex governs. Herdr runs. AGY builds. Git tells the truth.**
 
-### 2. Launch Proof
-
-新 pane 第一次 `send --enter` 可能因 shell 启动脚本吞掉 Enter。
-
-v2.1 强制启动 AGY 后立刻 `capture`，确认命令真的离开 shell prompt；必要时只补一次 Enter。
-
-### 3. Native Status / Capture Fallback 双路径
-
-Codex 先通过 `tty7 doctor` / `tty7 agents --json` 判断当前 AGY 是否拥有 tty7 status hook。
+## 主流程
 
 ```text
-native status available
-→ tty7 wait --until waiting,done --changed
-
-status hook unavailable
-→ tty7 agents + capture + Turn Nonce
-```
-
-因此 Skill 不依赖某个固定 tty7 版本是否已经给 Antigravity 增加 hook。
-
-### 4. Supervisor State，而不是伪造 AGY 内部状态
-
-v2.1 记录 Codex 能证明的状态：
-
-```text
-INIT
-→ BASELINED
-→ TTY7_ALLOCATED
-→ AGY_BOOTING
-→ AGY_READY
-→ TURN_SENT
-→ OBSERVING
-→ TURN_RETURNED
-→ REVIEWING
-→ VERIFYING
+SIZE
+→ SHAPE
+→ SPEC
+→ SLICE
+→ SOL HIGH PLAN REVIEW
+→ PLAN FROZEN
+→ BASELINE
+→ AGY BUILD          # Herdr only
+→ THREE-AXIS REVIEW
+→ VERIFY
+→ CLOSEOUT
 → ACCEPTED
 ```
 
-`TURN_COMPLETE != ACCEPTED`。
+## 计划评审时你会看到什么
 
-### 5. Read Before Send
-
-任何 prompt、Enter、菜单按键、Escape、Ctrl-C 之前重新 capture 当前 pane：
+发送给网页版 GPT 前，展示一份简洁中文计划预览：
 
 ```text
-CAPTURE → CLASSIFY → DECIDE → SEND
+【准备发送给 Sol High 的计划】
+
+目标
+- 这次要完成什么
+
+计划
+1. 关键步骤
+2. 关键步骤
+3. 关键步骤
+
+重点风险
+- 真正需要注意的风险
 ```
 
-避免把几秒前应答 permission 的按键发进已经变化的 TUI。
+展示中文计划预览后，**不要求用户确认发送**。在完成数据包安全检查（无凭据泄露）与 ego-browser 预检（`GPT-5.6 Sol` + `High` 推理已就绪）后，**自动发送且仅发送一次**。该简版计划与待执行的可执行计划在语义上完全一致（完整数据包仅额外包含评审元数据、sentinels、验收准则与契约包装）。
 
-### 6. Evidence-driven Rework + Soft Budget
+插件内核与入口统一拥有交互与发送策略；配套的 `sol-high-plan-review` Skill 仅提供数据包结构与结论语义，不可重新引入人工确认门禁。
 
-每轮返工必须包含 Issue / Evidence / Expected / Rework / Re-run。
+发送后，如果 Sol High 返回 `REVISE`，Codex 会自行 `Adopt / Reject / Modify` 并在同一会话中自动继续下一轮，不要求确认。只有真正需要用户决定的产品/架构/one-way 问题、`AUTH_REQUIRED` 登录交接、`USER_CONTROLLING` 冲突、`MODEL_MISMATCH` 或终态 `UNKNOWN` 等真实 blocker 才会打断。
 
-默认 3 个完整 `Review → Rework → Re-review` 周期为 soft limit；达到后必须重新评估根因，不能两个 Agent 无限互修。
-
-### 7. Scope Drift Guard
-
-Review 不只看当前 diff，还要区分：
+评审收敛后，再展示一份中文最终计划：
 
 ```text
-current changes - baseline changes = task-introduced changes
+【最终执行计划】
+
+Sol High 评审：PASS / 已收敛
+评审轮次：2
+
+最终计划
+1. ...
+2. ...
+3. ...
+
+评审后的主要调整
+- ...
 ```
 
-AGY 新增的超 Scope path 必须有需求依据，否则返工。
-
-## 为什么不默认 Worktree
-
-tty7 的通用多 Agent delegation 很适合“一任务一 worktree”。但这个 Skill 的默认拓扑是：
+这里只展示，不再次确认。随后自动：
 
 ```text
-AGY = sole primary writer
-Codex = read/review/verify
+PLAN FROZEN
+→ BASELINE
+→ AGY BUILD
 ```
 
-用户当前 checkout 的未提交改动又可能是任务上下文，因此 v2.1 默认继续使用当前 checkout + baseline protection。
+不会再用 packet 字符数、文件大小或附件大小代替真正的计划内容。
 
-只有：
+## 3.3 的核心变化
 
-- 多 Writer 并行；
-- 高风险隔离实验；
-- 用户明确要求；
-
-才优先使用独立 worktree。
-
-## 文件结构
+3.3 只有一条 AGY 执行链：
 
 ```text
-agy-supervised-development/
-├── SKILL.md
-├── README.md
-├── CHANGELOG.md
-├── resources/
-│   ├── agy-runtime.md
-│   ├── tty7-supervision.md
-│   ├── run-lifecycle.md
-│   ├── failure-modes.md
-│   └── review-gates.md
-└── examples/
-    ├── feature-development.md
-    └── rework-cycle.md
+AGY Supervised Development
+→ Herdr
+→ Antigravity CLI / AGY
+→ Repository
+→ Git
+→ Codex Review / Verify
 ```
 
-### `SKILL.md`
+不再维护第二套 AGY Runtime，也不再保留 Runtime selection。Herdr 是基础设施，不是 Supervisor。
 
-Codex → tty7 → AGY 的监督主流程。
+```text
+Herdr done != REVIEW PASS
+AGY SUCCESS != REVIEW PASS
+REVIEW PASS != CODE_VERIFIED
+CODE_VERIFIED != ACCEPTED
+```
 
-### `resources/tty7-supervision.md`
+## 安装插件
 
-workspace/pane ownership、Launch Proof、native/fallback status、Read Before Send、crash recovery 和 cleanup。
+```bash
+codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy-supervised-v3.3-herdr-runtime
+codex plugin add agy-supervised-development@agy-supervised-development
+```
 
-### `resources/run-lifecycle.md`
+## Herdr / Antigravity 一次性准备
 
-Supervisor State、Run Context、Turn Nonce、Scope Drift 和 Rework Budget。
+3.3 要求 Herdr、`agy` 和 `jq` 已安装，并要求官方 Antigravity integration 可用。Herdr 当前正式支持 `agent start --kind agy`。
 
-### `resources/agy-runtime.md`
+显式安装 integration：
 
-监督流程需要的 AGY capability、workspace、execution mode、permission、conversation 等知识。
+```bash
+herdr integration install antigravity-cli
+```
 
-### `resources/failure-modes.md`
+这个命令会修改当前用户的 Antigravity hooks 配置，因此插件任务执行阶段不会偷偷安装或覆盖它。
 
-将启动失败、缺少 status hook、swallowed Enter、串项目、API error、worker exit、scope drift 等拆成证据驱动处理流程。
+启动 Herdr（交互使用 `herdr`，服务式环境可使用 `herdr server`），然后检查：
 
-### `resources/review-gates.md`
+```bash
+scripts/check-herdr.sh
+```
 
-Codex 独立 Review 与 PASS / REWORK / BLOCKED / final Acceptance 规则。
+预检会确认：
 
-## v2 → v2.1
+```text
+herdr executable
+agy executable
+jq executable
+Herdr server reachable
+Antigravity integration present and usable
+```
 
-v2 解决：
+失败就 `BLOCKED`，不会绕开 Herdr 直接启动 AGY。
 
-> Codex 应该怎样监督 AGY。
+## AGY Runtime
 
-v2.1 进一步解决：
+AGY Build 固定使用 Herdr Agent API：
 
-> Codex 怎样利用 tty7 可靠地控制一个可观察、可接管、可返工的 AGY worker，同时在 AGY 没有 tty7 native status hook 时仍然不误判状态。
+```text
+PLAN FROZEN
+→ BASELINE
+→ herdr workspace create --cwd <repo_root>
+→ capture returned root pane ID
+→ herdr agent start <task-agent> --kind agy --pane <pane_id>
+→ herdr agent prompt ... --wait
+→ blocked 时先 read 再最小交互
+→ agent read
+→ Git Review
+```
 
-v2.1 暂不抽象 Grok/Pi/Claude 通用 Adapter，也不做多 Worker orchestration。先把 `Codex → tty7 → AGY` 单 worker 路径做稳定，再考虑后续泛化。
+Herdr workspace 创建响应中的：
+
+```text
+.result.workspace.workspace_id
+.result.root_pane.pane_id
+```
+
+是本轮 Runtime 身份来源，不从 UI 顺序猜 ID。
+
+Antigravity integration 会在首个 prompt 后报告 native conversation identity；Herdr 可在 server restart 后按该 identity 恢复 AGY session。插件自身不再维护 AGY conversation 恢复命令。
+
+详见 `resources/agy-execution.md`。
+
+## Sol High Plan Review
+
+默认开启：
+
+```text
+Codex Executable Plan
+→ 中文简版计划预览
+→ 预检通过后自动发送（不要求确认）
+→ ego-browser / ego-lite (resources/ego-browser-runbook.md)
+→ ChatGPT Web
+→ GPT-5.6 Sol + High
+→ Sol Review
+→ Codex Adopt / Reject / Modify
+→ 必要时自动下一轮
+→ 中文最终计划
+→ PLAN FROZEN
+```
+
+`resources/ego-browser-runbook.md` 拥有浏览器 transport 选型与执行权；独立的 `sol-high-plan-review` Skill 仅提供数据包与结论语义，不可覆盖 transport，亦不可重新引入人工确认门禁。
+
+发送状态机遵循 `NOT_SENT → SENT | UNKNOWN`，`SENT` 需同会话可见证据，`UNKNOWN` 为终态且无重试跃迁（禁止自动重发）。
+
+最多 3 轮；`PLAN FROZEN` 后 Sol High 立即退出任务。
+
+首次运行前检查独立 Sol Skill：
+
+```bash
+scripts/check-sol-plan-review.sh
+```
+
+如果缺失，再显式运行：
+
+```bash
+scripts/install-sol-plan-review.sh
+scripts/check-sol-plan-review.sh
+```
+
+## Review / Verification
+
+AGY runtime settled 后，Codex 独立执行：
+
+```text
+A. Spec Fidelity
+B. Engineering Quality
+C. Completeness
+```
+
+通过后再独立运行：
+
+```text
+lint / typecheck / build
+unit / integration / e2e
+original repro
+browser runtime when applicable
+```
+
+对于 browser-facing 任务，ego-browser / ego-lite 仍是 Codex-owned runtime verification adapter（操作规范遵循 `resources/ego-browser-runbook.md`）。
+
+## 运行前快速清单
+
+```text
+1. Sol dependency = COMPLETE（除非用户明确跳过 Sol review）
+2. 首轮 Sol Send 前 = 中文简版计划，预检通过后自动发送（不要求确认）
+3. 后续 REVISE = 自动继续，不重复确认
+4. Sol 收敛后 = 中文最终计划，只展示不确认
+5. Herdr preflight = HERDR_READY
+6. PLAN FROZEN before AGY writes
+7. Baseline captured before AGY writes
+8. Herdr workspace cwd = repo_root
+9. pane ID = Herdr create response, never guessed
+10. AGY launched with --kind agy
+11. blocked → read before interaction
+12. Herdr done/idle = runtime evidence only
+13. Git + Codex Review + independent Verify = delivery evidence
+```
+
+## Active Structure
+
+```text
+skills/agy-supervised-development/SKILL.md
+SKILL.md
+
+resources/
+├── task-sizing.md
+├── shaping.md
+├── spec-contract.md
+├── execution-slicing.md
+├── sol-plan-review.md
+├── sol-plan-review-manifest.json
+├── ego-browser-runbook.md
+├── agy-execution.md
+├── failure-modes.md
+├── bugfix-workflow.md
+├── review-gates.md
+├── completeness-regression.md
+├── runtime-verification.md
+└── closeout-governance.md
+
+scripts/
+├── check-herdr.sh
+├── check-sol-plan-review.sh
+├── install-sol-plan-review.sh
+├── test-sol-plan-review.sh
+├── validate-structure.sh
+├── validate-docs.sh
+├── validate-runtime.sh
+└── test-readiness.sh
+```
+
+## 自检
+
+```bash
+scripts/test-readiness.sh
+```
+
+## 原则
+
+```text
+串行
+小步
+简单
+一个 Writer
+一个 Plan Owner
+一个 AGY Runtime：Herdr
+预检通过后自动发送 Sol，不要求确认
+最终计划必须中文可见
+Herdr 管运行，不管结论
+Sol 只评方案
+Git 是 repository truth
+```

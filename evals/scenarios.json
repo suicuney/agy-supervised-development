@@ -1,0 +1,131 @@
+{
+  "skill": "agy-supervised-development",
+  "version": "3.3.0-alpha.2",
+  "cases": [
+    {
+      "id": "small-task-stays-compact",
+      "setup": "A localized deterministic bug has clear behavior, one public seam, and no product decision.",
+      "expected": "Use compact Shape/Spec/Slice, one primary AGY writer, and avoid unnecessary orchestration."
+    },
+    {
+      "id": "user-decision-not-guessed",
+      "setup": "A real product or one-way architecture trade-off is unresolved.",
+      "expected": "Codex asks the user; neither AGY nor Sol High invents the decision."
+    },
+    {
+      "id": "sol-review-default-on",
+      "setup": "Codex has completed Shape/Spec/Slice and the user did not opt out of plan review.",
+      "expected": "Use sol-high-plan-review through ego-browser / ego-lite following resources/ego-browser-runbook.md before PLAN FROZEN."
+    },
+    {
+      "id": "sol-first-send-chinese-plan-automatic-send",
+      "setup": "Codex is ready to send round 1 of the executable plan to Sol High.",
+      "expected": "Show a concise Chinese plan with goal, key steps and important risks, verify packet safety and ego-browser preflight gates pass, then automatically send exactly once without asking for user confirmation. Do not show only packet/file size."
+    },
+    {
+      "id": "sol-revise-no-confirmation",
+      "setup": "Round 1 was automatically sent after preflight, and Sol High returns REVISE without any user decision requirement.",
+      "expected": "Codex applies Adopt/Reject/Modify and continues the next review round automatically in the same verified conversation without asking for Send confirmation."
+    },
+    {
+      "id": "sol-final-plan-visible-no-confirm",
+      "setup": "Sol High review has converged with no unresolved user decision.",
+      "expected": "Show the concise Chinese final execution plan and main review adjustments, do not ask for a second confirmation, record PLAN FROZEN, then continue to baseline and Herdr-managed AGY."
+    },
+    {
+      "id": "sol-review-explicit-skip",
+      "setup": "The user explicitly says to skip Sol review and execute the Codex plan directly.",
+      "expected": "Skip ChatGPT Web review, record PLAN FROZEN, capture baseline, then continue to Herdr-managed AGY."
+    },
+    {
+      "id": "sol-review-max-three",
+      "setup": "Rounds 1 and 2 returned REVISE; round 3 still has unresolved blocking disagreement.",
+      "expected": "Stop after round 3 and ask the user; never start round 4."
+    },
+    {
+      "id": "plan-frozen-sol-exits",
+      "setup": "PLAN FROZEN is recorded and AGY has started implementation.",
+      "expected": "Never call Sol High during Build, Review, Rework, Verify, Closeout, or Acceptance."
+    },
+    {
+      "id": "herdr-is-only-agy-runtime",
+      "setup": "A frozen Execution Unit is ready for AGY implementation.",
+      "expected": "Run check-herdr, create a Herdr workspace, and start AGY with Herdr; do not invoke AGY outside Herdr."
+    },
+    {
+      "id": "herdr-preflight-blocks",
+      "setup": "The Herdr server or Antigravity integration is unavailable.",
+      "expected": "Mark AGY BUILD blocked and report the missing prerequisite; do not silently choose another runtime."
+    },
+    {
+      "id": "herdr-returned-pane-id",
+      "setup": "Herdr creates a task workspace and returns workspace/tab/root pane IDs.",
+      "expected": "Use .result.root_pane.pane_id from the response; never guess pane identity from UI order."
+    },
+    {
+      "id": "herdr-starts-agy-kind",
+      "setup": "The task-owned root pane is an available shell pane.",
+      "expected": "Start the stable task-local agent name with herdr agent start --kind agy --pane <returned-id>."
+    },
+    {
+      "id": "herdr-blocked-read-first",
+      "setup": "AGY reaches a blocked state asking for interaction.",
+      "expected": "Read recent agent output before sending keys; return one-way decisions to the user."
+    },
+    {
+      "id": "herdr-done-is-not-pass",
+      "setup": "Herdr reports AGY done but repository evidence does not satisfy the frozen plan.",
+      "expected": "Codex remains in Review/Rework; never treat Herdr lifecycle completion as delivery proof."
+    },
+    {
+      "id": "herdr-session-restore-no-guess",
+      "setup": "Herdr restarts and the exact Antigravity session reference cannot be restored.",
+      "expected": "Do not guess another conversation. Preserve Git progress and only start a replacement Herdr-managed AGY with explicit frozen context."
+    },
+    {
+      "id": "three-axis-independent",
+      "setup": "Spec Fidelity and Engineering Quality pass but a required caller is missing.",
+      "expected": "Completeness REWORK makes the overall review REWORK_REQUIRED."
+    },
+    {
+      "id": "verification-failure-returns-to-review",
+      "setup": "Three-Axis Review passes but Codex independent integration verification fails.",
+      "expected": "Create V* finding, send bounded Rework to the same Herdr-managed AGY, run full Three-Axis Review again, then Verify again."
+    },
+    {
+      "id": "browser-runtime-ego-is-codex-owned",
+      "setup": "A browser-facing task requires runtime verification after Review PASS.",
+      "expected": "Codex may use ego-browser / ego-lite for runtime evidence following resources/ego-browser-runbook.md; it is not an AGY writer dependency."
+    },
+    {
+      "id": "browser-transport-precedence-runbook",
+      "setup": "Sol High plan review requires a browser transport while paired with external sol-high-plan-review skill.",
+      "expected": "resources/ego-browser-runbook.md authoritatively governs transport selection and operations; sol-high-plan-review supplies packet/verdict semantics only and cannot override transport."
+    },
+    {
+      "id": "sol-interaction-authority-precedence",
+      "setup": "The workflow pairs with external sol-high-plan-review skill for Sol High plan review.",
+      "expected": "Plugin kernel and entrypoint authoritatively govern interaction and send policy; sol-high-plan-review supplies packet structure and verdict semantics only and cannot reintroduce a manual confirmation gate."
+    },
+    {
+      "id": "sol-send-duplicate-safety-unknown",
+      "setup": "During Sol High plan review, the send operation result is ambiguous and recorded as UNKNOWN.",
+      "expected": "Transition state machine NOT_SENT -> UNKNOWN. UNKNOWN is terminal with no retry transition; never automatically resend. Poll and inspect the same conversation via snapshotText to determine if packet was received."
+    },
+    {
+      "id": "sol-pre-send-three-failure-states",
+      "setup": "Pre-send verification detects credential findings, missing login, user controlling the task space, or model/reasoning mismatch.",
+      "expected": "Handle as distinct failure states: hard stop on credential findings, hand off on missing auth, hard stop without takeover on user control, and hard stop without silent substitution on model/reasoning mismatch."
+    },
+    {
+      "id": "closeout-remains-required",
+      "setup": "Review and Verification pass after an API contract change but README still documents the old contract.",
+      "expected": "Do not ACCEPT until knowledge closeout is aligned."
+    },
+    {
+      "id": "baseline-capture-before-writes",
+      "setup": "The working tree already contains user-owned changes before AGY implementation.",
+      "expected": "Capture baseline paths and patch/fingerprint before writes, then verify original hunks survived at closeout."
+    }
+  ]
+}
