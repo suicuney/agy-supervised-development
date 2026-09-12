@@ -1,32 +1,31 @@
 # Astra Code Review
 
-Astra reviews code after AGY implementation/rework stops. This stage is intentionally code-only: do not execute tests, builds, linters, integration checks, browser checks, or project quality gates here.
+Astra reviews after AGY implementation/rework stops. This stage is intentionally **code/deliverable inspection only**: Astra does not execute tests, builds, linters, integration checks, browser checks or project quality gates here.
 
 ## Inputs
 
 ```text
 Development Contract + revision
+observable acceptance scenarios + counterexamples
 applicable AGENTS.md / repository constraints
-baseline reference
+baseline snapshot reference
 full task delta
-current code-state digest
+current deliverable digest
 AGY implementation report (index only)
-open code-review findings
+open review findings
 ```
 
-Review the actual task delta, not only AGY's summary. Include committed task changes after baseline, staged changes, unstaged changes, untracked file contents, deletions/renames, and relevant binary changes. Separate task changes from baseline user changes.
+Review the actual task delta, not only AGY's summary. Include committed task changes after baseline, staged/unstaged changes, untracked contents, deletions/renames, binary/mode changes, test source/assertions/fixtures/goldens/config/lockfiles/generated source, and required callers/consumers/schema/docs. Separate task changes from baseline user changes.
 
 ## Review dimensions
 
-Use one lightweight review, not a multi-stage ceremony:
+Use one lightweight risk-driven review:
 
-- **Contract fidelity** — code implements required behavior and stays inside boundaries.
-- **Correctness by inspection** — control flow, state handling, error paths, concurrency/data consistency, lifecycle, security-sensitive logic where applicable.
-- **Project-rule compliance** — architecture/API/schema/generated-client/config/documentation obligations that are apparent from code/rules.
-- **Completeness** — required callers, consumers, schema/config/docs/generated artifacts are not missing merely because they were outside the initially edited file.
-- **Maintainability proportional to risk** — obvious duplication, dead paths, unsafe shortcuts, or needless complexity that materially affect delivery.
-
-Do not reject ordinary implementation choices merely because Astra would have implemented them differently.
+- Contract fidelity and observable scenarios/counterexamples.
+- Correctness by inspection: control flow, state/error/lifecycle, concurrency/data/security where applicable.
+- Project-rule compliance: architecture/API/schema/generated-client/config/documentation propagation.
+- Completeness: implementation-required callers, consumers and generated artifacts are not mislabeled scope expansion.
+- Maintainability proportional to risk; do not reject ordinary HOW merely because Astra would code differently.
 
 ## Outcomes
 
@@ -36,32 +35,12 @@ CODE_REVIEW_REWORK
 BLOCKED
 ```
 
-A rework finding contains only:
+A finding carries `finding_id`, Contract/rule, concrete code evidence, why it matters and required outcome. AGY performs bounded `IMPLEMENT_REWORK` and stops; Astra reviews the complete resulting deliverable again. Formal tests remain deferred except Contract-preauthorized diagnostics, whose result is never formal acceptance evidence.
 
-```text
-finding_id
-contract_or_rule
-code_evidence
-why_it_matters
-required_outcome
-```
+If the same finding has two consecutive rounds without substantive progress, stop blind rework and classify the actual blocker/decision.
 
-Send bounded findings to AGY. AGY fixes code only; formal tests are still deferred. After AGY stops writing, Astra reviews the full resulting code state again.
+## Pass binding
 
-If the same finding has two consecutive rework rounds without substantive code progress, stop and classify the real reason: unresolved product/architecture decision, worker capability problem, or environment/tooling blocker. Do not loop forever.
+Record a stable `review_id`, Contract revision, reviewed deliverable digest, delta reference and resolved findings. `CODE_REVIEW_PASS` is inspection evidence only.
 
-## Pass evidence
-
-Record:
-
-```text
-contract_revision
-reviewed_code_state_digest
-reviewed_delta_reference
-findings_resolved
-result = CODE_REVIEW_PASS
-```
-
-`CODE_REVIEW_PASS` proves only that Astra's code inspection passed. It is not test evidence and does not mean the task is complete.
-
-Any subsequent production-code change invalidates this pass and requires a new Astra code review before final completion.
+**Any subsequent deliverable change**—including production code, test code/assertions, fixture/golden, configuration, lockfile or generated source—invalidates the pass. Predeclared evidence logs/reports stored outside the deliverable do not.
