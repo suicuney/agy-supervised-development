@@ -2,7 +2,7 @@
 
 This is an adaptation example, not a global default.
 
-When supervising a task in `paper-info-web`, first read its applicable `AGENTS.md`. The current repository rules require, among other things:
+When working in `paper-info-web`, first read its applicable `AGENTS.md`. Current rules include:
 
 - Java 21 Spring Boot modular monolith; do not introduce microservices.
 - `contracts/openapi.yaml` is the sole authoritative public API contract.
@@ -11,12 +11,12 @@ When supervising a task in `paper-info-web`, first read its applicable `AGENTS.m
 - `workers/browser-worker` is excluded from default build, CI and release.
 - Applicable quality gates include pnpm lint/typecheck/test/build, Maven test/integration/package, and docker-compose config validation.
 
-## Supervisor packet
+## How 4.1 applies them
 
-Do not copy the whole repository. Pass the frozen Contract plus a reference/summary of these applicable rules and the baseline/Run State.
+Astra puts the relevant architecture/API boundaries into the Development Contract without copying the whole repository.
 
-If a task changes a public API, missing generated client/test/traceability updates are implementation completeness defects, not automatic "scope expansion". Luna keeps them inside normal supervision because the project rules make them necessary for the frozen behavior.
+During **code review**, Astra checks code-level completeness against these rules. For example, if a public API changed, missing OpenAPI/generated-client/traceability changes are implementation defects, not automatic scope expansion.
 
-If a task does not touch the Browser Worker, do not add it to default build/release verification just because it exists in the repository.
+After `CODE_REVIEW_PASS`, Astra includes the applicable repository-required quality gates in the frozen Test Plan. A focused check may be ordered first for fast feedback, but it does not replace required gates.
 
-A focused test may run first for fast feedback, but it does not replace the applicable repository gates required by `AGENTS.md`.
+AGY then executes those frozen checks. If the task does not touch Browser Worker, it remains excluded from default build/release exactly as the repository rule says.
