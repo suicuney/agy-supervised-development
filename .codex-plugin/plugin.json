@@ -1,7 +1,7 @@
 {
   "name": "agy-supervised-development",
-  "version": "3.3.0-alpha.2+codex.20260905134210",
-  "description": "Codex-governed development with visible Chinese Sol plan summaries, Herdr as the sole AGY runtime, ego-browser as the sole Codex browser transport, AGY as the primary writer, and Git-backed independent verification.",
+  "version": "4.0.0-alpha.1",
+  "description": "A model-tiered supervised-development workflow: a high-reasoning architect freezes a compact Development Contract, a lower-cost supervisor dispatches and verifies, AGY implements through Herdr, and Git provides delivery evidence.",
   "author": {
     "name": "suicuney"
   },
@@ -12,30 +12,29 @@
     "herdr",
     "antigravity",
     "agy",
-    "sol-high",
-    "ego-browser",
-    "plan-review",
+    "astra",
+    "luna",
     "supervised-development",
-    "browser-verification"
+    "development-contract",
+    "model-routing",
+    "verification"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "AGY Supervised Development",
-    "shortDescription": "Codex governs; ego-browser reviews; Herdr runs; Git proves.",
-    "longDescription": "A serial supervised-development workflow. Codex owns Shape/Spec/Slice and the executable plan; ego-browser/ego-lite is the sole Codex browser transport for Sol High and optional runtime verification; before the first GPT-5.6 Sol High review Send it shows a concise Chinese plan and automatically sends after fail-closed preflight without a manual confirmation gate; after review convergence it shows the final Chinese plan and continues automatically; every AGY execution then runs through Herdr; Codex independently reviews and verifies repository/runtime evidence before acceptance.",
+    "shortDescription": "Astra frames; Luna supervises; AGY builds; Git proves.",
+    "longDescription": "A serial, single-writer supervised-development workflow that spends strong-model reasoning on architecture and task boundaries, freezes a compact Development Contract, delegates routine supervision and evidence review to a lower-cost model, runs AGY only through Herdr, and escalates back to the architect only when contract-level decisions genuinely change.",
     "developerName": "suicuney",
     "category": "Productivity",
     "capabilities": [
-      "Shape, specify, and slice executable plans",
-      "Show concise Chinese plans before and after Sol High review",
-      "Automatically send Sol High packets after fail-closed preflight",
-      "Review executable plans with GPT-5.6 Sol High before implementation",
+      "Create compact Development Contracts with a high-reasoning architect",
+      "Route routine supervision and verification to a lower-cost model",
+      "Delegate implementation planning and coding autonomy to AGY",
       "Run every AGY writer through Herdr",
-      "Preserve Antigravity session identity through Herdr integration",
-      "Run Three-Axis Review and independent verification",
-      "Use ego-browser/ego-lite for Sol High and applicable browser runtime verification",
-      "Perform knowledge closeout"
+      "Use diff-first evidence-driven review and targeted verification",
+      "Escalate architecture and one-way decisions back to the architect",
+      "Preserve Git-backed delivery and runtime evidence"
     ],
-    "defaultPrompt": "Use AGY Supervised Development. Build a Codex-owned executable plan, use ego-browser/ego-lite for browser work, show me a concise Chinese pre-send plan, automatically send after fail-closed preflight, let later review rounds converge without manual Send confirmation, show the final Chinese plan after review, freeze it, then run AGY only through Herdr and keep all review, verification, and acceptance Codex-owned."
+    "defaultPrompt": "Use AGY Supervised Development 4.0. Let the architect model analyze the task and freeze a compact Development Contract defining WHAT, WHY, BOUNDARY, and DONE. Hand the frozen contract to the lower-cost supervisor, run AGY only through Herdr, let AGY choose normal implementation HOW, supervise with Git/test evidence, and escalate back to the architect only for genuine contract-level decisions."
   }
 }
