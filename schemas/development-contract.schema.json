@@ -1,18 +1,21 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AGY Development Contract",
-  "type": "object",
-  "required": ["contract_id", "revision", "goal", "behavior", "done"],
-  "properties": {
-    "contract_id": {"type": "string", "minLength": 1},
-    "revision": {"type": "integer", "minimum": 1},
-    "goal": {"type": "string", "minLength": 1},
-    "behavior": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
-    "constraints": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []},
-    "done": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
-    "escalate_if": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []},
-    "architecture_intent": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []},
-    "out_of_scope": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []}
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"AGY Development Contract 4.1",
+  "type":"object",
+  "required":["contract_id","revision","goal","behavior","acceptance_scenarios","done"],
+  "properties":{
+    "contract_id":{"type":"string","minLength":1},
+    "revision":{"type":"integer","minimum":1},
+    "goal":{"type":"string","minLength":1},
+    "behavior":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},
+    "acceptance_scenarios":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},
+    "counterexamples":{"type":"array","items":{"type":"string","minLength":1}},
+    "constraints":{"type":"array","items":{"type":"string","minLength":1}},
+    "diagnostics":{"type":"array","items":{"type":"object","required":["kind","scope"],"properties":{"kind":{"enum":["minimal_reproduction","targeted_test","typecheck","compile_feedback","other"]},"scope":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "done":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},
+    "escalate_if":{"type":"array","items":{"type":"string","minLength":1}},
+    "architecture_intent":{"type":"array","items":{"type":"string","minLength":1}},
+    "out_of_scope":{"type":"array","items":{"type":"string","minLength":1}}
   },
-  "additionalProperties": false
+  "additionalProperties":false
 }
