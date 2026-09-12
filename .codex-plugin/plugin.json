@@ -1,7 +1,7 @@
 {
   "name": "agy-supervised-development",
-  "version": "4.1.0-alpha.1",
-  "description": "Astra plans and reviews code; AGY implements and executes Astra-defined tests through Herdr.",
+  "version": "4.1.0-alpha.2",
+  "description": "Astra defines/reviews/freezes tests; Herdr-managed AGY implements/tests; deterministic evidence validation completes.",
   "author": {"name": "suicuney"},
   "repository": "https://github.com/suicuney/agy-supervised-development",
   "license": "MIT",
@@ -9,17 +9,18 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "AGY Supervised Development",
-    "shortDescription": "Astra plans/reviews; AGY builds/tests.",
-    "longDescription": "Use Astra for problem framing, code-only review and test design; use Herdr-managed AGY for implementation, bounded rework and execution of frozen test metrics.",
+    "shortDescription": "Astra plans/reviews; AGY builds/tests; evidence completes.",
+    "longDescription": "Use Astra for a compact Contract, code-only review and a frozen structured Test Plan; use Herdr-managed AGY for implementation, bounded diagnostics/rework and formal test execution; finish only through deterministic evidence validation.",
     "developerName": "suicuney",
     "category": "Productivity",
     "capabilities": [
-      "Freeze compact Development Contracts",
-      "Implement and rework through Herdr-managed AGY",
+      "Freeze compact Development Contracts with observable acceptance scenarios",
+      "Capture recoverable Git baselines and deliverable identity",
       "Run Astra code-only review loops",
-      "Freeze measurable test plans and metrics",
-      "Complete from AGY test evidence without a second test review"
+      "Freeze structured test checks, applicability and metrics",
+      "Execute AGY work only through Herdr",
+      "Validate TEST entry and COMPLETE from current repository evidence"
     ],
-    "defaultPrompt": "Use AGY Supervised Development 4.1: Astra frames the problem and Contract, AGY implements without formal testing, Astra reviews code until PASS, Astra freezes the test plan and metrics, then AGY executes the tests; if test-stage code changes, return to Astra code review before completion."
+    "defaultPrompt": "Use AGY Supervised Development 4.1: Astra freezes WHAT/BOUNDARY/DONE plus observable scenarios and optional bounded diagnostics; Herdr-managed AGY implements; Astra reviews the full deliverable without running tests; Astra freezes the machine Test Plan; AGY executes formal tests; only the deterministic run-state validator may mark COMPLETE."
   }
 }
