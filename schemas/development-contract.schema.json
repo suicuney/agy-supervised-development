@@ -1,59 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/suicuney/agy-supervised-development/schemas/development-contract.schema.json",
   "title": "AGY Development Contract",
   "type": "object",
-  "required": [
-    "goal",
-    "expected_behavior",
-    "definition_of_done",
-    "agy_authority",
-    "supervisor_authority",
-    "escalate_if"
-  ],
+  "required": ["goal", "behavior", "done"],
   "properties": {
     "goal": {"type": "string", "minLength": 1},
-    "problem": {"type": "string"},
-    "expected_behavior": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "minItems": 1
-    },
-    "constraints": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "default": []
-    },
-    "architecture_intent": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "default": []
-    },
-    "definition_of_done": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "minItems": 1
-    },
-    "agy_authority": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "minItems": 1
-    },
-    "supervisor_authority": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "minItems": 1
-    },
-    "escalate_if": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "minItems": 1
-    },
-    "out_of_scope": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "default": []
-    }
+    "behavior": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+    "constraints": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []},
+    "done": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+    "escalate_if": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []},
+    "architecture_intent": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []},
+    "out_of_scope": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []}
   },
   "additionalProperties": false
 }
