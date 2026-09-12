@@ -1,122 +1,98 @@
 ---
 name: agy-supervised-development
-description: Delegate repository implementation to AGY through Herdr while Codex keeps task boundaries, supervision, escalation, and delivery verification.
-version: 4.0.0-alpha.1
+description: Delegate coding to AGY through Herdr. Use a strong model to freeze task intent, a cheaper model to supervise evidence, and escalate only when the contract must change.
+version: 4.0.0-alpha.2
 ---
 
 # AGY Supervised Development 4.0
 
-> **Astra frames. Luna supervises. AGY builds. Git tells the truth.**
+> **Astra decides. Luna supervises. AGY builds. Git proves.**
 
-Use this workflow when Codex should delegate repository implementation to Antigravity CLI (AGY) through Herdr while keeping model cost proportional to decision difficulty.
-
-## Default Flow
+## Flow
 
 ```text
-USER INTENT
-→ ASTRA ARCHITECT
-→ DEVELOPMENT CONTRACT
-→ CONTRACT FROZEN
-→ LUNA SUPERVISOR
-→ BASELINE
-→ AGY BUILD                 # Herdr only
-→ AGY SELF-REVIEW
-→ LUNA REVIEW / VERIFY
-→ ACCEPTED
+USER
+→ ASTRA: CONTRACT
+→ LUNA: SUPERVISE
+→ AGY: BUILD + TEST + SELF-REVIEW
+→ LUNA: VERIFY
+→ ACCEPT
 ```
 
-Escalation is exceptional, not the default path:
+Exception only:
 
 ```text
-LUNA
-→ ESCALATE
-→ ASTRA
-→ CONTRACT PATCH
-→ LUNA
-→ AGY
+LUNA → ASTRA: PATCH CONTRACT → LUNA → AGY
 ```
 
 ## Roles
 
-```text
-User   = product / one-way decision authority
-Astra  = architect / high-value reasoning / contract author
-Luna   = supervisor / dispatcher / independent reviewer / verifier
-Herdr  = sole AGY runtime / control plane
-AGY    = implementation planner / primary writer / self-reviewer
-Git    = repository source of truth
+- **Astra / architect**: decide `WHAT / BOUNDARY / DONE`; use the strongest suitable reasoning model.
+- **Luna / supervisor**: dispatch, inspect evidence, request bounded rework, verify; use a cheaper reliable model.
+- **AGY / worker**: inspect the repo, decide normal `HOW`, implement, test, fix, self-review.
+- **Herdr**: sole AGY runtime.
+- **Git**: repository truth.
+
+Model names are preferred bindings, not hard dependencies.
+
+## Contract
+
+Astra outputs one compact Development Contract:
+
+```yaml
+goal: <outcome>
+behavior: [<observable result>]
+constraints: [<important boundary>]
+done: [<completion evidence>]
+escalate_if: [<contract-level blocker>]
 ```
 
-Model names describe preferred role bindings, not hard-coded product dependencies. If an equivalent model is substituted, preserve the capability split: `architect = strongest reasoning`, `supervisor = lower-cost reliable supervision`.
+Add architecture intent or exclusions only when they materially constrain implementation. Do not write routine file-by-file implementation steps.
 
-## Core Boundaries
+After `CONTRACT FROZEN`, Astra exits the normal path.
 
-1. The architect owns `WHAT / WHY / BOUNDARY / DONE`, not detailed implementation choreography.
-2. AGY owns normal implementation planning and `HOW` decisions inside the frozen contract.
-3. Luna may supervise, inspect evidence, request bounded rework, and verify completion, but must not silently redesign the contract.
-4. Escalate to Astra only for architecture conflict, material requirement ambiguity, scope explosion, repeated core failure, or one-way decisions.
-5. Every AGY invocation runs through Herdr. Do not add a second AGY runtime or silently invoke `agy` directly.
-6. Herdr lifecycle state is runtime evidence only. `done` / `idle` / `blocked` are never delivery verdicts.
-7. AGY self-review is required but never substitutes for Luna independent review.
-8. Prefer Git diff, targeted repository evidence, AGY reports, and test output over re-reading the entire repository during supervision.
-9. Preserve pre-existing user changes and existing repository instructions.
-10. Do not push, merge, deploy, mutate production, perform destructive migration, or make irreversible deletion without existing user authority.
-11. `CONTRACT FROZEN != implementation complete`.
-12. `AGY SUCCESS != REVIEW PASS`.
-13. `REVIEW PASS != VERIFIED`.
-14. `VERIFIED != ACCEPTED` when unresolved blockers or unauthorized side effects remain.
+## Supervision
 
-## Progressive Disclosure Router
-
-Read only the resource needed for the current stage:
-
-- Architect behavior and context budget: `resources/architect.md`
-- Development Contract schema and freeze rules: `resources/development-contract.md`
-- Luna supervision loop and evidence policy: `resources/supervisor.md`
-- Escalation thresholds and Contract Patch semantics: `resources/escalation.md`
-- AGY autonomy and Herdr execution: `resources/agy-execution.md`
-- Review and verification: `resources/verification.md`
-- Legacy high-risk external plan review, only when explicitly justified: `resources/sol-plan-review.md`
-- Browser transport when actually needed: `resources/ego-browser-runbook.md`
-
-Do not preload all resources for every task.
-
-## Context Economy
-
-Default to pointer-over-copy:
+Luna starts from the frozen Contract, not Astra's reasoning transcript. Prefer:
 
 ```text
-Astra receives:
-- user intent
-- only repository facts needed to resolve contract-level decisions
-- relevant constraints
-
-Luna receives:
-- frozen Development Contract
-- current Git evidence
-- AGY completion / blocked report
-- relevant test or runtime output
-
-AGY receives:
-- frozen Development Contract
-- repository workspace
-- bounded rework findings when needed
+Contract
++ git diff / status
++ AGY report
++ relevant test/runtime output
 ```
 
-Avoid copying large source files, repository summaries, or Astra reasoning into the Luna or AGY prompt when those facts can be discovered in the workspace.
+Luna may ask AGY to fix implementation defects. Luna must not silently change the Contract.
 
-## Completion
+Escalate only when the Contract itself is no longer sufficient: material requirement ambiguity, architecture conflict, major scope/risk expansion, repeated core failure, or a one-way/destructive decision.
 
-A normal task finishes only when:
+## Execution
+
+Every AGY run goes through Herdr. AGY may inspect relevant files, choose implementation details, modify in-scope code, run relevant tests, fix failures caused by its work, and self-review.
+
+`Herdr done != delivery accepted`.
+
+Read `resources/agy-execution.md` only when executing AGY.
+
+## Verification
+
+Luna verifies the cheapest decisive evidence first:
 
 ```text
-contract satisfied
-+ relevant implementation complete
-+ AGY self-review complete
-+ Luna independent review passes
-+ relevant verification passes
-+ final diff is explainable
-+ no unresolved escalation remains
+Contract → diff → targeted tests/runtime evidence → broader inspection only if needed
 ```
 
-Keep the workflow serial and single-writer. Supervision may be cheap; architectural reasoning should be sparse and valuable.
+Accept only when the Contract is satisfied, relevant verification passes, the final diff is explainable, and no unresolved escalation remains.
+
+## Progressive Disclosure
+
+Load supporting docs only when needed:
+
+- `resources/development-contract.md` — Contract details / patch semantics
+- `resources/supervisor.md` — Luna loop / rework / escalation
+- `resources/agy-execution.md` — Herdr runtime
+- `resources/verification.md` — evidence / verification
+- `resources/sol-plan-review.md` — optional guarded legacy review
+- `resources/ego-browser-runbook.md` — only for browser work
+
+Do not preload the whole workflow or repository.
