@@ -1,35 +1,33 @@
-# Example: Small Feature in 4.0
+# Example: Small Feature in 4.1
 
-User asks for a reversible repository feature with clear behavior.
+User requests a reversible feature with clear behavior.
 
-## Contract
+## 1. Astra contract
 
-Astra reads only the project rules and repository facts needed to settle behavior:
+Astra reads the applicable repository rules and freezes a compact Contract. No file-by-file plan is required.
 
-```yaml
-contract_id: feature-x
-revision: 1
-goal: Add the requested observable behavior.
-behavior:
-  - Existing behavior remains compatible.
-  - New behavior is reachable through the repository's normal public seam.
-constraints:
-  - Follow applicable AGENTS.md rules.
-done:
-  - Relevant focused tests pass.
-  - Applicable repository-required gates pass or are correctly classified.
+## 2. AGY implementation
+
+AGY runs through Herdr in `IMPLEMENT` mode, chooses ordinary implementation details, changes the required code, self-reviews, and does **not** run the formal test plan or acceptance gates.
+
+## 3. Astra code review
+
+Astra inspects the complete task delta against the Contract and project rules. It does not execute tests.
+
+If there is a code defect:
+
+```text
+CODE_REVIEW_REWORK → AGY IMPLEMENT_REWORK → ASTRA CODE REVIEW
 ```
 
-No file-by-file plan is required.
+When the current code digest receives `CODE_REVIEW_PASS`, continue.
 
-## Handoff
+## 4. Astra test plan
 
-The root uses the real Codex supervisor spawn path. If Luna is requested but runtime model metadata is unavailable, record `REQUESTED_UNVERIFIED`; do not claim verified Luna identity.
+Astra freezes the required commands/checks and measurable metrics for the reviewed implementation, including applicable repository-required gates.
 
-The supervisor receives Contract + project rules + Run State/baseline reference, then independently starts AGY through Herdr.
+## 5. AGY test
 
-## Build and verify
+AGY runs the frozen plan through Herdr and reports actual results. If all required checks and metrics pass on the same code digest, the task completes without another Astra test-review pass.
 
-AGY decides normal implementation details, runs relevant checks, fixes its own defects and self-reviews. Luna then reviews the complete task delta (including untracked content), runs/collects independent applicable verification, and accepts only when evidence is bound to the final code-state digest.
-
-If code changes after a passing check, only affected evidence is invalidated and rerun.
+If AGY changes production code while fixing a failure, return to Astra code review before testing can become final.
