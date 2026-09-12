@@ -6,6 +6,13 @@ This is the preferred host path for 4.0: Astra remains the root architect; Codex
 
 Use only capabilities actually exposed by the current Codex host. Multi-Agent V2 currently exposes `spawn_agent`, `send_message`, `followup_task`, and `wait_agent` when collaboration tools are enabled. Do not invent hidden arguments.
 
+Host capability references checked for this design:
+
+- `openai/codex/codex-rs/core/src/tools/handlers/multi_agents_spec.rs` — `spawn_agent`, model override exposure, `send_message`, `followup_task`, `wait_agent`, and spawn output schemas.
+- `openai/codex/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs` — `fork_turns` and model/reasoning inputs.
+
+These are implementation references, not permission to assume a particular installed Codex build exposes every field. Inspect the current host tool schema at runtime.
+
 For the supervisor spawn, inspect the exposed `spawn_agent` schema first:
 
 - If `model` is exposed, request `gpt-5.6-luna` (or the user-required model).
@@ -38,16 +45,16 @@ Do not forward Astra's full reasoning transcript.
 
 ## Identity evidence
 
-Record three distinct facts:
+Record distinct facts:
 
 ```text
 requested_model       # what spawn asked for; null if no model field was available
-host_model_evidence   # runtime/UI/tool metadata if actually exposed
+host_model_evidence   # host config/tool/UI/runtime metadata if actually exposed
 model_status          # VERIFIED | REQUESTED_UNVERIFIED | UNAVAILABLE | SAME_MODEL
 handoff_status        # SPAWNED | NOT_SPAWNED | UNKNOWN
 ```
 
-A successful `spawn_agent` response proves a supervisor task was created. It does not by itself prove the exact child model when the response omits model metadata. Never convert `REQUESTED_UNVERIFIED` into `VERIFIED`.
+A successful `spawn_agent` response proves a supervisor task was created. It does not by itself prove the exact child model when the response omits model metadata. Child self-description is not model proof. Never convert `REQUESTED_UNVERIFIED` into `VERIFIED`.
 
 `UNVERIFIED` is not a substitute for a missing handoff: if no child was actually spawned, use `NOT_SPAWNED`.
 
@@ -65,7 +72,7 @@ read Contract + project rules
 → PASS | REWORK | ESCALATE | BLOCKED
 ```
 
-The root architect waits for supervisor messages/final status. Astra re-enters only for a Contract patch or user/product decision. The supervisor persists Run State and controls the Herdr task resources it created.
+The root orchestrator waits for supervisor messages/final status and presents the final user result. Astra re-enters only for a Contract patch or user/product decision. The supervisor persists Run State and controls the Herdr task resources it created.
 
 ## Waiting and duplicate safety
 
