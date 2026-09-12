@@ -3,7 +3,6 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 require_contains() { grep -Eq -- "$2" "$1" || { printf 'Documentation validation failed: %s\n' "$3" >&2; exit 1; }; }
-forbid_contains() { if grep -Eq -- "$2" "$1"; then printf 'Documentation validation failed: %s\n' "$3" >&2; exit 1; fi; }
 
 readme="$root/README.md"
 kernel="$root/SKILL.md"
@@ -39,9 +38,10 @@ require_contains "$execution" 'jq -er' 'validated Herdr ids'
 require_contains "$execution" 'SEND_UNKNOWN' 'Herdr send uncertainty'
 require_contains "$evals" 'SCENARIOS_DEFINED_NOT_EXECUTED' 'semantic eval honesty'
 
-active=("$kernel" "$entry" "$readme" "$root/resources" "$root/templates" "$root/examples" "$root/evals")
-for file in "${active[@]}"; do
-  forbid_contains "$file" 'Plan review is enabled by default|PLAN FROZEN|Three-Axis Review|Shape/Spec/Slice|Codex first completes the executable plan from the current Shape' 'legacy 3.3 default behavior remains active'
-done
+if grep -REn --exclude-dir=legacy -- 'Plan review is enabled by default|PLAN FROZEN|Three-Axis Review|Shape/Spec/Slice|Codex first completes the executable plan from the current Shape' \
+  "$root/SKILL.md" "$root/README.md" "$root/resources" "$root/templates" "$root/examples" "$root/evals" "$root/skills" >/dev/null; then
+  printf 'Documentation validation failed: legacy 3.3 default behavior remains active.\n' >&2
+  exit 1
+fi
 
 printf 'STATIC_DOCS_VALID\n'
