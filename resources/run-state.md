@@ -1,84 +1,83 @@
-# Run State and Recovery
+# Run State, Baseline, and Recovery
 
-Run State is operational state, separate from the Development Contract.
+Run State is operational state, separate from the Development Contract. Runtime JSON uses `schemas/run-state.schema.json`; old pre-v2 Run State is not silently upgraded to PASS. Rebuild/revalidate the current phase when migration evidence is incomplete.
 
 ## Location
 
-Store it under Git-private storage:
+Store task state/evidence under Git-private storage or outside the worktree:
 
 ```bash
 run_dir="$(git rev-parse --git-path "agy-supervised/runs/$task_id")"
-mkdir -p "$run_dir"
-state_file="$run_dir/run-state.json"
+mkdir -p "$run_dir/evidence"
+chmod 700 "$run_dir" "$run_dir/evidence"
 ```
 
-Do not store credentials, full chat history, or unrelated environment dumps.
+Do not store credentials, full chat history or unrelated environment dumps.
 
-## Minimum state
+## Baseline and snapshots
 
-Record:
-
-- `task_id`, `contract_id`, `contract_revision`
-- `repo_root`, `working_directory`, `branch`, `baseline_commit`
-- baseline artifact references and current code-state digest
-- current phase: `IMPLEMENT | CODE_REVIEW | IMPLEMENT_REWORK | TEST_PLAN | TEST | BLOCKED | COMPLETE`
-- Herdr `workspace_id`, `pane_id`, AGY agent name; native session ref only when actually returned
-- implementation/rework round and open code-review finding IDs
-- last `CODE_REVIEW_PASS` digest/revision or null
-- frozen `test_plan_id`, plan revision and reviewed code-state digest or null
-- per-check test results and evidence refs
-- dispatch state: `NOT_SENT | SENT | SEND_UNKNOWN | SETTLED`
-
-Use `schemas/run-state.schema.json` and `templates/run-state.json`.
-
-## Baseline
-
-Before AGY's first write:
+Before AGY first writes:
 
 ```bash
 baseline_commit="$(git rev-parse HEAD)"
-baseline_dir="$run_dir/baseline"
-bash scripts/snapshot-code-state.sh "$baseline_dir" "$baseline_commit"
+scripts/snapshot-code-state.sh "$run_dir/baseline" "$baseline_commit"
 ```
 
-Preserve existing user changes. Do not auto-stash, reset, clean, or overwrite them.
+The snapshot is captured from repository root even when invoked from a subdirectory and is atomically published only after two observed manifests match. This detects changes during the capture window; it is **not** OS-level write isolation.
 
-Use current checkout when single-writer attribution is safe. Prefer a task worktree for concurrent writers or isolation needs. If the task depends on uncommitted content, preserve that prerequisite deliberately rather than silently creating a clean worktree that omits it.
+Two identities are intentionally separate:
+
+- `deliverable_digest` — path/type/content/link target/executable identity for tracked and non-ignored untracked deliverable files. `git add` alone does not change it.
+- `ownership_digest` — HEAD/baseline/status/index ownership identity used for recovery/attribution; staging or HEAD changes may change it.
+
+Git evidence also retains NUL-delimited porcelain state and binary diffs for baseline→HEAD, index, worktree and HEAD, so committed/staged/unstaged changes, deletes, renames and mode/binary changes remain inspectable.
+
+## Untracked and special content
+
+Untracked regular-file original bytes are archived locally as mode-0600 content-addressed blobs under the snapshot directory, so baseline content can be reconstructed. The manifest uses base64 path encoding plus stable ordering for spaces/newlines/Unicode. Symlinks record target bytes only and are never followed; dangling-link target changes change the deliverable digest.
+
+Sensitive-looking untracked files (`.env`, keys, credentials, etc.) fail closed unless an exact path is explicitly allowed with `--allow-sensitive-untracked`. Ignored acceptance inputs require exact `--include-ignored` coverage and should also appear as Test Plan `input_paths`. Unsupported special file types and submodules fail closed in this version when they enter the captured deliverable; do not issue valid evidence by silently skipping them.
+
+Snapshot output may not live in the worktree because it would recursively pollute itself. Use Git-private storage or an external directory.
 
 ## State transitions
 
-```text
-CONTRACT FROZEN
-→ IMPLEMENT
-→ CODE_REVIEW
-   ├─ REWORK → IMPLEMENT_REWORK → CODE_REVIEW
-   └─ PASS → TEST_PLAN → TEST
-                    ├─ metrics pass → COMPLETE
-                    ├─ environment blocker → BLOCKED
-                    └─ code changes → CODE_REVIEW
-```
-
-Astra's code-review PASS is bound to a code-state digest. A frozen Test Plan is bound to that same reviewed code state.
-
-If production/task code changes after review PASS:
+The semantic validator owns legal transition checks:
 
 ```text
-code_review_pass = STALE
-frozen_test_plan = STALE
-affected test results = STALE
+CONTRACT → IMPLEMENT → CODE_REVIEW
+CODE_REVIEW → IMPLEMENT_REWORK → CODE_REVIEW
+CODE_REVIEW → TEST_PLAN → TEST
+TEST → TEST_REWORK → CODE_REVIEW
+any active phase → BLOCKED → validated resume phase
+TEST → COMPLETE only via deterministic completion check
 ```
 
-Return to `CODE_REVIEW`; never mechanically continue to completion using stale evidence.
+Use:
+
+```bash
+scripts/validate-run-state.sh transition ...
+scripts/validate-run-state.sh block ...
+scripts/validate-run-state.sh invalidate ...
+scripts/validate-run-state.sh complete ...
+```
+
+Writes use a sidecar file lock, `state_version` optimistic check, fsync and atomic replace. This prevents lost updates among cooperating local processes; it is not claimed as a sandbox against arbitrary filesystem writers.
+
+## BLOCKED
+
+A persisted blocker records `reason`, `blocked_from_phase`, `resume_action`, and related execution identity. Resume requires the writer stopped, repository/worktree identity still matching, current Contract still matching, and a fresh snapshot. Phase name alone never authorizes skipping review/test validation.
 
 ## Recovery
 
 On resume:
 
-1. Read current Git state and Run State.
-2. Verify repository/worktree, Contract revision, phase, baseline and current code-state relationship.
-3. Check whether the recorded Herdr/AGY worker still exists before replacing it.
-4. Never guess another session or replay side-effecting commands whose send/result state is uncertain.
-5. Start a replacement writer only after the previous writer is confirmed stopped/unrecoverable with no parallel-write risk.
-6. Restore only the context for the current phase: implementation findings for code work, or frozen Test Plan for test work.
+1. Read current Git state and Run State from disk.
+2. Validate schema and current Contract id/revision.
+3. Recheck repository/worktree and baseline identity/relationship.
+4. Check the recorded Herdr/AGY worker before replacing it.
+5. Never guess a lost session or replay a side-effecting command whose send/result is uncertain.
+6. Never start a second writer until the prior writer is confirmed stopped/unrecoverable with no parallel-write risk.
+7. Restore only current-phase context: Contract + diagnostics/findings for implementation, or the exact frozen plan for TEST.
 
-A mismatch that cannot be safely reconciled becomes `BLOCKED` until investigated.
+`SEND_UNKNOWN` is investigated, never auto-resent. `Herdr idle/done` remains runtime lifecycle only.
