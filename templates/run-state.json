@@ -6,7 +6,15 @@
   "working_directory": "<checkout-or-worktree>",
   "branch": null,
   "baseline_commit": null,
-  "baseline_ref": null,
+  "baseline_artifacts": {
+    "snapshot_dir": null,
+    "status_ref": null,
+    "committed_diff_ref": null,
+    "cached_diff_ref": null,
+    "worktree_diff_ref": null,
+    "untracked_ref": null,
+    "code_state_digest": null
+  },
   "supervisor": {
     "task_name": null,
     "requested_model": null,
