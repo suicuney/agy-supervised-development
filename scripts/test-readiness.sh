@@ -17,5 +17,5 @@ else
   printf 'ENVIRONMENT_READY=NOT_CHECKED (run scripts/test-readiness.sh --environment on the target host)\n'
 fi
 
-printf 'FLOW_VERIFIED=NOT_RUN (requires a real Codex supervisor -> Herdr/AGY smoke test with captured evidence)\n'
-printf 'SEMANTIC_EVALS=NOT_EXECUTED (scenarios are definitions until a semantic runner records evidence)\n'
+printf 'FLOW_VERIFIED=NOT_RUN (requires real Astra plan -> Herdr/AGY implement -> Astra code review -> Astra test plan -> Herdr/AGY test evidence)\n'
+printf 'SEMANTIC_EVALS=NOT_EXECUTED (scenario definitions are not proof until executed)\n'
