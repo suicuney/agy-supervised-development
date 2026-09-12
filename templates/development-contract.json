@@ -1,0 +1,12 @@
+{
+  "contract_id": "<contract-id>",
+  "revision": 1,
+  "goal": "<desired outcome>",
+  "behavior": ["<observable result>"],
+  "acceptance_scenarios": ["<observable acceptance scenario>"],
+  "counterexamples": ["<important behavior that must not occur>"],
+  "constraints": [],
+  "diagnostics": [],
+  "done": ["<final completion condition>"],
+  "escalate_if": []
+}
