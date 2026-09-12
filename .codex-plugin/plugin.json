@@ -1,7 +1,7 @@
 {
   "name": "agy-supervised-development",
-  "version": "4.0.0-alpha.3",
-  "description": "Strong-model task contracting, low-cost evidence supervision, observable handoffs, and AGY implementation through Herdr.",
+  "version": "4.0.0-alpha.4",
+  "description": "Executable contract-first supervision with Codex handoff evidence, Herdr-managed AGY, recoverable run state, and code-bound verification.",
   "author": {"name": "suicuney"},
   "repository": "https://github.com/suicuney/agy-supervised-development",
   "license": "MIT",
@@ -9,17 +9,19 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "AGY Supervised Development",
-    "shortDescription": "Astra decides; Luna supervises; AGY builds; routing proves itself.",
-    "longDescription": "Freeze a compact task Contract with a strong reasoning model, supervise AGY with a cheaper model using Git/test evidence, expose runtime routing evidence when available, and escalate only when the Contract must change.",
+    "shortDescription": "Astra decides; Luna supervises; AGY builds; evidence proves.",
+    "longDescription": "Freeze a compact Development Contract, hand off through real Codex multi-agent capability, keep recoverable Git-private Run State, execute AGY only through Herdr, and accept only with evidence bound to the actual code state.",
     "developerName": "suicuney",
     "category": "Productivity",
     "capabilities": [
-      "Freeze compact Development Contracts",
-      "Supervise AGY with evidence",
-      "Expose observable role/model handoffs",
-      "Run AGY through Herdr",
-      "Escalate contract-level decisions"
+      "Freeze compact versioned Development Contracts",
+      "Use observable Codex supervisor handoffs without fabricating model identity",
+      "Persist lightweight recoverable Run State outside business commits",
+      "Run every AGY writer through Herdr",
+      "Protect baseline user changes and optional worktree isolation",
+      "Verify committed, staged, unstaged and untracked task changes",
+      "Bind verification evidence to Contract revision and code-state digest"
     ],
-    "defaultPrompt": "Use AGY Supervised Development: freeze WHAT/BOUNDARY/DONE with the architect, hand off to Luna with runtime routing evidence when available, let AGY decide normal HOW through Herdr, supervise with Git/test evidence, and escalate only when the Contract must change."
+    "defaultPrompt": "Use AGY Supervised Development 4.0: freeze WHAT/BOUNDARY/DONE, spawn an independent supervisor through the actual Codex host when available, persist Run State under Git-private storage, execute AGY only through Herdr, preserve baseline user changes, and accept only when project-required verification matches the final code state."
   }
 }
