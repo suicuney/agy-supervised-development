@@ -11,17 +11,17 @@ files=(
   "$root/.codex-plugin/plugin.json"
   "$root/skills/agy-supervised-development/SKILL.md"
   "$root/SKILL.md"
+  "$root/resources/architect.md"
+  "$root/resources/development-contract.md"
+  "$root/resources/supervisor.md"
+  "$root/resources/escalation.md"
+  "$root/resources/verification.md"
   "$root/resources/agy-execution.md"
   "$root/resources/failure-modes.md"
   "$root/resources/sol-plan-review.md"
-  "$root/resources/sol-plan-review-manifest.json"
-  "$root/resources/review-gates.md"
-  "$root/resources/runtime-verification.md"
-  "$root/templates/browser-verification.md"
+  "$root/resources/ego-browser-runbook.md"
+  "$root/schemas/development-contract.schema.json"
   "$root/scripts/check-herdr.sh"
-  "$root/scripts/check-sol-plan-review.sh"
-  "$root/scripts/install-sol-plan-review.sh"
-  "$root/scripts/test-sol-plan-review.sh"
   "$root/scripts/validate-structure.sh"
   "$root/scripts/validate-docs.sh"
   "$root/scripts/validate-runtime.sh"
@@ -29,18 +29,15 @@ files=(
 )
 
 for file in "${files[@]}"; do require_file "$file"; done
-for script in "$root/scripts/check-herdr.sh" "$root/scripts/check-sol-plan-review.sh" "$root/scripts/install-sol-plan-review.sh" "$root/scripts/test-sol-plan-review.sh" "$root/scripts/validate-structure.sh" "$root/scripts/validate-docs.sh" "$root/scripts/validate-runtime.sh" "$root/scripts/test-readiness.sh"; do require_exec "$script"; done
+for script in "$root/scripts/check-herdr.sh" "$root/scripts/validate-structure.sh" "$root/scripts/validate-docs.sh" "$root/scripts/validate-runtime.sh" "$root/scripts/test-readiness.sh"; do require_exec "$script"; done
 
 forbid_path "$root/scripts/agy-run.sh"
 forbid_path "$root/resources/tty7-supervision.md"
 
 python3 -m json.tool "$root/.agents/plugins/marketplace.json" >/dev/null
 python3 -m json.tool "$root/.codex-plugin/plugin.json" >/dev/null
-python3 -m json.tool "$root/resources/sol-plan-review-manifest.json" >/dev/null
+python3 -m json.tool "$root/schemas/development-contract.schema.json" >/dev/null
 bash -n "$root/scripts/check-herdr.sh"
-bash -n "$root/scripts/check-sol-plan-review.sh"
-bash -n "$root/scripts/install-sol-plan-review.sh"
-bash -n "$root/scripts/test-sol-plan-review.sh"
 bash -n "$root/scripts/validate-docs.sh"
 bash -n "$root/scripts/validate-runtime.sh"
 bash -n "$root/scripts/test-readiness.sh"
@@ -53,9 +50,11 @@ assert marketplace['name']=='agy-supervised-development'
 assert marketplace['plugins'][0]['name']=='agy-supervised-development'
 assert marketplace['plugins'][0]['source']['path']=='.'
 assert plugin['name']=='agy-supervised-development'
-assert re.fullmatch(r'3\.3\.0-alpha\.2(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?', plugin['version'])
+assert re.fullmatch(r'4\.0\.0-alpha\.1(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?', plugin['version'])
 assert plugin['skills']=='./skills/'
 assert 'herdr' in plugin['keywords']
+assert 'astra' in plugin['keywords']
+assert 'luna' in plugin['keywords']
 PY
 
 printf 'Structure validation passed.\n'
