@@ -1,19 +1,11 @@
-# Example: Bounded Rework and Escalation
+# Example: Astra Code Review Rework
 
-Luna finds `F1`: the implementation satisfies the main behavior but misses a required consumer update implied by the repository rules.
+Astra reviews the implementation and finds `CR1`: a required consumer update implied by the Contract/repository rules is missing.
 
-Round 1 sends only `F1` evidence, required outcome and verification seam to the same Herdr-managed AGY worker. If the repository changes meaningfully toward resolving the finding, Luna re-verifies the affected surface.
+Round 1 sends only the bounded code-review finding to the same Herdr-managed AGY worker in `IMPLEMENT_REWORK` mode. AGY changes code but does not run the formal Test Plan.
 
-If round 1 and round 2 both end with the same root defect and no substantive progress, Run State records the progress counters and Luna escalates:
+Astra then reviews the complete current code state again. If `CR1` is still materially unresolved after two consecutive rounds without substantive progress, stop blind rework and classify the real cause: product/architecture decision, worker capability limit, or environment/tooling blocker.
 
-```text
-Contract: <id>@<revision>
-Finding: F1
-Attempts: round 1 + round 2
-Evidence: <minimal decisive facts>
-Decision needed: <contract/architecture/supervisor capability question>
-```
+Ordinary coding choices stay with AGY. Environment/auth/dependency problems become `BLOCKED`, not repeated coding prompts.
 
-Ordinary coding choices do not escalate. Authentication/dependency failure is `BLOCKED`, not a coding rework loop.
-
-If a material Contract patch is required, only the architect/user increments the revision and records changed fields/reason. Evidence whose assumptions changed becomes stale before AGY continues.
+Only after the final code digest receives `CODE_REVIEW_PASS` does Astra freeze a Test Plan and metrics. If later testing causes code changes, this pass becomes stale and the workflow returns here.
