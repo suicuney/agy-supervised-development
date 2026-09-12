@@ -1,26 +1,22 @@
 # Real Flow Smoke Test
 
-Use only on a disposable temporary Git repository when Astra/Codex, Herdr and AGY are actually available. Never run this smoke in a business repository.
+Run only in a disposable temporary Git repository when the actual Codex/Astra host, Herdr and AGY authentication are available. Never use a business repository for the smoke.
 
-## Task
+## Suggested tiny task
 
-Create a tiny repository with one source file and one deterministic test. Example: change a pure function from returning `hello` to `hello-v41`.
+A pure function returns `hello`; Contract requires `hello-v4`, preserves another input behavior, and allows a tiny focused diagnostic if needed.
 
-## Evidence sequence
+## Required real evidence
 
-1. Astra freezes a compact Contract and records baseline/Run State.
-2. AGY starts through Herdr in `IMPLEMENT` mode and changes the source without running the formal test.
-3. Astra inspects the complete code delta only. If needed, send a bounded finding to AGY and repeat until `CODE_REVIEW_PASS`.
-4. Record the reviewed code-state digest.
-5. Astra freezes a Test Plan containing the deterministic test and measurable PASS condition.
-6. AGY switches to `TEST` mode and executes the frozen check through Herdr.
-7. Confirm the reported test result/metric is tied to the same reviewed code digest.
-8. If test-stage code changes are required, verify the workflow returns to Astra code review before final testing.
-9. If all required metrics pass, record `TASK COMPLETE`; no second Astra test-review is performed.
-10. Close only Herdr resources created by this smoke and delete the disposable repository after evidence is recorded.
+1. Capture baseline with the real snapshot command.
+2. Astra freezes Contract/scenarios; AGY implements through Herdr and stops.
+3. If a diagnostic runs, record it as non-formal evidence.
+4. Astra reviews the actual deliverable and records PASS digest or sends bounded rework.
+5. Astra freezes canonical Test Plan JSON against that digest.
+6. Host runs the real TEST-entry validator.
+7. AGY executes frozen formal checks through Herdr and records distinct attempts/raw evidence.
+8. Confirm writer stopped; run the real completion validator and preserve its structured decision.
+9. Exercise at least one bounded failure/rework path when safe: persist failed formal attempt → invalidate → AGY repair → Astra re-review → new plan → retest.
+10. Close only Herdr resources created by this disposable task and remove the temp repository after evidence has been recorded.
 
-## Result
-
-Record results with `templates/experiment-record.md`.
-
-`FLOW_VERIFIED` requires real evidence for all four stages: Astra plan, AGY implementation, Astra code review/test-plan creation, and AGY test execution. Static/deterministic script checks are separate evidence.
+`FLOW_VERIFIED` requires those runtime facts. Static/schema/mock/temp-repository behavior tests are reported separately. If AGY auth/Herdr/Codex host is unavailable, record exact `NOT_RUN`/`BLOCKED`; do not infer token usage, cost or savings.
