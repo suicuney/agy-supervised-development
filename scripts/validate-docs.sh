@@ -5,6 +5,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 require_contains() { grep -Eq -- "$2" "$1" || { printf 'Documentation validation failed: %s\n' "$3" >&2; exit 1; }; }
 
 readme="$root/README.md"
+changelog="$root/CHANGELOG.md"
 kernel="$root/SKILL.md"
 entry="$root/skills/agy-supervised-development/SKILL.md"
 contract="$root/resources/development-contract.md"
@@ -14,8 +15,10 @@ supervisor="$root/resources/supervisor.md"
 verification="$root/resources/verification.md"
 execution="$root/resources/agy-execution.md"
 evals="$root/evals/scenarios.json"
+paper_example="$root/examples/project-rules-paper-info-web.md"
 
 require_contains "$readme" '4\.0\.0-alpha\.4' 'README version'
+require_contains "$changelog" '\[4\.0\.0-alpha\.4\]' 'CHANGELOG version'
 require_contains "$readme" 'STATIC_VALID' 'readiness levels'
 require_contains "$readme" 'FLOW_VERIFIED' 'flow verification distinction'
 require_contains "$kernel" 'WHAT / BOUNDARY / DONE' 'compact contract boundary'
@@ -37,6 +40,9 @@ require_contains "$verification" 'PASS \| FAIL \| BLOCKED \| NOT_RUN \| NOT_APPL
 require_contains "$execution" 'jq -er' 'validated Herdr ids'
 require_contains "$execution" 'SEND_UNKNOWN' 'Herdr send uncertainty'
 require_contains "$evals" 'SCENARIOS_DEFINED_NOT_EXECUTED' 'semantic eval honesty'
+require_contains "$paper_example" 'contracts/openapi\.yaml' 'paper-info OpenAPI authority'
+require_contains "$paper_example" 'Browser Worker' 'paper-info parked worker rule'
+require_contains "$paper_example" 'Maven|mvn|pnpm' 'paper-info quality gates'
 
 # Historical/migration notes may name 3.x concepts, but active instructions must not
 # re-enable their default gates or old planning/review contracts.
