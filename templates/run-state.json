@@ -1,0 +1,30 @@
+{
+  "task_id": "<task-id>",
+  "contract_id": "<contract-id>",
+  "contract_revision": 1,
+  "repo_root": "<repo-root>",
+  "working_directory": "<checkout-or-worktree>",
+  "branch": null,
+  "baseline_commit": null,
+  "baseline_ref": null,
+  "supervisor": {
+    "task_name": null,
+    "requested_model": null,
+    "host_model_evidence": null,
+    "model_status": "NOT_STARTED",
+    "handoff_status": "NOT_SPAWNED"
+  },
+  "herdr": {
+    "workspace_id": null,
+    "pane_id": null,
+    "agy_agent": null,
+    "native_session_ref": null
+  },
+  "current_round": 0,
+  "finding_ids": [],
+  "dispatch_state": "NOT_SENT",
+  "current_status": "CONTRACT_FROZEN",
+  "code_state_digest": null,
+  "verification_results": [],
+  "contract_patches": []
+}
