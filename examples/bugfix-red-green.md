@@ -1,31 +1,11 @@
 # Example: Deterministic Bugfix in 4.1
 
-For a reproducible bug, keep the workflow small.
+Astra Contract records the reported observable failure, success scenario, counterexample, and may pre-authorize the **minimal original reproduction** as a diagnostic.
 
-## Contract
+AGY may run that reproduction during IMPLEMENT only to understand/confirm the defect; its result is recorded with `formal_acceptance=false`. AGY implements the root-cause fix and stops without running the frozen formal acceptance plan.
 
-```yaml
-contract_id: bug-x
-revision: 1
-goal: Remove the reported defect without changing unrelated behavior.
-behavior:
-  - The original reproduction no longer fails.
-constraints:
-  - Preserve compatibility and applicable repository rules.
-done:
-  - The frozen regression checks and required metrics pass.
-```
+Astra code review inspects the complete repaired deliverable and repository propagation obligations. After `CODE_REVIEW_PASS`, Astra freezes the formal plan, typically including the original reproduction and regression/project gates as required checks.
 
-## Implement
+AGY runs those checks through Herdr with separate attempts/evidence. The deterministic completion gate verifies the current deliverable, exact frozen commands/exit codes/metrics and evidence hashes.
 
-AGY runs through Herdr in `IMPLEMENT` mode. It may inspect the known reproduction as input evidence, diagnose and fix the code, but it does not execute the formal regression/test plan yet.
-
-## Code review
-
-Astra inspects the complete code delta and root-cause handling without running tests. Findings return to AGY as bounded implementation rework until `CODE_REVIEW_PASS`.
-
-## Test plan and execution
-
-Astra then freezes the original reproduction/regression check plus applicable repository gates as measurable test criteria. AGY executes them through Herdr and reports actual results.
-
-If all required metrics pass on the reviewed code digest, complete. If AGY changes code after a failed test, return to Astra code review before testing becomes final.
+If formal testing exposes another code defect, save the failure first, stop the worker, run `validate-run-state invalidate`, perform one bounded AGY repair, then return to Astra review and a fresh plan. Diagnostic RED/GREEN or AGY prose alone never completes the task.
