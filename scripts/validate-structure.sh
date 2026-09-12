@@ -30,6 +30,7 @@ files=(
   "$root/evals/scenarios.json"
   "$root/scripts/check-herdr.sh"
   "$root/scripts/snapshot-code-state.sh"
+  "$root/scripts/validate-workflow.sh"
   "$root/scripts/validate-structure.sh"
   "$root/scripts/validate-docs.sh"
   "$root/scripts/validate-runtime.sh"
@@ -57,11 +58,9 @@ python3 -m json.tool "$root/schemas/development-contract.schema.json" >/dev/null
 python3 -m json.tool "$root/schemas/run-state.schema.json" >/dev/null
 python3 -m json.tool "$root/templates/run-state.json" >/dev/null
 python3 -m json.tool "$root/evals/scenarios.json" >/dev/null
-bash -n "$root/scripts/check-herdr.sh"
-bash -n "$root/scripts/snapshot-code-state.sh"
-bash -n "$root/scripts/validate-docs.sh"
-bash -n "$root/scripts/validate-runtime.sh"
-bash -n "$root/scripts/test-readiness.sh"
+for script in check-herdr.sh snapshot-code-state.sh validate-workflow.sh validate-docs.sh validate-runtime.sh test-readiness.sh; do
+  bash -n "$root/scripts/$script"
+done
 
 python3 - "$root/.codex-plugin/plugin.json" "$root/evals/scenarios.json" <<'PY'
 import json, sys
