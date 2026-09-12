@@ -1,75 +1,96 @@
-# Test Plan and Metrics
+# Frozen Test Plan, Results, and Completion
 
-Testing begins only after Astra records `CODE_REVIEW_PASS` for the current code-state digest.
+Formal testing begins only after Astra records `CODE_REVIEW_PASS` for the current **deliverable digest**.
 
-## Astra freezes the test plan
+## Canonical data
 
-Astra reads the final reviewed code, Development Contract, applicable project rules, and code-review findings, then writes a compact plan:
+Runtime truth is JSON, not Markdown:
 
-```yaml
-test_plan_id: <id>
-contract_revision: <n>
-reviewed_code_state_digest: <digest>
-checks:
-  - id: T1
-    method: <command or inspection>
-    cwd: <working directory>
-    required: true
-    expected: <measurable pass condition>
-metrics:
-  - <aggregate acceptance metric>
+- `schemas/test-plan.schema.json` + `templates/test-plan.json` — frozen Astra Test Plan.
+- `schemas/test-results.schema.json` + `templates/test-results.json` — AGY execution attempts.
+- `scripts/validate-run-state.sh` — cross-document/phase/completion validator.
+
+`templates/test-plan.md` is a human-facing guide only. Do not manually maintain a second factual plan.
+
+Plan digest is SHA-256 of canonical JSON (`sort_keys`, compact separators, ASCII escaping). AGY may execute a frozen plan but may not change its content/digest, remove required checks, lower thresholds, or redefine applicability.
+
+## Test Plan
+
+The plan binds `task_id`, Contract id/revision, plan id/revision and `reviewed_deliverable_digest`. Each check has a unique id, type (`command` or `observation`), cwd, `required`, frozen applicability, evidence types and `max_attempts`.
+
+Command checks freeze an argv array, acceptable exit codes and timeout. Observation checks freeze explicit steps and require an evidence reference. Free-form `expected` text may explain intent but never substitutes for machine-readable exit-code/metric rules.
+
+Applicability is either:
+
+```json
+{"mode":"always"}
 ```
 
-Include all project-required gates applicable to the changed surface. "Cheapest decisive check first" controls ordering only; it does not authorize skipping required gates.
+or a frozen objective equality:
 
-Astra does not execute the tests. Once frozen, AGY may not remove required checks, reduce thresholds, redefine PASS, or relabel failures as not applicable.
+```json
+{"mode":"fact_eq","fact":"browser_available","value":true}
+```
 
-## AGY executes
+A conditional result must carry matching applicability evidence. Unknown applicability is BLOCKED. Execution failure cannot be relabeled N/A. A required check whose condition is true cannot be waived.
 
-AGY receives the frozen plan and executes it through Herdr. For every check report:
+Metrics use only `eq`, `ge`, or `le`, a source check, measured-value field, threshold, optional unit, and required flag. No `eval`, scripts, or arbitrary expressions are accepted.
+
+A legitimate no-command task uses `checks: []` only with frozen `no_checks_acceptance` pointing to hashed acceptance evidence. Empty-array truthiness can never complete a task by itself.
+
+## Evidence attempts
+
+Every attempt is independent and records check id, attempt id/number, timestamps, actual argv or observation completion, cwd, exit/observation result, `measured_values`, evidence paths + hashes, reason, and deliverable digest before/after.
+
+Evidence files must exist under Run State `evidence_root` and match their recorded SHA-256. Different attempts cannot merge logs or metrics. Attempts for a check are contiguous from 1, bounded by frozen `max_attempts`, and the latest attempt is authoritative; old success cannot hide a later failure.
+
+This detects record inconsistency and accidental/stale evidence. It is not cryptographic proof against a malicious worker with the same filesystem permissions.
+
+## Deliverable versus evidence output
+
+The deliverable digest includes tracked/untracked task content such as production code, test source, assertions, fixtures, goldens/snapshots, configuration, lockfiles and generated source. Changing any of these invalidates prior code review and formal test evidence.
+
+Logs/reports/cache may avoid digest churn only when written to the predeclared Git-private/out-of-worktree `evidence_root`. Do not use broad ignore rules to hide source changes.
+
+Ignored files are outside the default snapshot. If a required check depends on one, list it in Test Plan `input_paths` and include it explicitly when capturing the snapshot. Unsupported submodules or unsafe inputs fail closed rather than silently disappearing from evidence.
+
+## AGY formal testing
+
+AGY executes only the frozen checks through Herdr. Environment/auth/dependency failures remain `BLOCKED`. Retry/flaky behavior is bounded by `max_attempts`; keep every attempt and never retry indefinitely to obtain green.
+
+If testing exposes a code defect, first persist the failure, confirm the current writer stops, then run:
 
 ```text
-check_id
-method/command
-cwd
-exit_code if available
-result = PASS | FAIL | BLOCKED | NOT_RUN | NOT_APPLICABLE
-measured_values
-summary
-log/evidence reference
-code_state_digest
+validate-run-state invalidate ...
 ```
 
-A command that did not run cannot be PASS. `NOT_APPLICABLE` requires the reason already implied by the frozen plan or an objective condition; AGY cannot use it to waive a required test.
+This marks review and plan STALE and enters `TEST_REWORK`. AGY may then perform a complete bounded repair within the Contract and stop. The repaired deliverable returns to Astra code review; a new/fresh plan is required before formal testing resumes.
 
-AGY self-report must preserve actual output/metrics. Do not fabricate token usage, timings, pass counts, coverage, or cost data.
+By default a changed deliverable reruns all applicable required formal checks. This version does not implement dependency-based evidence reuse.
 
-## Completion rule
+## Entering TEST
 
-No second Astra test-review is required. Completion is mechanical against the frozen plan:
+The host must call:
 
-```text
-all required checks = PASS
-AND all frozen acceptance metrics satisfied
-AND no required BLOCKED / NOT_RUN
-AND tested code_state_digest still equals current deliverable
-→ TASK COMPLETE
+```bash
+scripts/validate-run-state.sh transition \
+  --run-state "$state" --contract "$contract" --test-plan "$plan" \
+  --to TEST --expected-state-version "$version"
 ```
 
-The root host may format the result for the user but must not reinterpret failed metrics as success.
+The command re-snapshots the repository and rejects stale Contract/review/plan digest, `SEND_UNKNOWN`, active/unknown writer state, missing plan inputs, and illegal transitions.
 
-## Test failure
+## Completion
 
-If a test fails because of code behavior, AGY may diagnose and fix it within the existing Contract. The moment production/task code changes:
+The host must call the deterministic command, not infer success from AGY prose:
 
-```text
-prior CODE_REVIEW_PASS = STALE
-prior affected test evidence = STALE
-→ ASTRA CODE REVIEW
-→ refreshed/frozen TEST PLAN
-→ AGY TEST
+```bash
+scripts/validate-run-state.sh complete \
+  --run-state "$state" --contract "$contract" \
+  --test-plan "$plan" --results "$results" \
+  --expected-state-version "$version"
 ```
 
-If failure is purely environmental/auth/dependency and no code change can legitimately solve it, return `BLOCKED`; do not modify the Contract or code merely to make the environment green.
+It re-reads disk, re-snapshots the current deliverable, validates all JSON Schemas, Contract/review/plan identities, plan digest, complete check enumeration, attempt sequence, actual argv/exit codes or observation evidence, evidence hashes, applicability, metrics, open findings, dispatch/writer state, and before/after/current deliverable digests. Only a successful decision atomically writes `phase=COMPLETE`.
 
-If only test artifacts/logging change without changing the reviewed deliverable, rerun only affected checks and retain still-valid evidence.
+Astra does not perform a second test-review pass. The deterministic validator is the completion gate.
