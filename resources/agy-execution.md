@@ -1,240 +1,138 @@
 # AGY Execution — Herdr Only
 
-AGY Supervised Development 3.3 has one runtime path:
+AGY is the only writer and every AGY execution goes through Herdr.
 
 ```text
-Codex Governance
-  ↓ Execution Unit / Rework Contract
-Herdr
-  ↓
-Antigravity CLI (AGY)
-  ↓
-Repository
-  ↓
-Git + Codex Review / Verify
+Luna supervisor
+→ Herdr
+→ AGY
+→ repository
+→ Git + independent verification
 ```
 
-> **Herdr is infrastructure, not governance.**
+Herdr owns runtime identity and lifecycle. It does not own Contract decisions or acceptance.
 
-Herdr owns agent launch, identity, terminal lifecycle, interaction and native session restore. Codex owns scope, decisions, Review, Verification and Acceptance.
+## Preflight
 
-## 1. One-time setup
-
-Herdr, AGY and `jq` must already be installed. Install the official Antigravity integration explicitly once for the user account:
-
-```bash
-herdr integration install antigravity-cli
-```
-
-The integration writes Antigravity user-level hook configuration, so task execution must never install it silently.
-
-The Antigravity integration reports native conversation identity for restore. Herdr derives `working` / `idle` / `blocked` / `done` from Antigravity's terminal screen detection.
-
-## 2. Per-task preflight
-
-Before AGY BUILD:
+Before starting a worker:
 
 ```bash
 scripts/check-herdr.sh
 ```
 
-Required:
+`HERDR_ENVIRONMENT_READY` means only that the local Herdr/AGY integration preconditions checked by the script are ready. It does **not** prove AGY authentication, a successful task run, or end-to-end delivery.
+
+Never install/reinstall hooks or integrations automatically during task execution.
+
+## Workspace and IDs
+
+Create a task workspace on the chosen code working directory (current checkout or task worktree):
+
+```bash
+created="$(herdr workspace create --cwd "$working_directory" --label "$task_id" --no-focus)"
+```
+
+Read IDs only from returned structured data and validate both type and value:
+
+```bash
+workspace_id="$(printf '%s' "$created" | jq -er '.result.workspace.workspace_id | strings | select(length > 0)')"
+pane_id="$(printf '%s' "$created" | jq -er '.result.root_pane.pane_id | strings | select(length > 0)')"
+```
+
+A JSON `null`, empty value, missing field, or non-string is invalid. Record valid IDs in Run State.
+
+Herdr workspace creation is terminal/runtime setup, not Git isolation.
+
+## Start worker
+
+Use one stable task-local AGY name and record it:
+
+```bash
+herdr agent start "$agy_agent" --kind agy --pane "$pane_id"
+```
+
+Before every round, inspect the worker state/output enough to establish that it is not still executing the previous round. Do not stack duplicate prompts onto a busy worker.
+
+## Dispatch
+
+Each prompt includes `task_id`, `round`, Contract revision, applicable repository rules, and the bounded work/finding for that round.
+
+Track dispatch state in Run State:
 
 ```text
-herdr executable available
-agy executable available
-jq available for Herdr JSON responses
-Herdr server reachable
-antigravity-cli integration installed and usable
+NOT_SENT → SENT → SETTLED
+        ↘ SEND_UNKNOWN
 ```
 
-Herdr's supported agent kinds include `agy`; the actual `agent start --kind agy` remains the runtime launch gate.
+Use a bounded wait:
 
-If any prerequisite fails:
+```bash
+herdr agent prompt "$agy_agent" "$worker_order" \
+  --wait --until idle --until done --until blocked --timeout "$timeout_ms"
+```
+
+Herdr help warns that a wait can match the end of existing work rather than prove a particular prompt round completed. Therefore correlate completion with the round marker in worker output plus repository evidence; do not use lifecycle state alone.
+
+If prompt delivery/return is ambiguous, set `SEND_UNKNOWN`, read state/output and investigate. Never automatically resend an uncertain prompt.
+
+A timeout means `WAIT_TIMEOUT`, not failure and not permission to resend. Read the worker first.
+
+## Blocked / interaction
+
+When blocked:
+
+```bash
+herdr agent read "$agy_agent" --source recent-unwrapped --lines 160
+```
+
+Classify the reason before interaction:
+
+- reversible implementation choice inside Contract → supervisor may continue;
+- environment/auth/dependency issue → `BLOCKED`, do not rewrite business requirements to bypass it;
+- product, architecture, destructive or one-way decision → escalate to architect/user as required.
+
+Do not blindly send keys based on `blocked` status.
+
+## Worker completion report
+
+AGY reports:
 
 ```text
-AGY BUILD → BLOCKED
+task_id / round / contract_revision
+changed behavior + files
+tests/checks actually run + exit status
+NOT_RUN / BLOCKED checks
+known limitations
+unresolved findings
+self-review summary
 ```
 
-Do not silently switch runtimes. Do not invoke AGY directly.
+The report is an index into evidence, not independent proof.
 
-## 3. Workspace binding
+## Rework
 
-Create a task-owned workspace directly on the repository root:
+Reuse the same worker when safe. A rework prompt contains only the Contract reference plus bounded finding/evidence/required outcome. Increment the round and finding progress counters.
 
-```bash
-repo_root="$(git rev-parse --show-toplevel)"
-created="$(herdr workspace create \
-  --cwd "$repo_root" \
-  --label "$task_label" \
-  --no-focus)"
-```
+Two consecutive rounds without substantive progress on the same finding default to `ESCALATE`. A configurable policy may lower/raise that threshold, but never allow unbounded rework.
 
-Herdr returns JSON. Use the IDs it returns; never guess topology IDs:
+## Session loss and replacement
 
-```bash
-workspace_id="$(printf '%s' "$created" | jq -r '.result.workspace.workspace_id')"
-pane_id="$(printf '%s' "$created" | jq -r '.result.root_pane.pane_id')"
-```
+If exact Herdr/native session identity can be restored, reuse it. If it cannot:
 
-Validate both values are non-empty before launch. This workspace is runtime state, not task truth. Git remains repository truth.
+- do not guess another conversation;
+- inspect Run State and current Git state;
+- confirm the old worker is stopped/unrecoverable and cannot write in parallel;
+- only then start a replacement Herdr-managed AGY;
+- pass Contract + project rules + current code state + unresolved findings + valid verification state.
 
-## 4. Agent identity and launch
+Never replay a command with unknown side effects simply because the session disappeared.
 
-Create one stable task-local agent name matching:
+## Close
 
-```text
-[a-z][a-z0-9_-]{0,31}
-```
-
-Example: `agy-orders-4f2a`.
-
-Use the same name for the task's Build and Rework chain.
-
-Start AGY only through Herdr:
-
-```bash
-herdr agent start "$agy_agent" \
-  --kind agy \
-  --pane "$pane_id"
-```
-
-`agent start` requires an existing available shell pane and returns only after Herdr recognizes the expected AGY process as ready for interaction.
-
-## 5. Prompt and wait
-
-Send an Execution Unit atomically through the Agent API:
-
-```bash
-herdr agent prompt "$agy_agent" "$execution_unit" \
-  --wait \
-  --until idle \
-  --until done \
-  --until blocked \
-  --timeout "$timeout_ms"
-```
-
-Use milliseconds for Herdr timeouts. Pick a bounded value appropriate to task size.
-
-Important semantic boundary:
-
-```text
-Herdr settled state
-!=
-Execution Unit PASS
-```
-
-Herdr wait is lifecycle-oriented, not delivery proof. Always read current output and Git afterward.
-
-## 6. Read before interaction
-
-When state is `blocked`, inspect first:
-
-```bash
-herdr agent read "$agy_agent" \
-  --source recent-unwrapped \
-  --lines 120
-```
-
-Then classify:
-
-```text
-Within frozen scope + already authorized + reversible
-→ minimum safe key interaction may proceed
-
-One-way / product / architecture decision
-→ USER_DECISION_REQUIRED
-
-Out of scope / unsafe
-→ refuse or keep BLOCKED
-```
-
-When a terminal key is genuinely required:
-
-```bash
-herdr agent send-keys "$agy_agent" enter
-```
-
-Never blindly approve based only on `blocked` status.
-
-## 7. Worker report and Git handoff
-
-After `idle` or `done`, collect recent output:
-
-```bash
-herdr agent read "$agy_agent" \
-  --source recent-unwrapped \
-  --lines 160
-```
-
-Worker report should include changed behavior/files, tests actually run, blocked/not-run checks, permission/tool failures, known limitations and unresolved items.
-
-Then Codex independently inspects:
-
-```bash
-git status --short
-git diff --stat
-git diff --check
-git diff
-```
-
-Herdr state and AGY self-report are runtime evidence only.
-
-## 8. Rework
-
-After a Review finding, reuse the same live Herdr-managed AGY worker:
-
-```bash
-herdr agent prompt "$agy_agent" "$rework_contract" \
-  --wait \
-  --until idle \
-  --until done \
-  --until blocked \
-  --timeout "$timeout_ms"
-```
-
-Conversation history helps context, but the Rework Contract remains explicit. After rework, perform the full Three-Axis Review again.
-
-## 9. Session restore
-
-With the official `antigravity-cli` integration installed, Antigravity reports its conversation on `PreInvocation`. Herdr can restore that pane after a Herdr server restart using the native AGY conversation reference.
-
-The workflow itself never executes a direct resume command.
-
-If the exact session reference is missing, invalid, stale, or cannot be restored:
-
-```text
-Do not guess another conversation.
-```
-
-Preserve current repository evidence. Start a replacement Herdr-managed AGY only when safe, supplying frozen Spec/current Execution Unit, repo/branch/baseline summary, current diff, findings and verification state.
-
-## 10. Workspace ownership and close
-
-The workflow may close only a workspace it created for the current task, and only after the live AGY session is no longer needed:
+Close only Herdr workspaces created for this task and only after the worker is confirmed no longer writing:
 
 ```bash
 herdr workspace close "$workspace_id"
 ```
 
-Do not mutate unrelated user Herdr workspaces.
-
-## 11. Runtime / Governance boundary
-
-Herdr answers where the AGY worker is, its lifecycle state, visible recent output and whether native session restore is possible.
-
-Codex answers whether the implementation is in scope, satisfies the Spec, has acceptable quality/completeness, passes verification and can be accepted.
-
-Therefore:
-
-```text
-Herdr done
-→ CODEX REVIEWING
-```
-
-never:
-
-```text
-Herdr done
-→ ACCEPTED
-```
+`Herdr done/idle != delivery accepted`.
