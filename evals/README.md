@@ -2,12 +2,12 @@
 
 `scenarios.json` defines semantic regression scenarios for the 4.1 workflow. They are **not** executable proof by themselves.
 
-Current status:
+Evidence classes stay separate:
 
-- `SCENARIOS_DEFINED_NOT_EXECUTED`: scenarios exist but no semantic runner produced evidence.
-- deterministic shell/JSON checks live under `scripts/` and may be reported only when actually run.
-- a real Astra plan → Herdr/AGY implementation → Astra code review → Astra test plan → Herdr/AGY test run is required before reporting `FLOW_VERIFIED`.
+- `SCENARIOS_DEFINED_NOT_EXECUTED`: semantic scenarios only.
+- `scripts/test-snapshot-behavior.py`, `scripts/run-completion-behavior-test.py`, document-role fixtures and Herdr mocks: deterministic/static/mock evidence when actually run.
+- `FLOW_VERIFIED`: only a real disposable Codex/Astra → Herdr/AGY implement → Astra code review → frozen plan → Herdr/AGY formal test → deterministic completion run.
 
-The scenarios focus on phase separation, no formal testing during implementation, code-only Astra review, bounded review/rework, frozen metrics, no second Astra test-review, evidence invalidation after code changes, baseline protection, project rules, Herdr dispatch safety and recovery.
+Current scenarios cover diagnostic-vs-formal evidence, recoverable baselines, special paths/symlinks/binary/mode changes, deliverable vs Git ownership identity, fail-closed capture, structured plan/results, objective applicability, attempt isolation, stale evidence, mechanical completion rejection paths, blocked/recovery/dispatch safety, and migration-note versus active-role detection.
 
-Do not convert the presence of a scenario, grep assertion, schema validation, or mock runtime test into a claim that the real workflow passed.
+Do not convert a scenario definition, grep assertion, schema fixture or mock into a real multi-agent/runtime pass claim.
