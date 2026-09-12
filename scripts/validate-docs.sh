@@ -38,7 +38,10 @@ require_contains "$execution" 'jq -er' 'validated Herdr ids'
 require_contains "$execution" 'SEND_UNKNOWN' 'Herdr send uncertainty'
 require_contains "$evals" 'SCENARIOS_DEFINED_NOT_EXECUTED' 'semantic eval honesty'
 
-if grep -REn --exclude-dir=legacy -- 'Plan review is enabled by default|PLAN FROZEN|Three-Axis Review|Shape/Spec/Slice|Codex first completes the executable plan from the current Shape' \
+# Historical/migration notes may name 3.x concepts, but active instructions must not
+# re-enable their default gates or old planning/review contracts.
+if grep -REn --exclude-dir=legacy -- \
+  'Plan review is enabled by default|PLAN FROZEN|After rework, perform the full Three-Axis Review again|Codex first completes the executable plan from the current Shape|Source Spec:|Change Shape: vertical-slice' \
   "$root/SKILL.md" "$root/README.md" "$root/resources" "$root/templates" "$root/examples" "$root/evals" "$root/skills" >/dev/null; then
   printf 'Documentation validation failed: legacy 3.3 default behavior remains active.\n' >&2
   exit 1
