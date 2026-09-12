@@ -1,7 +1,7 @@
 ---
 name: agy-supervised-development
-description: Astra plans and reviews code; AGY implements and executes Astra-defined tests through Herdr.
-version: 4.1.0-alpha.1
+description: Astra plans/reviews/freezes tests; Herdr-managed AGY implements and tests; deterministic validation completes.
+version: 4.1.0-alpha.2
 ---
 
 # AGY Supervised Development
@@ -9,20 +9,19 @@ version: 4.1.0-alpha.1
 Read `../../SKILL.md`; it is the canonical router.
 
 ```text
-Astra: Plan
-→ AGY: Implement only
+Astra: Contract + acceptance scenarios + optional diagnostics
+→ AGY: Implement / bounded diagnostics
 → Astra: Code review only
-→ Astra: Freeze test plan + metrics
-→ AGY: Test
-→ Metrics pass: Complete
+→ Astra: Freeze machine Test Plan + metrics
+→ AGY: Formal test
+→ deterministic completion gate
 ```
 
 Rules:
-- Astra freezes `WHAT / BOUNDARY / DONE`; AGY owns normal `HOW`.
-- Implementation/rework AGY runs do not execute the formal test plan or project acceptance gates.
-- Astra code review does not run tests.
-- After code review PASS, Astra freezes test checks and measurable acceptance criteria.
-- AGY executes tests and cannot weaken the frozen metrics.
-- If test-stage code changes, return to Astra code review before completion.
-- Every AGY execution is Herdr-managed.
-- Preserve baseline/user changes and load supporting resources only for the current phase.
+- Astra owns `WHAT / BOUNDARY / DONE`, code review, and frozen formal test criteria; AGY owns normal `HOW`.
+- Contract-preauthorized diagnostics may run during implementation but never count as formal acceptance.
+- Astra code review runs no tests and is bound to the current deliverable digest.
+- AGY cannot weaken a frozen plan; any deliverable change after review invalidates review/plan/formal evidence.
+- `bash scripts/validate-run-state.sh` controls TEST entry and COMPLETE; AGY prose cannot complete the task.
+- Every AGY execution is Herdr-managed; preserve baseline/user changes and dispatch safety.
+- No default Luna supervisor, Sol plan review, or second Astra test-review stage.
