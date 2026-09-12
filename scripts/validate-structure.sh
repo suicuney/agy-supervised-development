@@ -34,7 +34,7 @@ python3 - "$root/.codex-plugin/plugin.json" <<'PY'
 import json, sys
 p=json.load(open(sys.argv[1], encoding='utf-8'))
 assert p['name']=='agy-supervised-development'
-assert p['version']=='4.0.0-alpha.2'
+assert p['version']=='4.0.0-alpha.3'
 assert p['skills']=='./skills/'
 assert {'herdr','astra','luna'} <= set(p['keywords'])
 PY
