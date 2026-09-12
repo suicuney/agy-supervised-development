@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "task_id": "<task-id>",
+  "contract_id": "<contract-id>",
+  "contract_revision": 1,
+  "plan_id": "<plan-id>",
+  "plan_revision": 1,
+  "reviewed_deliverable_digest": "<64-hex-digest>",
+  "status": "FROZEN",
+  "checks": [],
+  "metrics": [],
+  "no_checks_acceptance": null
+}
