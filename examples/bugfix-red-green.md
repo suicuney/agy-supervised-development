@@ -1,4 +1,4 @@
-# Example: Deterministic Bugfix in 4.0
+# Example: Deterministic Bugfix in 4.1
 
 For a reproducible bug, keep the workflow small.
 
@@ -11,18 +11,21 @@ goal: Remove the reported defect without changing unrelated behavior.
 behavior:
   - The original reproduction no longer fails.
 constraints:
-  - Preserve existing compatibility and applicable repository rules.
+  - Preserve compatibility and applicable repository rules.
 done:
-  - Original reproduction is rerun after the fix.
-  - Relevant regression test/check passes.
+  - The frozen regression checks and required metrics pass.
 ```
 
-## Execution
+## Implement
 
-The supervisor captures baseline and Run State, then sends AGY a worker order through Herdr containing the reproduction and Contract reference. AGY diagnoses, implements, tests and self-reviews.
+AGY runs through Herdr in `IMPLEMENT` mode. It may inspect the known reproduction as input evidence, diagnose and fix the code, but it does not execute the formal regression/test plan yet.
 
-## Independent verification
+## Code review
 
-Luna reruns the original reproduction or equivalent decisive check independently and verifies project-required gates for the affected surface. A worker statement such as "fixed/tests pass" is not enough.
+Astra inspects the complete code delta and root-cause handling without running tests. Findings return to AGY as bounded implementation rework until `CODE_REVIEW_PASS`.
 
-If the same finding receives two rework rounds without material progress, escalate rather than endlessly retrying.
+## Test plan and execution
+
+Astra then freezes the original reproduction/regression check plus applicable repository gates as measurable test criteria. AGY executes them through Herdr and reports actual results.
+
+If all required metrics pass on the reviewed code digest, complete. If AGY changes code after a failed test, return to Astra code review before testing becomes final.
