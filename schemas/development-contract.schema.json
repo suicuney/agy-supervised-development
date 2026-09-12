@@ -2,8 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AGY Development Contract",
   "type": "object",
-  "required": ["goal", "behavior", "done"],
+  "required": ["contract_id", "revision", "goal", "behavior", "done"],
   "properties": {
+    "contract_id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
     "goal": {"type": "string", "minLength": 1},
     "behavior": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
     "constraints": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []},
