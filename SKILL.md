@@ -1,119 +1,118 @@
 ---
 name: agy-supervised-development
-description: Contract-first supervised coding with Astra for decisions, Luna for evidence-driven supervision, and AGY through Herdr for implementation.
-version: 4.0.0-alpha.4
+description: Astra plans and reviews code; AGY implements and later executes Astra-defined tests through Herdr.
+version: 4.1.0-alpha.1
 ---
 
-# AGY Supervised Development 4.0
+# AGY Supervised Development 4.1
 
-> **Astra decides. Luna supervises. AGY builds. Git proves. Routing proves itself.**
+> **Astra plans. AGY builds. Astra reviews code. AGY proves it with Astra-defined tests.**
 
 ## Flow
 
 ```text
 USER
-→ ASTRA: CONTRACT
-→ LUNA: SUPERVISE
-→ AGY: BUILD + TEST + SELF-REVIEW   # Herdr only
-→ LUNA: VERIFY
-→ ACCEPT
+→ ASTRA: PROBLEM + DEVELOPMENT CONTRACT
+→ AGY via HERDR: IMPLEMENT ONLY
+→ ASTRA: CODE REVIEW ONLY
+   ├─ REWORK → AGY FIX → ASTRA CODE REVIEW
+   └─ PASS
+→ ASTRA: TEST PLAN + ACCEPTANCE METRICS
+→ AGY via HERDR: TEST
+   ├─ METRICS PASS → COMPLETE
+   └─ METRICS FAIL/BLOCKED → AGY FIX or BLOCKED
+        └─ any code change → ASTRA CODE REVIEW → refreshed TEST PLAN → AGY TEST
 ```
 
-Exception only:
+## Roles
 
-```text
-LUNA → ASTRA: CONTRACT PATCH → LUNA → AGY
-```
+- **Astra / architect**: locate the problem, freeze `WHAT / BOUNDARY / DONE`, review code, and after code review passes freeze the test plan and acceptance metrics.
+- **AGY / worker**: inspect implementation details, write/fix code, and later execute the frozen test plan. Every AGY execution goes through Herdr.
+- **Git + evidence**: baseline, task delta, code-review input, and test-result truth.
 
-## Contract
+There is no default Luna/supervisor stage in 4.1.
 
-Astra freezes only `WHAT / BOUNDARY / DONE`:
+## Development Contract
+
+Keep it compact:
 
 ```yaml
+contract_id: <id>
+revision: 1
 goal: <outcome>
 behavior: [<observable result>]
 constraints: [<important boundary>]
-done: [<completion evidence>]
-escalate_if: [<contract-level blocker>]
+done: [<final completion condition>]
 ```
 
-AGY owns normal implementation `HOW`. Do not require file-level plans by default.
+AGY owns ordinary implementation `HOW`. Do not require a file-level implementation plan by default.
 
-## Runtime
+## Phase 1 — AGY implementation only
 
-- Every AGY execution goes through Herdr.
-- Herdr lifecycle state is runtime evidence, never acceptance.
-- AGY self-review is evidence, never independent acceptance.
-- Load project `AGENTS.md` and explicitly referenced constraints before implementation and verification.
-- Preserve existing user changes. Do not auto-stash, clean, reset, overwrite, push, merge, deploy, or perform irreversible operations without authority.
+AGY receives the Contract, applicable repository rules, baseline, and working directory.
 
-## Supervisor handoff
-
-For Codex Multi-Agent V2, use the host's real `spawn_agent` capability when exposed. Prefer a fresh minimal-context supervisor (`fork_turns: "none"`) so the supervisor does not inherit Astra's full reasoning history and explicit model selection remains possible when the host exposes it.
-
-Requested model, host-confirmed/runtime-reported model, and handoff status are separate facts. A prose claim is not evidence. If an independent supervisor was not actually spawned, do not claim a Luna handoff. If a supervisor exists but the exact model cannot be verified, record the model as unverified; use same-model supervision only when the user did not require Luna specifically.
-
-Read `resources/codex-supervisor-handoff.md` only for the handoff stage.
-
-## Run state and recovery
-
-Keep the Development Contract small. Store execution state separately under the repository's Git-private path returned by:
-
-```bash
-git rev-parse --git-path "agy-supervised/runs/<task_id>/run-state.json"
-```
-
-Run State records baseline, supervisor evidence, Herdr identities, rounds, findings, verification evidence, and recovery status. It must not contain credentials or unrelated conversation history.
-
-Read `resources/run-state.md` only when creating, resuming, or recovering a task.
-
-## Baseline and isolation
-
-Before AGY writes, capture branch/HEAD plus committed, staged, unstaged, untracked and deletion/rename state.
-
-- Clean checkout + no concurrent writer: direct execution is allowed.
-- Existing user changes, concurrent writers, or explicit isolation need: prefer a task worktree.
-- If the task depends on uncommitted user changes, preserve/copy those prerequisites deliberately; never create a clean HEAD worktree and silently omit them.
-- Herdr workspace is terminal/runtime isolation, not code isolation.
-
-## Supervision
-
-Luna receives the minimum useful context:
+The implementation order must explicitly say:
 
 ```text
-Contract
-+ applicable repository rules
-+ baseline/run-state reference
-+ AGY result
-+ Git evidence
-+ relevant test/runtime evidence
+IMPLEMENT ONLY.
+Do not execute the formal task test plan or project quality gates in this phase.
+Do not declare task completion.
 ```
 
-Loop:
+AGY may inspect code and use non-test tooling needed to understand/edit it. If a command would execute tests or a formal verification gate, defer it to the testing phase unless Astra explicitly classifies it as necessary diagnostic inspection.
+
+## Phase 2 — Astra code review only
+
+After AGY stops writing, Astra reviews the complete task code delta against the Contract and applicable repository rules. This phase reviews code; it does not run tests.
 
 ```text
-AGY execute → inspect → verify → PASS | REWORK | ESCALATE | BLOCKED
+CODE_REVIEW_PASS | CODE_REVIEW_REWORK | BLOCKED
 ```
 
-Two consecutive rounds without substantive progress on the same finding default to escalation. Environment/auth/dependency blockers do not enter infinite rework and do not justify silently changing the Contract.
+On `CODE_REVIEW_REWORK`, send only bounded findings to AGY, then review the resulting code again. Repeat until pass or a real blocker/product decision appears.
 
-## Verification
+Read `resources/code-review.md` only for this phase.
 
-Use the cheapest decisive check first, but always run project-required gates that apply to the changed surface. Results are `PASS | FAIL | BLOCKED | NOT_RUN | NOT_APPLICABLE`; a command that did not execute cannot be PASS.
+## Phase 3 — Astra test plan
 
-Bind each material verification result to the Contract revision and the actual code state, including uncommitted changes. If code changes invalidate evidence, rerun the affected verification before acceptance.
+Only after `CODE_REVIEW_PASS`, Astra produces a frozen Test Plan with measurable acceptance criteria. The plan must identify required commands/checks, working directory, expected result/metric, applicability, and any project-required gates.
 
-Final review covers committed task changes, staged changes, unstaged changes, untracked file contents, deletions/renames, and relevant binary changes. Separate task-introduced changes from baseline user changes.
+Astra does not execute the tests. AGY may not weaken or redefine the frozen metrics.
+
+Read `resources/testing.md` for the test-plan and metric contract.
+
+## Phase 4 — AGY testing
+
+AGY executes the frozen Test Plan through Herdr and reports raw results plus normalized metrics. A check that did not execute cannot be PASS.
+
+If all required metrics pass and no required check is blocked/not-run:
+
+```text
+TASK COMPLETE
+```
+
+Astra does not perform a second test-review pass.
+
+If testing leads AGY to modify production code, the previous `CODE_REVIEW_PASS` and affected test evidence become stale. Return to Astra code review, then refresh/freeze the Test Plan and test again.
+
+## Runtime / baseline / recovery
+
+- Preserve user changes; do not auto-stash, clean, reset, overwrite, push, merge, deploy, or perform irreversible actions without authority.
+- Herdr workspace is runtime isolation, not Git isolation.
+- Capture baseline before AGY writes and bind code-review/test evidence to the actual code state, including uncommitted content.
+- Store Run State under Git-private storage; never store credentials or unrelated chat history.
+- Do not guess lost sessions or automatically replay commands with uncertain side effects.
+
+Read `resources/run-state.md` when creating/resuming/recovering a run and `resources/agy-execution.md` when dispatching AGY.
 
 ## Progressive disclosure
 
 Load only what the current stage needs:
 
-- `resources/development-contract.md` — Contract + patch rules
-- `resources/codex-supervisor-handoff.md` — real Codex supervisor handoff
-- `resources/run-state.md` — state, recovery, worktree/baseline rules
-- `resources/supervisor.md` — rework/escalation/wait boundaries
-- `resources/agy-execution.md` — Herdr execution
-- `resources/verification.md` — evidence and acceptance
+- `resources/development-contract.md` — Contract + patch authority
+- `resources/run-state.md` — baseline, phase state, recovery
+- `resources/agy-execution.md` — Herdr worker dispatch
+- `resources/code-review.md` — Astra code-only review loop
+- `resources/testing.md` — frozen test plan, metrics, completion
 
-Legacy 3.3 material is not part of the default execution path.
+Legacy 3.x and 4.0 Luna-supervisor material is not part of the default execution path.
