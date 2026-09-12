@@ -1,8 +1,8 @@
 # AGY Supervised Development 4.0
 
-当前开发版本：**4.0.0-alpha.2**
+当前开发版本：**4.0.0-alpha.3**
 
-> **Astra decides. Luna supervises. AGY builds. Git proves.**
+> **Astra decides. Luna supervises. AGY builds. Git proves. Routing proves itself.**
 
 4.0 的目标只有一个：**把昂贵推理放在决策点，把便宜模型放在监督循环，把实现细节交给 AGY。**
 
@@ -37,6 +37,21 @@ escalate_if: [<契约级 blocker>]
 
 不默认写文件级施工步骤，不默认扫描整个仓库。`CONTRACT FROZEN` 冻结结果、边界和完成标准；AGY 自己决定正常 `HOW`。
 
+## Observable Handoff
+
+角色切换不能只靠模型自己声称。运行环境支持时，应暴露简洁控制事件：
+
+```text
+CONTRACT_FROZEN
+SUPERVISOR_STARTED  model=<runtime evidence>
+AGY_STARTED         session=<runtime evidence>
+REWORK / ESCALATED
+VERIFY_PASS
+ACCEPTED
+```
+
+如果运行环境只能证明 supervisor role 已启动、不能证明具体模型，则显示 `model=UNVERIFIED`，不能假装已经切到 Luna。
+
 ## Luna
 
 Luna 默认只看：
@@ -50,8 +65,6 @@ Contract + Git diff/status + AGY result + relevant test/runtime output
 ## Runtime / Verification
 
 Herdr 继续是唯一 AGY runtime。Git 是 repository truth。AGY 必须 self-review，但 Luna 仍独立验证。
-
-验证顺序：
 
 ```text
 Contract → diff → targeted verification → broader inspection only if needed
