@@ -1,7 +1,7 @@
 {
   "name": "agy-supervised-development",
-  "version": "4.0.0-alpha.2",
-  "description": "Strong-model task contracting, low-cost evidence supervision, and AGY implementation through Herdr.",
+  "version": "4.0.0-alpha.3",
+  "description": "Strong-model task contracting, low-cost evidence supervision, observable handoffs, and AGY implementation through Herdr.",
   "author": {"name": "suicuney"},
   "repository": "https://github.com/suicuney/agy-supervised-development",
   "license": "MIT",
@@ -9,16 +9,17 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "AGY Supervised Development",
-    "shortDescription": "Astra decides; Luna supervises; AGY builds; Git proves.",
-    "longDescription": "Freeze a compact task Contract with a strong reasoning model, supervise AGY with a cheaper model using Git/test evidence, and escalate only when the Contract must change.",
+    "shortDescription": "Astra decides; Luna supervises; AGY builds; routing proves itself.",
+    "longDescription": "Freeze a compact task Contract with a strong reasoning model, supervise AGY with a cheaper model using Git/test evidence, expose runtime routing evidence when available, and escalate only when the Contract must change.",
     "developerName": "suicuney",
     "category": "Productivity",
     "capabilities": [
       "Freeze compact Development Contracts",
       "Supervise AGY with evidence",
+      "Expose observable role/model handoffs",
       "Run AGY through Herdr",
       "Escalate contract-level decisions"
     ],
-    "defaultPrompt": "Use AGY Supervised Development: freeze WHAT/BOUNDARY/DONE with the architect, let Luna supervise evidence, let AGY decide normal HOW through Herdr, and escalate only when the Contract must change."
+    "defaultPrompt": "Use AGY Supervised Development: freeze WHAT/BOUNDARY/DONE with the architect, hand off to Luna with runtime routing evidence when available, let AGY decide normal HOW through Herdr, supervise with Git/test evidence, and escalate only when the Contract must change."
   }
 }
