@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AGY Run State",
+  "title": "AGY Run State 4.1",
   "type": "object",
-  "required": ["task_id", "contract_id", "contract_revision", "repo_root", "working_directory", "baseline_artifacts", "current_status", "current_round", "dispatch_state", "verification_results"],
+  "required": ["task_id", "contract_id", "contract_revision", "repo_root", "working_directory", "phase", "dispatch_state", "test_results"],
   "properties": {
     "task_id": {"type": "string", "minLength": 1},
     "contract_id": {"type": "string", "minLength": 1},
@@ -11,32 +11,7 @@
     "working_directory": {"type": "string", "minLength": 1},
     "branch": {"type": ["string", "null"]},
     "baseline_commit": {"type": ["string", "null"]},
-    "baseline_artifacts": {
-      "type": "object",
-      "required": ["snapshot_dir", "status_ref", "cached_diff_ref", "worktree_diff_ref", "untracked_ref", "code_state_digest"],
-      "properties": {
-        "snapshot_dir": {"type": ["string", "null"]},
-        "status_ref": {"type": ["string", "null"]},
-        "committed_diff_ref": {"type": ["string", "null"]},
-        "cached_diff_ref": {"type": ["string", "null"]},
-        "worktree_diff_ref": {"type": ["string", "null"]},
-        "untracked_ref": {"type": ["string", "null"]},
-        "code_state_digest": {"type": ["string", "null"]}
-      },
-      "additionalProperties": false
-    },
-    "supervisor": {
-      "type": "object",
-      "properties": {
-        "task_name": {"type": ["string", "null"]},
-        "requested_model": {"type": ["string", "null"]},
-        "host_model_evidence": {"type": ["string", "null"]},
-        "model_status": {"enum": ["VERIFIED", "REQUESTED_UNVERIFIED", "UNAVAILABLE", "SAME_MODEL", "NOT_STARTED"]},
-        "handoff_status": {"enum": ["SPAWNED", "NOT_SPAWNED", "UNKNOWN"]}
-      },
-      "required": ["model_status", "handoff_status"],
-      "additionalProperties": false
-    },
+    "baseline_ref": {"type": ["string", "null"]},
     "herdr": {
       "type": "object",
       "properties": {
@@ -47,22 +22,45 @@
       },
       "additionalProperties": false
     },
+    "phase": {"enum": ["IMPLEMENT", "CODE_REVIEW", "IMPLEMENT_REWORK", "TEST_PLAN", "TEST", "BLOCKED", "COMPLETE"]},
     "current_round": {"type": "integer", "minimum": 0},
     "finding_ids": {"type": "array", "items": {"type": "string"}},
     "dispatch_state": {"enum": ["NOT_SENT", "SENT", "SEND_UNKNOWN", "SETTLED"]},
-    "current_status": {"enum": ["CONTRACT_FROZEN", "SUPERVISING", "WORKING", "REVIEWING", "REWORK", "ESCALATED", "BLOCKED", "RECOVERY_BLOCKED", "ACCEPTED"]},
     "code_state_digest": {"type": ["string", "null"]},
-    "verification_results": {
+    "code_review": {
+      "type": "object",
+      "properties": {
+        "result": {"enum": ["NOT_RUN", "PASS", "REWORK", "BLOCKED", "STALE"]},
+        "contract_revision": {"type": ["integer", "null"], "minimum": 1},
+        "reviewed_code_state_digest": {"type": ["string", "null"]},
+        "finding_ids": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": ["result", "finding_ids"],
+      "additionalProperties": false
+    },
+    "test_plan": {
+      "type": "object",
+      "properties": {
+        "test_plan_id": {"type": ["string", "null"]},
+        "plan_revision": {"type": ["integer", "null"], "minimum": 1},
+        "contract_revision": {"type": ["integer", "null"], "minimum": 1},
+        "reviewed_code_state_digest": {"type": ["string", "null"]},
+        "status": {"enum": ["NOT_CREATED", "FROZEN", "STALE"]}
+      },
+      "required": ["status"],
+      "additionalProperties": false
+    },
+    "test_results": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["contract_revision", "method", "working_directory", "result", "code_state_digest"],
+        "required": ["check_id", "method", "working_directory", "result", "code_state_digest"],
         "properties": {
-          "contract_revision": {"type": "integer", "minimum": 1},
+          "check_id": {"type": "string", "minLength": 1},
           "method": {"type": "string", "minLength": 1},
           "working_directory": {"type": "string", "minLength": 1},
           "exit_code": {"type": ["integer", "null"]},
-          "result": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN", "NOT_APPLICABLE"]},
+          "result": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN", "NOT_APPLICABLE", "STALE"]},
           "summary": {"type": "string"},
           "log_ref": {"type": ["string", "null"]},
           "code_state_digest": {"type": "string", "minLength": 1}
