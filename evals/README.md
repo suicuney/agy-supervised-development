@@ -1,13 +1,13 @@
 # AGY Supervised Development Evals
 
-`scenarios.json` defines semantic regression scenarios for the 4.0 workflow. They are **not** executable proof by themselves.
+`scenarios.json` defines semantic regression scenarios for the 4.1 workflow. They are **not** executable proof by themselves.
 
-Current status values:
+Current status:
 
-- `SCENARIOS_DEFINED_NOT_EXECUTED`: scenarios are specified but no semantic runner produced evidence.
-- deterministic shell/JSON checks live under `scripts/` and may be reported separately when actually run.
-- a real Codex supervisor → Herdr/AGY smoke test is required before reporting `FLOW_VERIFIED`.
+- `SCENARIOS_DEFINED_NOT_EXECUTED`: scenarios exist but no semantic runner produced evidence.
+- deterministic shell/JSON checks live under `scripts/` and may be reported only when actually run.
+- a real Astra plan → Herdr/AGY implementation → Astra code review → Astra test plan → Herdr/AGY test run is required before reporting `FLOW_VERIFIED`.
 
-The scenarios focus on behavior that static slogan checks cannot prove: honest model handoff, preservation of user changes, complete Git delta review, project-rule gates, evidence invalidation, bounded rework, duplicate-dispatch safety, recovery, and Contract patch authority.
+The scenarios focus on phase separation, no formal testing during implementation, code-only Astra review, bounded review/rework, frozen metrics, no second Astra test-review, evidence invalidation after code changes, baseline protection, project rules, Herdr dispatch safety and recovery.
 
-Do not convert the presence of a scenario, a grep assertion, or a mock runtime test into a claim that the real multi-model flow passed.
+Do not convert the presence of a scenario, grep assertion, schema validation, or mock runtime test into a claim that the real workflow passed.
