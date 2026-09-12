@@ -1,10 +1,10 @@
 # Run State and Recovery
 
-Run State is operational state. It is not part of the user-facing Development Contract.
+Run State is operational state, separate from the Development Contract.
 
 ## Location
 
-Store each task under Git-private storage so it cannot be accidentally committed:
+Store it under Git-private storage:
 
 ```bash
 run_dir="$(git rev-parse --git-path "agy-supervised/runs/$task_id")"
@@ -12,43 +12,28 @@ mkdir -p "$run_dir"
 state_file="$run_dir/run-state.json"
 ```
 
-Do not store credentials, environment dumps, full chat history, or unrelated source content.
+Do not store credentials, full chat history, or unrelated environment dumps.
 
 ## Minimum state
 
 Record:
 
-- `task_id`
-- `contract_id`, `contract_revision`
+- `task_id`, `contract_id`, `contract_revision`
 - `repo_root`, `working_directory`, `branch`, `baseline_commit`
-- baseline artifact references for initial status/committed/staged/unstaged/untracked state
-- supervisor task identity and requested/runtime model evidence
-- Herdr `workspace_id`, `pane_id`, AGY agent name; native session id only when actually returned
-- `current_round`, finding ids and progress counters
+- baseline artifact references and current code-state digest
+- current phase: `IMPLEMENT | CODE_REVIEW | IMPLEMENT_REWORK | TEST_PLAN | TEST | BLOCKED | COMPLETE`
+- Herdr `workspace_id`, `pane_id`, AGY agent name; native session ref only when actually returned
+- implementation/rework round and open code-review finding IDs
+- last `CODE_REVIEW_PASS` digest/revision or null
+- frozen `test_plan_id`, plan revision and reviewed code-state digest or null
+- per-check test results and evidence refs
 - dispatch state: `NOT_SENT | SENT | SEND_UNKNOWN | SETTLED`
-- `current_status`
-- current code-state digest
-- verification results with evidence binding
 
-Use `schemas/run-state.schema.json` and `templates/run-state.json` as the portable shape.
-
-## Contract patches
-
-A material Contract patch is authorized only by the user or architect. Record:
-
-```text
-previous revision
-new revision
-changed fields
-reason
-actor
-```
-
-The supervisor may request a patch but may not silently perform one.
+Use `schemas/run-state.schema.json` and `templates/run-state.json`.
 
 ## Baseline
 
-Before the first AGY write, capture enough state to attribute later changes. A normal task does:
+Before AGY's first write:
 
 ```bash
 baseline_commit="$(git rev-parse HEAD)"
@@ -56,39 +41,44 @@ baseline_dir="$run_dir/baseline"
 bash scripts/snapshot-code-state.sh "$baseline_dir" "$baseline_commit"
 ```
 
-The snapshot records branch/HEAD, porcelain status, staged/unstaged binary diffs, untracked hashes, an optional committed-delta artifact from the supplied baseline, and a code-state digest. Preserve those artifact paths in Run State.
+Preserve existing user changes. Do not auto-stash, reset, clean, or overwrite them.
 
-A baseline with user changes is valid. Do not auto-stash, reset, clean, or rewrite it.
+Use current checkout when single-writer attribution is safe. Prefer a task worktree for concurrent writers or isolation needs. If the task depends on uncommitted content, preserve that prerequisite deliberately rather than silently creating a clean worktree that omits it.
 
-## Direct checkout vs worktree
+## State transitions
 
-Use the current checkout when it is clean enough for single-writer execution and no parallel writer exists.
+```text
+CONTRACT FROZEN
+→ IMPLEMENT
+→ CODE_REVIEW
+   ├─ REWORK → IMPLEMENT_REWORK → CODE_REVIEW
+   └─ PASS → TEST_PLAN → TEST
+                    ├─ metrics pass → COMPLETE
+                    ├─ environment blocker → BLOCKED
+                    └─ code changes → CODE_REVIEW
+```
 
-Prefer a task worktree when existing user changes, parallel writers, or explicit isolation make attribution unsafe. A Herdr workspace does not isolate Git files.
+Astra's code-review PASS is bound to a code-state digest. A frozen Test Plan is bound to that same reviewed code state.
 
-If the task depends on uncommitted changes, a clean worktree from HEAD is insufficient. Preserve the prerequisite content explicitly (for example by creating the worktree from a task commit only with authority, or by applying a captured patch/content deliberately). Never silently drop those prerequisites.
+If production/task code changes after review PASS:
 
-## Code-state digest
+```text
+code_review_pass = STALE
+frozen_test_plan = STALE
+affected test results = STALE
+```
 
-Verification must bind to the actual deliverable, not only `HEAD`. `snapshot-code-state.sh` records a digest over:
-
-- HEAD identity
-- staged diff
-- unstaged diff
-- untracked file path + content hash
-
-The separate baseline-to-HEAD patch supports review of task commits since the recorded baseline. If any relevant code changes after a verification, mark affected evidence stale and rerun only the checks whose validity depended on the changed surface.
+Return to `CODE_REVIEW`; never mechanically continue to completion using stale evidence.
 
 ## Recovery
 
-On resume/recovery:
+On resume:
 
 1. Read current Git state and Run State.
-2. Confirm `repo_root`, working directory, branch/worktree, Contract revision and baseline identity match.
-3. Confirm whether the recorded supervisor and Herdr worker still exist before creating replacements.
-4. Never guess another host session or native AGY conversation.
-5. Never replay a command whose side-effect status is unknown.
-6. Start a replacement worker only after the prior worker is confirmed stopped/unrecoverable and no parallel write risk remains.
-7. Give replacements: Contract, project rules, current code state, unresolved findings, and still-valid verification evidence.
+2. Verify repository/worktree, Contract revision, phase, baseline and current code-state relationship.
+3. Check whether the recorded Herdr/AGY worker still exists before replacing it.
+4. Never guess another session or replay side-effecting commands whose send/result state is uncertain.
+5. Start a replacement writer only after the previous writer is confirmed stopped/unrecoverable with no parallel-write risk.
+6. Restore only the context for the current phase: implementation findings for code work, or frozen Test Plan for test work.
 
-A mismatch becomes `RECOVERY_BLOCKED` until investigated; do not silently reconstruct state from assumptions.
+A mismatch that cannot be safely reconciled becomes `BLOCKED` until investigated.
