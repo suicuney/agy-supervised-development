@@ -1,12 +1,12 @@
 ---
 name: agy-supervised-development
 description: Delegate coding to AGY through Herdr. Use a strong model to freeze task intent, a cheaper model to supervise evidence, and escalate only when the contract must change.
-version: 4.0.0-alpha.2
+version: 4.0.0-alpha.3
 ---
 
 # AGY Supervised Development 4.0
 
-> **Astra decides. Luna supervises. AGY builds. Git proves.**
+> **Astra decides. Luna supervises. AGY builds. Git proves. Routing proves itself.**
 
 ## Flow
 
@@ -50,6 +50,24 @@ escalate_if: [<contract-level blocker>]
 Add architecture intent or exclusions only when they materially constrain implementation. Do not write routine file-by-file implementation steps.
 
 After `CONTRACT FROZEN`, Astra exits the normal path.
+
+## Observable Handoff
+
+A role/model handoff is valid only when the runtime exposes evidence for it. Do not trust prose such as "now using Luna" as proof.
+
+Surface compact control events when the host supports them:
+
+```text
+CONTRACT_FROZEN
+SUPERVISOR_STARTED  role=supervisor model=<runtime-reported-model>
+AGY_STARTED         session=<runtime-reported-session>
+REWORK              finding=<id>
+ESCALATED           role=architect
+VERIFY_PASS
+ACCEPTED
+```
+
+Use runtime-provided model/session metadata when available. If the host cannot prove a requested model binding, report the role as active but the exact model as `UNVERIFIED`; never fabricate model identity.
 
 ## Supervision
 
