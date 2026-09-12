@@ -21,7 +21,7 @@ Record:
 - `task_id`
 - `contract_id`, `contract_revision`
 - `repo_root`, `working_directory`, `branch`, `baseline_commit`
-- baseline artifact references for initial status/staged/unstaged/untracked state
+- baseline artifact references for initial status/committed/staged/unstaged/untracked state
 - supervisor task identity and requested/runtime model evidence
 - Herdr `workspace_id`, `pane_id`, AGY agent name; native session id only when actually returned
 - `current_round`, finding ids and progress counters
@@ -48,18 +48,15 @@ The supervisor may request a patch but may not silently perform one.
 
 ## Baseline
 
-Before the first AGY write, capture enough state to attribute later changes:
+Before the first AGY write, capture enough state to attribute later changes. A normal task does:
 
 ```bash
-git rev-parse HEAD
-git status --porcelain=v2 --branch
-git diff --binary HEAD
-git diff --cached --binary
-git diff --binary
-# plus contents/hashes for untracked files
+baseline_commit="$(git rev-parse HEAD)"
+baseline_dir="$run_dir/baseline"
+bash scripts/snapshot-code-state.sh "$baseline_dir" "$baseline_commit"
 ```
 
-`scripts/snapshot-code-state.sh <output-dir>` provides a deterministic capture. Preserve the baseline artifacts in the task run directory.
+The snapshot records branch/HEAD, porcelain status, staged/unstaged binary diffs, untracked hashes, an optional committed-delta artifact from the supplied baseline, and a code-state digest. Preserve those artifact paths in Run State.
 
 A baseline with user changes is valid. Do not auto-stash, reset, clean, or rewrite it.
 
@@ -80,7 +77,7 @@ Verification must bind to the actual deliverable, not only `HEAD`. `snapshot-cod
 - unstaged diff
 - untracked file path + content hash
 
-If any relevant code changes after a verification, mark affected evidence stale and rerun only the checks whose validity depended on the changed surface.
+The separate baseline-to-HEAD patch supports review of task commits since the recorded baseline. If any relevant code changes after a verification, mark affected evidence stale and rerun only the checks whose validity depended on the changed surface.
 
 ## Recovery
 
