@@ -1,303 +1,210 @@
-# AGY Supervised Development 3.3
+# AGY Supervised Development 4.0
 
-当前开发版本：**3.3.0-alpha.2**
+当前开发版本：**4.0.0-alpha.1**
 
-一个串行、单 Writer、Herdr-only 的监督式开发插件：
+这是一次监督架构重构：把高成本推理集中在任务开头，把高频监督交给更低成本模型，把具体实现自主权交给 AGY。
 
-```text
-Codex 负责方案、评审、验证和最终裁决
-Sol High 只负责实现前的方案评审
-Herdr 负责 AGY 的运行、交互、状态和会话恢复
-AGY 负责实现
-Git / Tests / Runtime Evidence 负责证明交付
-```
-
-> **Codex governs. Herdr runs. AGY builds. Git tells the truth.**
+> **Astra frames. Luna supervises. AGY builds. Git tells the truth.**
 
 ## 主流程
 
 ```text
-SIZE
-→ SHAPE
-→ SPEC
-→ SLICE
-→ SOL HIGH PLAN REVIEW
-→ PLAN FROZEN
+USER INTENT
+→ ASTRA ARCHITECT
+→ DEVELOPMENT CONTRACT
+→ CONTRACT FROZEN
+→ LUNA SUPERVISOR
 → BASELINE
-→ AGY BUILD          # Herdr only
-→ THREE-AXIS REVIEW
-→ VERIFY
-→ CLOSEOUT
+→ AGY BUILD            # Herdr only
+→ AGY SELF-REVIEW
+→ LUNA REVIEW / VERIFY
 → ACCEPTED
 ```
 
-## 计划评审时你会看到什么
-
-发送给网页版 GPT 前，展示一份简洁中文计划预览：
+异常才升级：
 
 ```text
-【准备发送给 Sol High 的计划】
-
-目标
-- 这次要完成什么
-
-计划
-1. 关键步骤
-2. 关键步骤
-3. 关键步骤
-
-重点风险
-- 真正需要注意的风险
+LUNA
+→ ESCALATE
+→ ASTRA
+→ CONTRACT PATCH
+→ LUNA
+→ AGY
 ```
 
-展示中文计划预览后，**不要求用户确认发送**。在完成数据包安全检查（无凭据泄露）与 ego-browser 预检（`GPT-5.6 Sol` + `High` 推理已就绪）后，**自动发送且仅发送一次**。该简版计划与待执行的可执行计划在语义上完全一致（完整数据包仅额外包含评审元数据、sentinels、验收准则与契约包装）。
+## 为什么改成 4.0
 
-插件内核与入口统一拥有交互与发送策略；配套的 `sol-high-plan-review` Skill 仅提供数据包结构与结论语义，不可重新引入人工确认门禁。
+3.3 默认链路要求 Codex 先 `SIZE → SHAPE → SPEC → SLICE → Sol High Review → PLAN FROZEN`，随后 Codex 还持续承担监督、Review 和 Verify。这样高阶模型会重复读取仓库并长期驻留在高频控制循环里。
 
-发送后，如果 Sol High 返回 `REVISE`，Codex 会自行 `Adopt / Reject / Modify` 并在同一会话中自动继续下一轮，不要求确认。只有真正需要用户决定的产品/架构/one-way 问题、`AUTH_REQUIRED` 登录交接、`USER_CONTROLLING` 冲突、`MODEL_MISMATCH` 或终态 `UNKNOWN` 等真实 blocker 才会打断。
-
-评审收敛后，再展示一份中文最终计划：
+4.0 改成三层职责：
 
 ```text
-【最终执行计划】
-
-Sol High 评审：PASS / 已收敛
-评审轮次：2
-
-最终计划
-1. ...
-2. ...
-3. ...
-
-评审后的主要调整
-- ...
+Astra = 高价值分析 / 架构判断 / Development Contract
+Luna  = 低成本长期监督 / Review / Verify / Rework dispatch
+AGY   = 仓库探索 / 实现计划 / 编码 / 测试 / Self Review
 ```
 
-这里只展示，不再次确认。随后自动：
+核心边界：
 
 ```text
-PLAN FROZEN
-→ BASELINE
-→ AGY BUILD
+Astra owns WHAT / WHY / BOUNDARY / DONE
+AGY owns normal HOW
+Luna checks whether AGY reached DONE without crossing BOUNDARY
 ```
 
-不会再用 packet 字符数、文件大小或附件大小代替真正的计划内容。
+## Development Contract
 
-## 3.3 的核心变化
+Astra 默认不再生成长篇施工步骤，而是生成一个紧凑任务契约：
 
-3.3 只有一条 AGY 执行链：
+```yaml
+goal: <目标>
+problem: <当前问题>
+expected_behavior:
+  - <可观察行为>
+constraints:
+  - <边界>
+architecture_intent:
+  - <真正需要冻结的架构决定>
+definition_of_done:
+  - <完成标准>
+agy_authority:
+  - inspect repository
+  - choose ordinary implementation details
+  - modify in-scope files
+  - run relevant tests
+  - fix failures caused by this task
+  - self-review
+supervisor_authority:
+  - inspect Git evidence
+  - request bounded rework
+  - run targeted verification
+escalate_if:
+  - architecture conflict
+  - material requirement ambiguity
+  - material scope expansion
+  - repeated core failure
+  - one-way decision
+```
+
+`CONTRACT FROZEN` 冻结的是需求、边界和完成标准，不是逐行实现计划。
+
+## Token 策略
+
+默认遵循：
 
 ```text
-AGY Supervised Development
-→ Herdr
-→ Antigravity CLI / AGY
-→ Repository
-→ Git
-→ Codex Review / Verify
+Pointer > Copy
+Evidence > Full Repo Re-read
+Escalation > Strong-model always-on
+Definition of Done > Detailed itinerary
 ```
 
-不再维护第二套 AGY Runtime，也不再保留 Runtime selection。Herdr 是基础设施，不是 Supervisor。
+Astra 只读取解决契约级问题所需的仓库事实。Luna 默认只接收冻结 Contract、Git evidence、AGY 最新报告和相关测试输出。AGY 自己在仓库中发现普通实现细节。
 
-```text
-Herdr done != REVIEW PASS
-AGY SUCCESS != REVIEW PASS
-REVIEW PASS != CODE_VERIFIED
-CODE_VERIFIED != ACCEPTED
-```
+## Luna Supervisor
 
-## 安装插件
+Luna 可以：
 
-```bash
-codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy-supervised-v3.3-herdr-runtime
-codex plugin add agy-supervised-development@agy-supervised-development
-```
+- 启动 / 复用 Herdr 管理的 AGY worker
+- 检查 `git status / diff --stat / diff --check / diff`
+- 阅读 AGY completion / blocked report
+- 运行针对性验证
+- 基于证据要求 bounded rework
+- 在 Contract 无法继续成立时升级 Astra
 
-## Herdr / Antigravity 一次性准备
+Luna 不可以悄悄修改冻结 Contract 或重新设计产品/架构。
 
-3.3 要求 Herdr、`agy` 和 `jq` 已安装，并要求官方 Antigravity integration 可用。Herdr 当前正式支持 `agent start --kind agy`。
+## Astra Escalation
 
-显式安装 integration：
+只有以下情况默认升级：
 
-```bash
-herdr integration install antigravity-cli
-```
+1. architecture conflict
+2. material requirement ambiguity
+3. scope explosion
+4. 同一核心问题两轮 bounded rework 仍失败
+5. destructive / irreversible / breaking / security 等 one-way decision
 
-这个命令会修改当前用户的 Antigravity hooks 配置，因此插件任务执行阶段不会偷偷安装或覆盖它。
-
-启动 Herdr（交互使用 `herdr`，服务式环境可使用 `herdr server`），然后检查：
-
-```bash
-scripts/check-herdr.sh
-```
-
-预检会确认：
-
-```text
-herdr executable
-agy executable
-jq executable
-Herdr server reachable
-Antigravity integration present and usable
-```
-
-失败就 `BLOCKED`，不会绕开 Herdr 直接启动 AGY。
+普通 lint、test failure、小 bug、命名、文件组织、框架 API 查找都由 Luna + AGY 解决。
 
 ## AGY Runtime
 
-AGY Build 固定使用 Herdr Agent API：
+Herdr 继续作为唯一 AGY runtime，这部分继承 3.3 的成熟边界：
 
 ```text
-PLAN FROZEN
-→ BASELINE
+CONTRACT FROZEN
+→ scripts/check-herdr.sh
 → herdr workspace create --cwd <repo_root>
-→ capture returned root pane ID
+→ use returned .result.root_pane.pane_id
 → herdr agent start <task-agent> --kind agy --pane <pane_id>
 → herdr agent prompt ... --wait
-→ blocked 时先 read 再最小交互
-→ agent read
-→ Git Review
+→ blocked: agent read before interaction
+→ repository evidence
 ```
 
-Herdr workspace 创建响应中的：
-
-```text
-.result.workspace.workspace_id
-.result.root_pane.pane_id
-```
-
-是本轮 Runtime 身份来源，不从 UI 顺序猜 ID。
-
-Antigravity integration 会在首个 prompt 后报告 native conversation identity；Herdr 可在 server restart 后按该 identity 恢复 AGY session。插件自身不再维护 AGY conversation 恢复命令。
+`Herdr done != REVIEW PASS`，runtime 状态只证明运行状态，不证明交付质量。
 
 详见 `resources/agy-execution.md`。
 
-## Sol High Plan Review
-
-默认开启：
-
-```text
-Codex Executable Plan
-→ 中文简版计划预览
-→ 预检通过后自动发送（不要求确认）
-→ ego-browser / ego-lite (resources/ego-browser-runbook.md)
-→ ChatGPT Web
-→ GPT-5.6 Sol + High
-→ Sol Review
-→ Codex Adopt / Reject / Modify
-→ 必要时自动下一轮
-→ 中文最终计划
-→ PLAN FROZEN
-```
-
-`resources/ego-browser-runbook.md` 拥有浏览器 transport 选型与执行权；独立的 `sol-high-plan-review` Skill 仅提供数据包与结论语义，不可覆盖 transport，亦不可重新引入人工确认门禁。
-
-发送状态机遵循 `NOT_SENT → SENT | UNKNOWN`，`SENT` 需同会话可见证据，`UNKNOWN` 为终态且无重试跃迁（禁止自动重发）。
-
-最多 3 轮；`PLAN FROZEN` 后 Sol High 立即退出任务。
-
-首次运行前检查独立 Sol Skill：
-
-```bash
-scripts/check-sol-plan-review.sh
-```
-
-如果缺失，再显式运行：
-
-```bash
-scripts/install-sol-plan-review.sh
-scripts/check-sol-plan-review.sh
-```
-
 ## Review / Verification
 
-AGY runtime settled 后，Codex 独立执行：
+AGY 先 Self Review，Luna 再独立 Review：
 
 ```text
-A. Spec Fidelity
-B. Engineering Quality
-C. Completeness
+Development Contract
+→ Git status / diff stat / diff check
+→ changed diff
+→ AGY completion report
+→ targeted tests / runtime evidence
+→ broader inspection only when justified
 ```
 
-通过后再独立运行：
+目标是 **evidence-driven review**，不是每轮重新理解整个仓库。
 
-```text
-lint / typecheck / build
-unit / integration / e2e
-original repro
-browser runtime when applicable
-```
+## Sol High Plan Review
 
-对于 browser-facing 任务，ego-browser / ego-lite 仍是 Codex-owned runtime verification adapter（操作规范遵循 `resources/ego-browser-runbook.md`）。
+3.3 的 Sol High Plan Review 资源暂时保留，但 **不再属于默认主流程**。它现在是 guarded / legacy escalation capability，只在任务风险或用户明确要求时使用。
 
-## 运行前快速清单
+## 安装当前分支
 
-```text
-1. Sol dependency = COMPLETE（除非用户明确跳过 Sol review）
-2. 首轮 Sol Send 前 = 中文简版计划，预检通过后自动发送（不要求确认）
-3. 后续 REVISE = 自动继续，不重复确认
-4. Sol 收敛后 = 中文最终计划，只展示不确认
-5. Herdr preflight = HERDR_READY
-6. PLAN FROZEN before AGY writes
-7. Baseline captured before AGY writes
-8. Herdr workspace cwd = repo_root
-9. pane ID = Herdr create response, never guessed
-10. AGY launched with --kind agy
-11. blocked → read before interaction
-12. Herdr done/idle = runtime evidence only
-13. Git + Codex Review + independent Verify = delivery evidence
+```bash
+codex plugin marketplace add suicuney/agy-supervised-development --ref codex/agy-supervised-v4-astra-skill
+codex plugin add agy-supervised-development@agy-supervised-development
 ```
 
 ## Active Structure
 
 ```text
-skills/agy-supervised-development/SKILL.md
 SKILL.md
+skills/agy-supervised-development/SKILL.md
 
 resources/
-├── task-sizing.md
-├── shaping.md
-├── spec-contract.md
-├── execution-slicing.md
-├── sol-plan-review.md
-├── sol-plan-review-manifest.json
-├── ego-browser-runbook.md
+├── architect.md
+├── development-contract.md
+├── supervisor.md
+├── escalation.md
+├── verification.md
 ├── agy-execution.md
 ├── failure-modes.md
-├── bugfix-workflow.md
-├── review-gates.md
-├── completeness-regression.md
-├── runtime-verification.md
-└── closeout-governance.md
+├── sol-plan-review.md          # optional guarded capability
+├── ego-browser-runbook.md      # only when browser work is needed
+└── ... legacy 3.3 resources retained during migration
+```
 
-scripts/
-├── check-herdr.sh
-├── check-sol-plan-review.sh
-├── install-sol-plan-review.sh
-├── test-sol-plan-review.sh
-├── validate-structure.sh
-├── validate-docs.sh
-├── validate-runtime.sh
-└── test-readiness.sh
+## 4.0 Alpha 原则
+
+```text
+高阶模型只做高价值推理
+低阶模型承担高频监督
+AGY 获得正常实现自主权
+监督基于 Contract + Evidence
+强模型升级是异常路径
+Herdr 保持唯一 AGY Runtime
+Git 保持 repository truth
+一个任务仍然只有一个 primary writer
 ```
 
 ## 自检
 
 ```bash
 scripts/test-readiness.sh
-```
-
-## 原则
-
-```text
-串行
-小步
-简单
-一个 Writer
-一个 Plan Owner
-一个 AGY Runtime：Herdr
-预检通过后自动发送 Sol，不要求确认
-最终计划必须中文可见
-Herdr 管运行，不管结论
-Sol 只评方案
-Git 是 repository truth
 ```
