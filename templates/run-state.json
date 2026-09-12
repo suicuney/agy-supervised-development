@@ -6,33 +6,31 @@
   "working_directory": "<checkout-or-worktree>",
   "branch": null,
   "baseline_commit": null,
-  "baseline_artifacts": {
-    "snapshot_dir": null,
-    "status_ref": null,
-    "committed_diff_ref": null,
-    "cached_diff_ref": null,
-    "worktree_diff_ref": null,
-    "untracked_ref": null,
-    "code_state_digest": null
-  },
-  "supervisor": {
-    "task_name": null,
-    "requested_model": null,
-    "host_model_evidence": null,
-    "model_status": "NOT_STARTED",
-    "handoff_status": "NOT_SPAWNED"
-  },
+  "baseline_ref": null,
   "herdr": {
     "workspace_id": null,
     "pane_id": null,
     "agy_agent": null,
     "native_session_ref": null
   },
+  "phase": "IMPLEMENT",
   "current_round": 0,
   "finding_ids": [],
   "dispatch_state": "NOT_SENT",
-  "current_status": "CONTRACT_FROZEN",
   "code_state_digest": null,
-  "verification_results": [],
+  "code_review": {
+    "result": "NOT_RUN",
+    "contract_revision": null,
+    "reviewed_code_state_digest": null,
+    "finding_ids": []
+  },
+  "test_plan": {
+    "test_plan_id": null,
+    "plan_revision": null,
+    "contract_revision": null,
+    "reviewed_code_state_digest": null,
+    "status": "NOT_CREATED"
+  },
+  "test_results": [],
   "contract_patches": []
 }
