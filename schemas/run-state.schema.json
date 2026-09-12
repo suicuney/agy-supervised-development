@@ -1,88 +1,30 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AGY Run State 4.1",
-  "type": "object",
-  "required": ["task_id", "contract_id", "contract_revision", "repo_root", "working_directory", "phase", "dispatch_state", "test_results"],
-  "properties": {
-    "task_id": {"type": "string", "minLength": 1},
-    "contract_id": {"type": "string", "minLength": 1},
-    "contract_revision": {"type": "integer", "minimum": 1},
-    "repo_root": {"type": "string", "minLength": 1},
-    "working_directory": {"type": "string", "minLength": 1},
-    "branch": {"type": ["string", "null"]},
-    "baseline_commit": {"type": ["string", "null"]},
-    "baseline_ref": {"type": ["string", "null"]},
-    "herdr": {
-      "type": "object",
-      "properties": {
-        "workspace_id": {"type": ["string", "null"]},
-        "pane_id": {"type": ["string", "null"]},
-        "agy_agent": {"type": ["string", "null"]},
-        "native_session_ref": {"type": ["string", "null"]}
-      },
-      "additionalProperties": false
-    },
-    "phase": {"enum": ["IMPLEMENT", "CODE_REVIEW", "IMPLEMENT_REWORK", "TEST_PLAN", "TEST", "BLOCKED", "COMPLETE"]},
-    "current_round": {"type": "integer", "minimum": 0},
-    "finding_ids": {"type": "array", "items": {"type": "string"}},
-    "dispatch_state": {"enum": ["NOT_SENT", "SENT", "SEND_UNKNOWN", "SETTLED"]},
-    "code_state_digest": {"type": ["string", "null"]},
-    "code_review": {
-      "type": "object",
-      "properties": {
-        "result": {"enum": ["NOT_RUN", "PASS", "REWORK", "BLOCKED", "STALE"]},
-        "contract_revision": {"type": ["integer", "null"], "minimum": 1},
-        "reviewed_code_state_digest": {"type": ["string", "null"]},
-        "finding_ids": {"type": "array", "items": {"type": "string"}}
-      },
-      "required": ["result", "finding_ids"],
-      "additionalProperties": false
-    },
-    "test_plan": {
-      "type": "object",
-      "properties": {
-        "test_plan_id": {"type": ["string", "null"]},
-        "plan_revision": {"type": ["integer", "null"], "minimum": 1},
-        "contract_revision": {"type": ["integer", "null"], "minimum": 1},
-        "reviewed_code_state_digest": {"type": ["string", "null"]},
-        "status": {"enum": ["NOT_CREATED", "FROZEN", "STALE"]}
-      },
-      "required": ["status"],
-      "additionalProperties": false
-    },
-    "test_results": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["check_id", "method", "working_directory", "result", "code_state_digest"],
-        "properties": {
-          "check_id": {"type": "string", "minLength": 1},
-          "method": {"type": "string", "minLength": 1},
-          "working_directory": {"type": "string", "minLength": 1},
-          "exit_code": {"type": ["integer", "null"]},
-          "result": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN", "NOT_APPLICABLE", "STALE"]},
-          "summary": {"type": "string"},
-          "log_ref": {"type": ["string", "null"]},
-          "code_state_digest": {"type": "string", "minLength": 1}
-        },
-        "additionalProperties": false
-      }
-    },
-    "contract_patches": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["from_revision", "to_revision", "actor", "changed_fields", "reason"],
-        "properties": {
-          "from_revision": {"type": "integer", "minimum": 1},
-          "to_revision": {"type": "integer", "minimum": 2},
-          "actor": {"enum": ["architect", "user"]},
-          "changed_fields": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-          "reason": {"type": "string", "minLength": 1}
-        },
-        "additionalProperties": false
-      }
-    }
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"AGY Run State 4.1 alpha.2",
+  "type":"object",
+  "required":["schema_version","state_version","task_id","contract_id","contract_revision","repo_root","working_directory","baseline","evidence_root","herdr","phase","dispatch_state","writer","code_review","test_plan","findings","blocked"],
+  "properties":{
+    "schema_version":{"const":2},
+    "state_version":{"type":"integer","minimum":1},
+    "task_id":{"type":"string","minLength":1},
+    "contract_id":{"type":"string","minLength":1},
+    "contract_revision":{"type":"integer","minimum":1},
+    "repo_root":{"type":"string","minLength":1},
+    "working_directory":{"type":"string","minLength":1},
+    "branch":{"type":["string","null"]},
+    "baseline":{"type":"object","required":["commit","snapshot_ref","deliverable_digest","ownership_digest"],"properties":{"commit":{"type":"string","minLength":1},"snapshot_ref":{"type":"string","minLength":1},"deliverable_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"},"ownership_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"}},"additionalProperties":false},
+    "evidence_root":{"type":"string","minLength":1},
+    "herdr":{"type":"object","properties":{"workspace_id":{"type":["string","null"]},"pane_id":{"type":["string","null"]},"agy_agent":{"type":["string","null"]},"native_session_ref":{"type":["string","null"]}},"additionalProperties":false},
+    "phase":{"enum":["CONTRACT","IMPLEMENT","CODE_REVIEW","IMPLEMENT_REWORK","TEST_PLAN","TEST","TEST_REWORK","BLOCKED","COMPLETE"]},
+    "dispatch_state":{"enum":["NOT_SENT","SENT","SEND_UNKNOWN","SETTLED"]},
+    "writer":{"type":"object","required":["status"],"properties":{"status":{"enum":["STOPPED","RUNNING","UNKNOWN"]},"task_round":{"type":["string","null"]},"last_observed_at":{"type":["string","null"]}},"additionalProperties":false},
+    "code_review":{"type":"object","required":["status","finding_ids"],"properties":{"status":{"enum":["NOT_RUN","PASS","REWORK","BLOCKED","STALE"]},"review_id":{"type":["string","null"]},"contract_revision":{"type":["integer","null"],"minimum":1},"reviewed_deliverable_digest":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"finding_ids":{"type":"array","uniqueItems":true,"items":{"type":"string"}}},"additionalProperties":false},
+    "test_plan":{"type":"object","required":["status"],"properties":{"status":{"enum":["NOT_CREATED","FROZEN","STALE"]},"path":{"type":["string","null"]},"plan_id":{"type":["string","null"]},"plan_revision":{"type":["integer","null"],"minimum":1},"plan_digest":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"contract_revision":{"type":["integer","null"],"minimum":1},"reviewed_deliverable_digest":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"}},"additionalProperties":false},
+    "test_results_path":{"type":["string","null"]},
+    "findings":{"type":"array","items":{"type":"object","required":["id","status","category"],"properties":{"id":{"type":"string","minLength":1},"status":{"enum":["OPEN","RESOLVED"]},"category":{"type":"string","minLength":1},"reason":{"type":"string"}},"additionalProperties":false}},
+    "blocked":{"anyOf":[{"type":"null"},{"type":"object","required":["reason","blocked_from_phase","resume_action"],"properties":{"reason":{"type":"string","minLength":1},"blocked_from_phase":{"type":"string","minLength":1},"resume_action":{"type":"string","minLength":1},"related_identity":{"type":["string","null"]}},"additionalProperties":false}]},
+    "diagnostics":{"type":"array","items":{"type":"object","required":["purpose","result","formal_acceptance"],"properties":{"purpose":{"type":"string"},"result":{"type":"string"},"formal_acceptance":{"const":false}},"additionalProperties":false}},
+    "contract_patches":{"type":"array","items":{"type":"object","required":["from_revision","to_revision","actor","changed_fields","reason"],"properties":{"from_revision":{"type":"integer"},"to_revision":{"type":"integer"},"actor":{"enum":["architect","user"]},"changed_fields":{"type":"array","minItems":1,"items":{"type":"string"}},"reason":{"type":"string","minLength":1}},"additionalProperties":false}}
   },
-  "additionalProperties": false
+  "additionalProperties":false
 }
