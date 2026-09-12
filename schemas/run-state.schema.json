@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AGY Run State",
   "type": "object",
-  "required": ["task_id", "contract_id", "contract_revision", "repo_root", "working_directory", "current_status", "current_round", "dispatch_state", "verification_results"],
+  "required": ["task_id", "contract_id", "contract_revision", "repo_root", "working_directory", "baseline_artifacts", "current_status", "current_round", "dispatch_state", "verification_results"],
   "properties": {
     "task_id": {"type": "string", "minLength": 1},
     "contract_id": {"type": "string", "minLength": 1},
@@ -11,7 +11,20 @@
     "working_directory": {"type": "string", "minLength": 1},
     "branch": {"type": ["string", "null"]},
     "baseline_commit": {"type": ["string", "null"]},
-    "baseline_ref": {"type": ["string", "null"]},
+    "baseline_artifacts": {
+      "type": "object",
+      "required": ["snapshot_dir", "status_ref", "cached_diff_ref", "worktree_diff_ref", "untracked_ref", "code_state_digest"],
+      "properties": {
+        "snapshot_dir": {"type": ["string", "null"]},
+        "status_ref": {"type": ["string", "null"]},
+        "committed_diff_ref": {"type": ["string", "null"]},
+        "cached_diff_ref": {"type": ["string", "null"]},
+        "worktree_diff_ref": {"type": ["string", "null"]},
+        "untracked_ref": {"type": ["string", "null"]},
+        "code_state_digest": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
     "supervisor": {
       "type": "object",
       "properties": {
