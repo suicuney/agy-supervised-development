@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGY Run State",
+  "type": "object",
+  "required": ["task_id", "contract_id", "contract_revision", "repo_root", "working_directory", "current_status", "current_round", "dispatch_state", "verification_results"],
+  "properties": {
+    "task_id": {"type": "string", "minLength": 1},
+    "contract_id": {"type": "string", "minLength": 1},
+    "contract_revision": {"type": "integer", "minimum": 1},
+    "repo_root": {"type": "string", "minLength": 1},
+    "working_directory": {"type": "string", "minLength": 1},
+    "branch": {"type": ["string", "null"]},
+    "baseline_commit": {"type": ["string", "null"]},
+    "baseline_ref": {"type": ["string", "null"]},
+    "supervisor": {
+      "type": "object",
+      "properties": {
+        "task_name": {"type": ["string", "null"]},
+        "requested_model": {"type": ["string", "null"]},
+        "host_model_evidence": {"type": ["string", "null"]},
+        "model_status": {"enum": ["VERIFIED", "REQUESTED_UNVERIFIED", "UNAVAILABLE", "SAME_MODEL", "NOT_STARTED"]},
+        "handoff_status": {"enum": ["SPAWNED", "NOT_SPAWNED", "UNKNOWN"]}
+      },
+      "required": ["model_status", "handoff_status"],
+      "additionalProperties": false
+    },
+    "herdr": {
+      "type": "object",
+      "properties": {
+        "workspace_id": {"type": ["string", "null"]},
+        "pane_id": {"type": ["string", "null"]},
+        "agy_agent": {"type": ["string", "null"]},
+        "native_session_ref": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "current_round": {"type": "integer", "minimum": 0},
+    "finding_ids": {"type": "array", "items": {"type": "string"}},
+    "dispatch_state": {"enum": ["NOT_SENT", "SENT", "SEND_UNKNOWN", "SETTLED"]},
+    "current_status": {"enum": ["CONTRACT_FROZEN", "SUPERVISING", "WORKING", "REVIEWING", "REWORK", "ESCALATED", "BLOCKED", "RECOVERY_BLOCKED", "ACCEPTED"]},
+    "code_state_digest": {"type": ["string", "null"]},
+    "verification_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["contract_revision", "method", "working_directory", "result", "code_state_digest"],
+        "properties": {
+          "contract_revision": {"type": "integer", "minimum": 1},
+          "method": {"type": "string", "minLength": 1},
+          "working_directory": {"type": "string", "minLength": 1},
+          "exit_code": {"type": ["integer", "null"]},
+          "result": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN", "NOT_APPLICABLE"]},
+          "summary": {"type": "string"},
+          "log_ref": {"type": ["string", "null"]},
+          "code_state_digest": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "contract_patches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from_revision", "to_revision", "actor", "changed_fields", "reason"],
+        "properties": {
+          "from_revision": {"type": "integer", "minimum": 1},
+          "to_revision": {"type": "integer", "minimum": 2},
+          "actor": {"enum": ["architect", "user"]},
+          "changed_fields": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
