@@ -5,9 +5,11 @@ from pathlib import Path
 SENSITIVE_NAMES={'.env','.env.local','.env.production','credentials.json','secrets.json'}
 SENSITIVE_SUFFIXES={'.pem','.key','.p12','.pfx'}
 
-def run_git(repo,*args,text=False):
+def run_git(repo,*args,text=False,allow_empty=False):
     p=subprocess.run(['git','-C',str(repo),*args],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
     if p.returncode!=0:
+        if allow_empty and p.returncode==1 and not p.stdout:
+            return '' if text else b''
         raise RuntimeError(f"git {' '.join(args)} failed ({p.returncode}): {p.stderr.decode('utf-8','replace').strip()}")
     return p.stdout.decode('utf-8','strict') if text else p.stdout
 
@@ -59,6 +61,17 @@ def read_regular_stable(path):
     if sig(before)!=sig(after) or sig(fst)!=sig(after_fd): raise RuntimeError('file changed during snapshot')
     return b''.join(chunks),before
 
+def deliverable_projection(records):
+    projected=[]
+    for rec in records:
+        item={'path_b64':rec['path_b64'],'type':rec['type'],'executable':rec['executable']}
+        if rec['type']=='file':
+            item['sha256']=rec['sha256']; item['size']=rec['size']
+        elif rec['type']=='symlink':
+            item['target_b64']=rec['target_b64']; item['target_sha256']=rec['target_sha256']
+        projected.append(item)
+    return projected
+
 def capture_manifest(repo,include_ignored,allow_sensitive,archive_dir=None):
     modes=index_modes(repo); paths=list_paths(repo)
     for raw in include_ignored:
@@ -91,7 +104,7 @@ def capture_manifest(repo,include_ignored,allow_sensitive,archive_dir=None):
         else:
             raise RuntimeError(f'unsupported file type: {os.fsdecode(raw)}')
         records.append(rec)
-    payload=json.dumps(records,sort_keys=True,separators=(',',':'),ensure_ascii=True).encode()
+    payload=json.dumps(deliverable_projection(records),sort_keys=True,separators=(',',':'),ensure_ascii=True).encode()
     return records,sha256_bytes(payload)
 
 def capture(args):
@@ -106,7 +119,9 @@ def capture(args):
     try:
         include=[os.fsencode(p) for p in args.include_ignored]; allow={os.fsencode(p) for p in args.allow_sensitive_untracked}
         records1,digest1=capture_manifest(repo,include,allow,tmp)
-        head=run_git(repo,'rev-parse','HEAD',text=True).strip(); branch=run_git(repo,'symbolic-ref','--short','-q','HEAD',text=True).strip(); baseline=args.baseline_commit or ''
+        head=run_git(repo,'rev-parse','HEAD',text=True).strip()
+        branch=run_git(repo,'symbolic-ref','--short','-q','HEAD',text=True,allow_empty=True).strip()
+        baseline=args.baseline_commit or ''
         if baseline: run_git(repo,'rev-parse','--verify',f'{baseline}^{{commit}}')
         artifacts={
           'status.porcelain-v2.z':run_git(repo,'status','--porcelain=v2','-z','--branch'),
