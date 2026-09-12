@@ -2,6 +2,31 @@
 
 All notable changes to this Skill are documented here.
 
+## [4.1.0-alpha.2] - 2026-09-13
+
+### Reliability
+
+- Replaced the principle-only completion formula with structured Development Contract, Test Plan, Test Result and Run State schemas plus `scripts/validate-run-state.sh` semantic gates for TEST entry, invalidation, BLOCKED persistence and COMPLETE.
+- Added Contract-level observable acceptance scenarios/counterexamples and optional bounded diagnostics. Diagnostic results are explicitly non-formal evidence and cannot satisfy final acceptance.
+- Added structured Test Plan checks with command/observation types, frozen objective applicability, accepted exit codes, evidence types, timeout/max attempts and whitelist metrics (`eq/ge/le`).
+- Added independent per-attempt Test Result evidence with actual execution data, measured values, evidence hashes and before/after deliverable digests. Latest bounded attempt is authoritative; evidence cannot be spliced across attempts.
+- Completion now re-reads disk/current Git state and rejects stale Contract/review/plan/digest, incomplete/duplicate/unknown checks, bad evidence/log hashes, invalid N/A, failed metrics, open findings, active writers or unsettled/unknown dispatch.
+- Run State v2 uses explicit BLOCKED recovery metadata plus cooperating-process file lock, optimistic `state_version`, fsync and atomic replace; it does not claim OS-level isolation.
+
+### Baseline / identity
+
+- Reworked `snapshot-code-state.sh` around a fail-closed Python collector that normalizes Git collection to repository root, publishes atomically outside the worktree/Git-private storage, and fails on collection/stability errors instead of swallowing them.
+- Split `deliverable_digest` from Git `ownership_digest`, so staging unchanged content does not cause code-review churn while HEAD/index/status changes remain visible to recovery.
+- Added stable path encoding/order, binary/executable identity, symlink target identity without following links, committed/index/worktree binary diffs, recoverable local archives for untracked original bytes, and explicit sensitive/ignored/unsupported/submodule policy.
+- Deliverable identity includes production and test sources/assertions/fixtures/goldens, config, lockfiles and generated sources; only predeclared evidence output outside the deliverable avoids review invalidation.
+
+### Validation
+
+- Replaced the broad removed-role grep with a targeted active-role validator plus positive migration-note and negative active-Luna regression fixtures that report file/line/reason.
+- Declared `jsonschema` as a required static-validation dependency rather than silently skipping schema checks.
+- Added temporary-repository behavior tests for baseline preservation, special paths, symlink/binary/mode/rename changes, staging-only ownership changes, fail-closed snapshots, structured completion/rejection paths, applicability, attempt isolation, stale evidence, BLOCKED state and concurrency/version protection.
+- Historical Luna/4.0 wording remains allowed only as migration/history; active execution cannot depend on removed roles.
+
 ## [4.1.0-alpha.1] - 2026-09-13
 
 ### Architecture
@@ -25,7 +50,6 @@ All notable changes to this Skill are documented here.
 
 - Simplified Run State around `IMPLEMENT | CODE_REVIEW | IMPLEMENT_REWORK | TEST_PLAN | TEST | BLOCKED | COMPLETE`.
 - Removed supervisor/model identity fields from Run State; retained Herdr identity, baseline, code-review digest, frozen test-plan binding, per-check test results, and dispatch/recovery safety.
-- Preserved full task-delta capture across committed, staged, unstaged, untracked, deletion/rename, and relevant binary changes.
 - Preserved fail-closed Herdr preflight, duplicate-dispatch protection, bounded waits, and no automatic resend after uncertain delivery.
 
 ### Tests and evals
@@ -33,7 +57,6 @@ All notable changes to this Skill are documented here.
 - Added `resources/code-review.md` and `resources/testing.md`.
 - Reworked the AGY worker order so implementation/rework does not silently run formal tests.
 - Replaced 4.0 Luna-supervisor semantic scenarios with 4.1 scenarios covering phase separation, code-review rework, frozen metrics, no second Astra test review, stale review/test evidence after code changes, Herdr-only AGY execution, recovery, and current-digest completion.
-- Updated deterministic/static validators to reject active Luna/supervisor references and verify the new stage boundaries.
 - Real end-to-end flow verification remains separate from static/mock validation.
 
 ## [4.0.0-alpha.4] - 2026-09-12
