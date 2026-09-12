@@ -1,16 +1,15 @@
 # AGY Execution — Herdr Only
 
-AGY is the only writer and every AGY execution goes through Herdr.
+AGY is the writer/test executor and every AGY execution goes through Herdr.
 
 ```text
-Luna supervisor
+ASTRA plan/review/test-plan
 → Herdr
 → AGY
-→ repository
-→ Git + independent verification
+→ repository / test evidence
 ```
 
-Herdr owns runtime identity and lifecycle. It does not own Contract decisions or acceptance.
+Herdr owns runtime identity and lifecycle. It never decides code-review PASS or changes frozen test metrics.
 
 ## Preflight
 
@@ -20,119 +19,97 @@ Before starting a worker:
 scripts/check-herdr.sh
 ```
 
-`HERDR_ENVIRONMENT_READY` means only that the local Herdr/AGY integration preconditions checked by the script are ready. It does **not** prove AGY authentication, a successful task run, or end-to-end delivery.
+`HERDR_ENVIRONMENT_READY` proves only the checked local runtime prerequisites. It does not prove AGY auth, successful work, code quality, or test success.
 
-Never install/reinstall hooks or integrations automatically during task execution.
+## Workspace and identity
 
-## Workspace and IDs
-
-Create a task workspace on the chosen code working directory (current checkout or task worktree):
+Create/reuse a task-owned Herdr workspace on the selected code checkout/worktree and validate returned IDs with `jq -er`; never treat null/missing values as valid.
 
 ```bash
 created="$(herdr workspace create --cwd "$working_directory" --label "$task_id" --no-focus)"
-```
-
-Read IDs only from returned structured data and validate both type and value:
-
-```bash
 workspace_id="$(printf '%s' "$created" | jq -er '.result.workspace.workspace_id | strings | select(length > 0)')"
 pane_id="$(printf '%s' "$created" | jq -er '.result.root_pane.pane_id | strings | select(length > 0)')"
-```
-
-A JSON `null`, empty value, missing field, or non-string is invalid. Record valid IDs in Run State.
-
-Herdr workspace creation is terminal/runtime setup, not Git isolation.
-
-## Start worker
-
-Use one stable task-local AGY name and record it:
-
-```bash
 herdr agent start "$agy_agent" --kind agy --pane "$pane_id"
 ```
 
-Before every round, inspect the worker state/output enough to establish that it is not still executing the previous round. Do not stack duplicate prompts onto a busy worker.
+Herdr workspace is runtime isolation, not Git isolation.
 
-## Dispatch
+## Phase A — IMPLEMENT
 
-Each prompt includes `task_id`, `round`, Contract revision, applicable repository rules, and the bounded work/finding for that round.
+The first worker order explicitly contains:
 
-Track dispatch state in Run State:
+```text
+mode = IMPLEMENT
+IMPLEMENT ONLY.
+Do not execute the formal test plan, test suites, builds used as quality gates,
+linters used as acceptance gates, integration/E2E checks, or other project verification gates.
+Do not declare task completion.
+```
+
+AGY may inspect source/config/docs and use ordinary edit/navigation/static-inspection tooling. If a test-like command is truly necessary to diagnose an unknown implementation fact, AGY must report that need rather than silently turning implementation into the formal test phase.
+
+Implementation report:
+
+```text
+task_id / round / contract_revision
+changed behavior + files
+implementation decisions
+known risks / unresolved items
+formal_tests_run = none   # or explicitly report any diagnostic exception
+```
+
+After AGY stops writing, Astra performs code-only review.
+
+## Code-review rework
+
+For `CODE_REVIEW_REWORK`, reuse the worker when safe. Send only Contract reference plus bounded findings. Keep `mode = IMPLEMENT_REWORK` and continue to prohibit formal test execution.
+
+Before each prompt, establish that the worker is not still executing the previous round. Tag every order with `task_id` + `round`. Track:
 
 ```text
 NOT_SENT → SENT → SETTLED
         ↘ SEND_UNKNOWN
 ```
 
-Use a bounded wait:
+A timeout or ambiguous send is investigated with `herdr agent read`; never automatically resend.
+
+## Phase B — TEST
+
+Only after Astra records `CODE_REVIEW_PASS` and freezes a Test Plan may AGY enter:
+
+```text
+mode = TEST
+```
+
+AGY executes the frozen checks exactly as defined, captures command/method, cwd, exit code, measured values, result and evidence reference, and does not weaken acceptance criteria.
+
+If tests expose a code defect, AGY may diagnose/fix code within the frozen Contract. Any production/task code write immediately ends the current test-validity path: report `CODE_CHANGED_DURING_TEST`, stop claiming completion, and return control for Astra code review before testing can be considered final.
+
+## Wait / blocked safety
+
+Use bounded waits:
 
 ```bash
 herdr agent prompt "$agy_agent" "$worker_order" \
   --wait --until idle --until done --until blocked --timeout "$timeout_ms"
 ```
 
-Herdr help warns that a wait can match the end of existing work rather than prove a particular prompt round completed. Therefore correlate completion with the round marker in worker output plus repository evidence; do not use lifecycle state alone.
+Herdr idle/done can match lifecycle settlement and is never proof that the requested round, code review, or tests passed. Correlate task/round markers, worker output and Git/evidence state.
 
-If prompt delivery/return is ambiguous, set `SEND_UNKNOWN`, read state/output and investigate. Never automatically resend an uncertain prompt.
+On blocked state, read first. Environment/auth/dependency failures remain `BLOCKED`; do not edit business code or acceptance metrics merely to bypass them.
 
-A timeout means `WAIT_TIMEOUT`, not failure and not permission to resend. Read the worker first.
+## Recovery
 
-## Blocked / interaction
+If exact Herdr/native identity is unavailable:
 
-When blocked:
-
-```bash
-herdr agent read "$agy_agent" --source recent-unwrapped --lines 160
-```
-
-Classify the reason before interaction:
-
-- reversible implementation choice inside Contract → supervisor may continue;
-- environment/auth/dependency issue → `BLOCKED`, do not rewrite business requirements to bypass it;
-- product, architecture, destructive or one-way decision → escalate to architect/user as required.
-
-Do not blindly send keys based on `blocked` status.
-
-## Worker completion report
-
-AGY reports:
-
-```text
-task_id / round / contract_revision
-changed behavior + files
-tests/checks actually run + exit status
-NOT_RUN / BLOCKED checks
-known limitations
-unresolved findings
-self-review summary
-```
-
-The report is an index into evidence, not independent proof.
-
-## Rework
-
-Reuse the same worker when safe. A rework prompt contains only the Contract reference plus bounded finding/evidence/required outcome. Increment the round and finding progress counters.
-
-Two consecutive rounds without substantive progress on the same finding default to `ESCALATE`. A configurable policy may lower/raise that threshold, but never allow unbounded rework.
-
-## Session loss and replacement
-
-If exact Herdr/native session identity can be restored, reuse it. If it cannot:
-
-- do not guess another conversation;
-- inspect Run State and current Git state;
-- confirm the old worker is stopped/unrecoverable and cannot write in parallel;
+- never guess another conversation;
+- read Run State and Git state;
+- confirm the previous writer cannot still write;
 - only then start a replacement Herdr-managed AGY;
-- pass Contract + project rules + current code state + unresolved findings + valid verification state.
+- pass the current Contract, phase, project rules, code state, open review findings or frozen Test Plan as appropriate.
 
-Never replay a command with unknown side effects simply because the session disappeared.
+Never replay a command with uncertain side effects just because its response was lost.
 
-## Close
+Close only task-owned Herdr resources after the worker is confirmed stopped.
 
-Close only Herdr workspaces created for this task and only after the worker is confirmed no longer writing:
-
-```bash
-herdr workspace close "$workspace_id"
-```
-
-`Herdr done/idle != delivery accepted`.
+`Herdr done/idle != code review PASS != test metrics PASS`.
