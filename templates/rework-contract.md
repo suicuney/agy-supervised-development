@@ -1,33 +1,34 @@
-# Rework Finding Template
-
-Use one bounded finding per repair request when practical.
+# Code Review Rework Finding
 
 ```text
-REWORK FINDING
+CODE REVIEW FINDING
 
 task_id: <task-id>
 round: <n>
 contract: <contract-id>@<revision>
 finding_id: <stable-id>
-category: IMPLEMENTATION_DEFECT | CONTRACT_AMBIGUITY | ENVIRONMENT_BLOCKER | SUPERVISOR_LIMIT
+category: IMPLEMENTATION_DEFECT | CONTRACT_AMBIGUITY | ENVIRONMENT_BLOCKER
 
-evidence
-- <what proves the problem>
+contract_or_rule
+- <clause or repository rule>
+
+code_evidence
+- <file/symbol/diff evidence>
+
+why_it_matters
+- <correctness/completeness/risk>
 
 required_outcome
-- <observable result needed>
-
-verification_seam
-- <focused check that can prove the repair>
+- <bounded code result>
 
 progress_marker
-- <what would count as substantive progress this round>
+- <what substantive progress means>
 ```
 
 Rules:
-
-- implementation defects stay with Luna + AGY;
-- Luna does not rewrite the Contract;
-- environment blockers do not become repeated coding rework;
-- two consecutive no-progress rounds on the same finding default to escalation;
-- do not resend an uncertain prior worker prompt.
+- Astra authors code-review findings; AGY resolves implementation findings.
+- Rework remains `IMPLEMENT_REWORK`; do not execute the formal Test Plan.
+- AGY does not rewrite the Contract.
+- Two consecutive no-progress rounds on the same finding stop blind rework and require classification/escalation.
+- Environment blockers do not become repeated code changes.
+- Do not resend an uncertain Herdr prompt.
