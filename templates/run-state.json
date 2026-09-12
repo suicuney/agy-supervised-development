@@ -1,36 +1,23 @@
 {
+  "schema_version": 2,
+  "state_version": 1,
   "task_id": "<task-id>",
   "contract_id": "<contract-id>",
   "contract_revision": 1,
   "repo_root": "<repo-root>",
   "working_directory": "<checkout-or-worktree>",
   "branch": null,
-  "baseline_commit": null,
-  "baseline_ref": null,
-  "herdr": {
-    "workspace_id": null,
-    "pane_id": null,
-    "agy_agent": null,
-    "native_session_ref": null
-  },
-  "phase": "IMPLEMENT",
-  "current_round": 0,
-  "finding_ids": [],
+  "baseline": {"commit":"<commit>","snapshot_ref":"<git-private-path>","deliverable_digest":"<64-hex>","ownership_digest":"<64-hex>"},
+  "evidence_root": "<git-private-evidence-root>",
+  "herdr": {"workspace_id":null,"pane_id":null,"agy_agent":null,"native_session_ref":null},
+  "phase": "CONTRACT",
   "dispatch_state": "NOT_SENT",
-  "code_state_digest": null,
-  "code_review": {
-    "result": "NOT_RUN",
-    "contract_revision": null,
-    "reviewed_code_state_digest": null,
-    "finding_ids": []
-  },
-  "test_plan": {
-    "test_plan_id": null,
-    "plan_revision": null,
-    "contract_revision": null,
-    "reviewed_code_state_digest": null,
-    "status": "NOT_CREATED"
-  },
-  "test_results": [],
+  "writer": {"status":"STOPPED","task_round":null,"last_observed_at":null},
+  "code_review": {"status":"NOT_RUN","review_id":null,"contract_revision":null,"reviewed_deliverable_digest":null,"finding_ids":[]},
+  "test_plan": {"status":"NOT_CREATED","path":null,"plan_id":null,"plan_revision":null,"plan_digest":null,"contract_revision":null,"reviewed_deliverable_digest":null},
+  "test_results_path": null,
+  "findings": [],
+  "blocked": null,
+  "diagnostics": [],
   "contract_patches": []
 }
