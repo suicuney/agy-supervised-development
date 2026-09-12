@@ -14,10 +14,13 @@ supervisor="$root/resources/supervisor.md"
 verification="$root/resources/verification.md"
 execution="$root/resources/agy-execution.md"
 
-require_contains "$readme" '4\.0\.0-alpha\.2' 'README version'
+require_contains "$readme" '4\.0\.0-alpha\.3' 'README version'
 require_contains "$readme" 'ASTRA: CONTRACT' 'simple flow'
 require_contains "$readme" 'LUNA: SUPERVISE' 'supervisor flow'
-require_contains "$kernel" 'Astra decides\. Luna supervises\. AGY builds\. Git proves\.' 'kernel principle'
+require_contains "$readme" 'model=UNVERIFIED' 'unverified model visibility'
+require_contains "$kernel" 'Routing proves itself' 'observable routing principle'
+require_contains "$kernel" 'runtime exposes evidence' 'runtime handoff evidence'
+require_contains "$kernel" 'UNVERIFIED' 'no fabricated model identity'
 require_contains "$kernel" 'WHAT / BOUNDARY / DONE' 'architect boundary'
 require_contains "$kernel" 'Every AGY run goes through Herdr' 'Herdr-only execution'
 require_contains "$kernel" 'Do not preload' 'progressive disclosure'
