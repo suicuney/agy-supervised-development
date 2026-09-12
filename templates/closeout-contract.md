@@ -1,28 +1,30 @@
 # Final Completion Record
 
-Use after AGY finishes the frozen Test Plan. This is a record, not another review phase.
+This record is emitted/formatted **after** `bash scripts/validate-run-state.sh complete` succeeds. It is not another review phase and must not be authored to override a rejected validator decision.
 
 ```text
 FINAL COMPLETION
 
 task_id: <task-id>
 contract: <contract-id>@<revision>
-final_code_state_digest: <digest>
-code_review_result: PASS
-code_review_digest: <digest>
+review_id: <review-id>
+reviewed_deliverable_digest: <digest>
 test_plan: <id>@<revision>
+test_plan_digest: <sha256>
+final_deliverable_digest: <digest>
 
 required_checks
-- <check-id>: PASS | FAIL | BLOCKED | NOT_RUN | NOT_APPLICABLE
+- <check-id>: latest attempt / applicability / result / evidence refs
 
 acceptance_metrics
-- <metric-id>: <measured value> / <required condition> / PASS|FAIL
+- <metric-id>: measured value / frozen condition / PASS|FAIL
 
-code_changed_after_review: yes/no
-worker_stopped: yes/no
+writer_stopped: yes/no
+dispatch_settled: yes/no
+open_findings: <none|ids>
 baseline_user_changes_preserved: yes/no
 
-final_status: TASK_COMPLETE | NOT_COMPLETE
+validator_decision: COMPLETE | REJECTED
 ```
 
-`TASK_COMPLETE` is mechanical: the current deliverable still matches the code-review/test-plan binding, every required check actually passed, every frozen metric is satisfied, and no required blocker/not-run remains. Astra does not perform another test-review step.
+Only a successful deterministic decision may persist `phase=COMPLETE`. Astra performs no second test review.
