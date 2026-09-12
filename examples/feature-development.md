@@ -1,33 +1,23 @@
 # Example: Small Feature in 4.1
 
-User requests a reversible feature with clear behavior.
+Astra freezes a compact Contract with observable behavior/scenario and, only if useful, a bounded diagnostic such as a targeted typecheck. The diagnostic is recorded with `formal_acceptance=false`.
 
-## 1. Astra contract
+AGY implements through Herdr and stops. Astra reviews the complete deliverable digest (including tests/config/generated artifacts required by repository rules) without executing tests. Findings return as bounded `IMPLEMENT_REWORK` until `CODE_REVIEW_PASS`.
 
-Astra reads the applicable repository rules and freezes a compact Contract. No file-by-file plan is required.
+Astra then writes canonical `test-plan.json`. Example command check freezes argv, cwd, applicability, accepted exit codes, timeout/max attempts and required metric threshold.
 
-## 2. AGY implementation
+Before AGY tests, the host calls:
 
-AGY runs through Herdr in `IMPLEMENT` mode, chooses ordinary implementation details, changes the required code, self-reviews, and does **not** run the formal test plan or acceptance gates.
-
-## 3. Astra code review
-
-Astra inspects the complete task delta against the Contract and project rules. It does not execute tests.
-
-If there is a code defect:
-
-```text
-CODE_REVIEW_REWORK → AGY IMPLEMENT_REWORK → ASTRA CODE REVIEW
+```bash
+bash scripts/validate-run-state.sh transition --run-state "$state" --contract "$contract" --test-plan "$plan" --to TEST --expected-state-version "$version"
 ```
 
-When the current code digest receives `CODE_REVIEW_PASS`, continue.
+AGY executes the frozen plan through Herdr and stores each attempt separately under the approved evidence root. It cannot edit the plan or lower thresholds.
 
-## 4. Astra test plan
+Final completion is only:
 
-Astra freezes the required commands/checks and measurable metrics for the reviewed implementation, including applicable repository-required gates.
+```bash
+bash scripts/validate-run-state.sh complete --run-state "$state" --contract "$contract" --test-plan "$plan" --results "$results" --expected-state-version "$version"
+```
 
-## 5. AGY test
-
-AGY runs the frozen plan through Herdr and reports actual results. If all required checks and metrics pass on the same code digest, the task completes without another Astra test-review pass.
-
-If AGY changes production code while fixing a failure, return to Astra code review before testing can become final.
+If a deliverable file changes after review—including test assertions, fixture/golden, config or lockfile—the old review/plan/evidence is stale and cannot complete.
