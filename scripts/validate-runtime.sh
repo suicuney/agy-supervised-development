@@ -11,53 +11,41 @@ exit 0
 SH
 chmod +x "$tmp/bin/agy"
 
-cat > "$tmp/bin/jq" <<'SH'
-#!/usr/bin/env bash
-exit 0
-SH
-chmod +x "$tmp/bin/jq"
-
 cat > "$tmp/bin/herdr" <<'SH'
 #!/usr/bin/env bash
-case "${1:-} ${2:-} ${3:-}" in
-  '--version  ')
-    printf 'herdr 0.8.2\n'
-    ;;
-  'status server ')
+case "$*" in
+  '--version') printf '%s\n' "${FAKE_HERDR_VERSION:-herdr 0.8.2}" ;;
+  'api schema --json') printf '%s\n' "${FAKE_SCHEMA:-{\"protocol\":20}}" ;;
+  'status server')
     [[ "${FAKE_HERDR_SERVER_DOWN:-0}" == 1 ]] && exit 1
-    printf '{"ok":true}\n'
+    printf '%s\n' "${FAKE_SERVER_STATUS:-{\"running\":true,\"compatible\":true}}"
     ;;
-  'integration status ')
-    printf '%s\n' "${FAKE_INTEGRATION_STATUS:-Antigravity CLI current v1}"
-    ;;
-  *)
-    printf 'unexpected fake herdr args: %s\n' "$*" >&2
-    exit 2
-    ;;
+  'integration status') printf '%s\n' "${FAKE_INTEGRATION_STATUS:-Antigravity CLI current v2}" ;;
+  *) printf 'unexpected fake herdr args: %s\n' "$*" >&2; exit 2 ;;
 esac
 SH
 chmod +x "$tmp/bin/herdr"
 
-run_check() {
-  PATH="$tmp/bin:$PATH" "$root/scripts/check-herdr.sh"
-}
+run_check() { PATH="$tmp/bin:$PATH" "$root/scripts/check-herdr.sh"; }
 
 out="$(run_check)"
-[[ "$out" == 'HERDR_READY' ]]
+grep -q '^HERDR_ENVIRONMENT_READY$' <<<"$out"
+grep -q '^HERDR_PROTOCOL=20$' <<<"$out"
 
-if FAKE_INTEGRATION_STATUS='Claude Code current v7' run_check >/dev/null 2>&1; then
-  printf 'Missing Antigravity integration should fail.\n' >&2
-  exit 1
-fi
+expect_fail() {
+  local label="$1"; shift
+  if "$@" >/dev/null 2>&1; then
+    printf 'Expected failure: %s\n' "$label" >&2
+    exit 1
+  fi
+}
 
-if FAKE_INTEGRATION_STATUS='Antigravity CLI outdated v0' run_check >/dev/null 2>&1; then
-  printf 'Outdated Antigravity integration should fail.\n' >&2
-  exit 1
-fi
+expect_fail 'missing Antigravity integration' env FAKE_INTEGRATION_STATUS='Claude Code current v7' bash -c 'PATH="'$tmp'/bin:$PATH" "'$root'/scripts/check-herdr.sh"'
+expect_fail 'outdated Antigravity integration' env FAKE_INTEGRATION_STATUS='Antigravity CLI outdated v2' bash -c 'PATH="'$tmp'/bin:$PATH" "'$root'/scripts/check-herdr.sh"'
+expect_fail 'unknown integration state' env FAKE_INTEGRATION_STATUS='Antigravity CLI v2' bash -c 'PATH="'$tmp'/bin:$PATH" "'$root'/scripts/check-herdr.sh"'
+expect_fail 'server unavailable' env FAKE_HERDR_SERVER_DOWN=1 bash -c 'PATH="'$tmp'/bin:$PATH" "'$root'/scripts/check-herdr.sh"'
+expect_fail 'server malformed' env FAKE_SERVER_STATUS='not-json' bash -c 'PATH="'$tmp'/bin:$PATH" "'$root'/scripts/check-herdr.sh"'
+expect_fail 'schema malformed' env FAKE_SCHEMA='{}' bash -c 'PATH="'$tmp'/bin:$PATH" "'$root'/scripts/check-herdr.sh"'
+expect_fail 'empty version' env FAKE_HERDR_VERSION='unknown' bash -c 'PATH="'$tmp'/bin:$PATH" "'$root'/scripts/check-herdr.sh"'
 
-if FAKE_HERDR_SERVER_DOWN=1 run_check >/dev/null 2>&1; then
-  printf 'Unavailable Herdr server should fail.\n' >&2
-  exit 1
-fi
-
-printf 'Herdr runtime validation passed.\n'
+printf 'Herdr runtime contract tests passed.\n'
