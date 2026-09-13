@@ -1,26 +1,11 @@
 {
-  "name": "agy-supervised-development",
-  "version": "4.1.0-alpha.2",
-  "description": "Astra defines/reviews/freezes tests; Herdr-managed AGY implements/tests; deterministic evidence validation completes.",
-  "author": {"name": "suicuney"},
-  "repository": "https://github.com/suicuney/agy-supervised-development",
-  "license": "MIT",
-  "keywords": ["codex", "herdr", "agy", "astra", "supervised-development", "code-review", "testing"],
-  "skills": "./skills/",
-  "interface": {
-    "displayName": "AGY Supervised Development",
-    "shortDescription": "Astra plans/reviews; AGY builds/tests; evidence completes.",
-    "longDescription": "Use Astra for a compact Contract, code-only review and a frozen structured Test Plan; use Herdr-managed AGY for implementation, bounded diagnostics/rework and formal test execution; finish only through deterministic evidence validation.",
-    "developerName": "suicuney",
-    "category": "Productivity",
-    "capabilities": [
-      "Freeze compact Development Contracts with observable acceptance scenarios",
-      "Capture recoverable Git baselines and deliverable identity",
-      "Run Astra code-only review loops",
-      "Freeze structured test checks, applicability and metrics",
-      "Execute AGY work only through Herdr",
-      "Validate TEST entry and COMPLETE from current repository evidence"
-    ],
-    "defaultPrompt": "Use AGY Supervised Development 4.1: Astra freezes WHAT/BOUNDARY/DONE plus observable scenarios and optional bounded diagnostics; Herdr-managed AGY implements; Astra reviews the full deliverable without running tests; Astra freezes the machine Test Plan; AGY executes formal tests; only the deterministic run-state validator may mark COMPLETE."
-  }
+  "name":"agy-supervised-development",
+  "version":"4.1.0-alpha.3",
+  "description":"Astra defines and reviews; Herdr-managed AGY implements and runs frozen checks; deterministic local evidence decides completion.",
+  "author":{"name":"suicuney"},
+  "repository":"https://github.com/suicuney/agy-supervised-development",
+  "license":"MIT",
+  "keywords":["codex","herdr","agy","astra","supervised-development","code-review","deterministic-testing"],
+  "skills":"./skills/",
+  "interface":{"displayName":"AGY Supervised Development","shortDescription":"Astra plans/reviews; AGY builds/tests; local gate completes.","longDescription":"Compact Contract, Herdr-only AGY implementation, Astra code-only review, frozen machine Test Plan, local runner receipts and deterministic completion gate.","developerName":"suicuney","category":"Productivity","capabilities":["Freeze compact Development Contracts","Capture recoverable Git baselines","Run Herdr-managed implementation and formal checks","Perform Astra code-only review","Freeze structured Test Plans","Validate immutable test receipts and complete deterministically"],"defaultPrompt":"Use AGY Supervised Development 4.1: Astra freezes WHAT/BOUNDARY/DONE, AGY implements via Herdr, Astra reviews code only, Astra freezes a machine Test Plan, AGY runs frozen checks through the local runner, and validate-run-state decides COMPLETE."}
 }
