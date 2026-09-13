@@ -24,9 +24,9 @@ A genuine task with no executable checks may use `no_checks_acceptance` with a r
 
 ## Result record
 
-AGY uses its existing execution tools and writes actual command results to `test-results.json`. Each attempt records command identity, cwd, start/end time, exit code, timeout flag, raw evidence path/hash, before/after deliverable digests, status and reason.
+AGY uses its existing execution tools and writes actual command results to `test-results.json`. Each attempt records command identity, cwd, start/end time, exit code, timeout flag, raw evidence path/hash, before/after deliverable digests, status and reason. `started_at` and `ended_at` describe the command execution interval, not queue/wait time; the recorded interval must be consistent with the frozen timeout.
 
-The latest attempt decides the current result. Earlier failures remain recorded. Retry count cannot exceed the frozen `max_attempts`, and evidence paths cannot be reused across attempts.
+The latest attempt decides the current result. Earlier failures remain recorded. Retry count cannot exceed the frozen `max_attempts`, and evidence paths cannot be reused across attempts. Evidence reuse is checked after path resolution, so equivalent references such as `a.log` and `./a.log` do not count as independent evidence.
 
 ## Completion gate
 

@@ -8,7 +8,7 @@ files=(
  schemas/development-contract.schema.json schemas/snapshot-policy.schema.json schemas/run-state.schema.json schemas/test-plan.schema.json schemas/test-results.schema.json
  templates/development-contract.json templates/snapshot-policy.json templates/run-state.json templates/test-plan.json templates/test-results.json templates/execution-unit.md templates/review-report.md
  scripts/workflow_common.py scripts/snapshot_code_state.py scripts/snapshot-code-state.sh scripts/validate_run_state.py scripts/validate-run-state.sh scripts/validate-active-roles.sh scripts/validate-docs.sh scripts/validate-workflow.sh scripts/test-readiness.sh
- evals/scenarios.json
+ evals/README.md evals/scenarios.json
 )
 for f in "${files[@]}"; do [[ -f "$root/$f" ]] || { echo "STRUCTURE_MISSING:$f" >&2; exit 1; }; done
 

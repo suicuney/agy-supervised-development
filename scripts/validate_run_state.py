@@ -3,7 +3,7 @@ import argparse, base64, datetime as dt, fcntl, json, os, sys
 from pathlib import Path
 from jsonschema import Draft202012Validator, FormatChecker
 from workflow_common import canonical_digest, load_json, resolve_under, sha256_file, atomic_json_write
-from snapshot_code_state import snapshot, verify_snapshot_dir
+from snapshot_code_state import snapshot, verify_snapshot_dir, validate_policy, repo_info
 
 ROOT=Path(__file__).resolve().parents[1]
 SCHEMAS={
@@ -14,13 +14,13 @@ SCHEMAS={
     'results':'test-results.schema.json',
 }
 ALLOWED={
-    'CONTRACT':{'IMPLEMENT','BLOCKED'},
-    'IMPLEMENT':{'CODE_REVIEW','BLOCKED'},
-    'CODE_REVIEW':{'IMPLEMENT_REWORK','TEST_PLAN','BLOCKED'},
-    'IMPLEMENT_REWORK':{'CODE_REVIEW','BLOCKED'},
-    'TEST_PLAN':{'TEST','BLOCKED'},
-    'TEST':{'BLOCKED'},
-    'TEST_REWORK':{'CODE_REVIEW','BLOCKED'},
+    'CONTRACT':{'IMPLEMENT'},
+    'IMPLEMENT':{'CODE_REVIEW'},
+    'CODE_REVIEW':{'IMPLEMENT_REWORK','TEST_PLAN'},
+    'IMPLEMENT_REWORK':{'CODE_REVIEW'},
+    'TEST_PLAN':{'TEST'},
+    'TEST':set(),
+    'TEST_REWORK':{'CODE_REVIEW'},
     'BLOCKED':set(),
     'COMPLETE':set(),
 }
@@ -49,10 +49,27 @@ def require_runtime_version(kind,obj,expected):
     if obj.get('schema_version')!=expected:
         reject('MIGRATION_REQUIRED',f'{kind} schema_version={obj.get("schema_version")} is incompatible; rebuild the current run evidence for schema {expected}')
 
+def resolve_state_path(state,value):
+    path=Path(value)
+    if path.is_absolute(): return path.resolve()
+    return (Path(state['repo_root']).resolve()/path).resolve()
+
+def load_bound_policy(state,policy_path):
+    expected=resolve_state_path(state,state['snapshot_policy']['path'])
+    supplied=resolve_state_path(state,policy_path)
+    if supplied!=expected:
+        reject('POLICY_PATH_MISMATCH','--policy must reference the snapshot policy bound in Run State')
+    raw=load_json(supplied); validate('policy',raw)
+    try:
+        policy=validate_policy(raw,Path(state['repo_root']).resolve())
+    except Exception as e:
+        reject('POLICY_INVALID',str(e))
+    return policy,canonical_digest(policy),supplied
+
 def read_identity(state,contract_path,policy_path,plan_path=None,results_path=None):
-    contract=load_json(contract_path); policy=load_json(policy_path)
-    validate('contract',contract); validate('policy',policy)
-    cd=canonical_digest(contract); policy_digest=canonical_digest(policy)
+    contract=load_json(contract_path); validate('contract',contract)
+    _,policy_digest,_=load_bound_policy(state,policy_path)
+    cd=canonical_digest(contract)
     if state['contract_id']!=contract['contract_id'] or state['contract_revision']!=contract['revision']:
         reject('CONTRACT_IDENTITY_MISMATCH','Contract id/revision mismatch')
     if state['contract_digest']!=cd:
@@ -77,7 +94,7 @@ def read_identity(state,contract_path,policy_path,plan_path=None,results_path=No
             ('contract_digest',cd),('policy_digest',policy_digest),('plan_id',plan['plan_id']),
             ('plan_revision',plan['plan_revision']),('plan_digest',plan_digest)):
             if results[key]!=value: reject('RESULTS_IDENTITY_MISMATCH',f'Test Results {key} mismatch')
-    return contract,policy,cd,policy_digest,plan,plan_digest,results
+    return contract,cd,policy_digest,plan,plan_digest,results
 
 def verify_repo(state):
     work=Path(state['working_directory']).resolve(); repo=Path(state['repo_root']).resolve()
@@ -90,11 +107,15 @@ def verify_repo(state):
 
 def current_manifest(state):
     repo,work=verify_repo(state)
-    git_tmp=repo/'.git'/'agy-supervised'/'tmp'; git_tmp.mkdir(parents=True,exist_ok=True)
+    actual_repo,gitdir=repo_info(work)
+    if actual_repo!=repo:
+        reject('REPO_IDENTITY_MISMATCH','Git repository identity changed during snapshot setup')
+    git_tmp=gitdir/'agy-supervised'/'tmp'; git_tmp.mkdir(parents=True,exist_ok=True)
     import tempfile, shutil
     td=tempfile.mkdtemp(prefix='validate.',dir=git_tmp); out=Path(td)/'snapshot'
     try:
-        return snapshot(out,state['baseline']['commit'],state['snapshot_policy']['path'],work)
+        policy_path=resolve_state_path(state,state['snapshot_policy']['path'])
+        return snapshot(out,state['baseline']['commit'],policy_path,work)
     except Exception as e:
         reject('CURRENT_SNAPSHOT_FAILED',str(e))
     finally:
@@ -102,9 +123,28 @@ def current_manifest(state):
 
 def verify_baseline(state):
     try:
-        manifest=verify_snapshot_dir(state['baseline']['snapshot_ref'])
+        manifest=verify_snapshot_dir(resolve_state_path(state,state['baseline']['snapshot_ref']))
     except Exception as e:
         reject('BASELINE_INVALID',str(e))
+    repo=Path(state['repo_root']).resolve()
+    try:
+        manifest_repo=Path(manifest['repo_root']).resolve()
+    except Exception:
+        reject('BASELINE_SOURCE_MISMATCH','baseline manifest repo_root is invalid')
+    if manifest_repo!=repo:
+        reject('BASELINE_SOURCE_MISMATCH','baseline belongs to a different repository')
+    if manifest.get('head')!=state['baseline']['commit'] or manifest.get('baseline_commit')!=state['baseline']['commit']:
+        reject('BASELINE_SOURCE_MISMATCH','baseline head/baseline_commit does not match Run State baseline commit')
+    try:
+        validate('policy',manifest['policy'])
+        normalized_policy=validate_policy(manifest['policy'],repo)
+    except Exception as e:
+        reject('BASELINE_POLICY_INVALID',str(e))
+    manifest_policy_digest=canonical_digest(normalized_policy)
+    if manifest.get('policy_digest')!=manifest_policy_digest:
+        reject('BASELINE_POLICY_INVALID','baseline manifest policy digest does not match normalized policy')
+    if state['snapshot_policy']['digest']!=manifest_policy_digest:
+        reject('BASELINE_POLICY_STALE','baseline policy does not match current Run State policy')
     for key in ('deliverable_digest','ownership_digest','policy_digest'):
         if manifest[key]!=state['baseline'][key]:
             reject('BASELINE_BINDING_MISMATCH',f'baseline {key} mismatch')
@@ -156,14 +196,19 @@ def evidence_path(root,ref):
 def verify_attempt(attempt,check,current_digest,evidence_root,used_evidence):
     if attempt['cwd']!=check['cwd']: reject('CWD_MISMATCH',attempt['attempt_id'])
     if attempt['argv']!=check['argv']: reject('ARGV_MISMATCH',attempt['attempt_id'])
-    if parse_time(attempt['ended_at']) < parse_time(attempt['started_at']): reject('TIME_ORDER_INVALID',attempt['attempt_id'])
+    started=parse_time(attempt['started_at']); ended=parse_time(attempt['ended_at'])
+    if ended < started: reject('TIME_ORDER_INVALID',attempt['attempt_id'])
+    elapsed=(ended-started).total_seconds()
+    if elapsed > check['timeout_seconds'] and not attempt['timed_out']:
+        reject('TIMEOUT_RECORD_MISMATCH',f'{attempt["attempt_id"]}: recorded command interval exceeds frozen timeout')
     if attempt['deliverable_digest_before']!=current_digest or attempt['deliverable_digest_after']!=current_digest:
         reject('RESULT_DIGEST_STALE',attempt['attempt_id'])
     for ref in attempt['evidence']:
-        if ref['path'] in used_evidence: reject('EVIDENCE_REUSED_ACROSS_ATTEMPTS',ref['path'])
         path=evidence_path(evidence_root,ref['path'])
+        evidence_key=str(path)
+        if evidence_key in used_evidence: reject('EVIDENCE_REUSED_ACROSS_ATTEMPTS',ref['path'])
         if sha256_file(path)!=ref['sha256']: reject('EVIDENCE_HASH_MISMATCH',ref['path'])
-        used_evidence.add(ref['path'])
+        used_evidence.add(evidence_key)
     if attempt['timed_out'] and attempt['status']=='PASS': reject('TIMEOUT_STATUS_MISMATCH',attempt['attempt_id'])
     if attempt['status']=='PASS':
         if attempt['exit_code'] not in check['expected_exit_codes']:
@@ -177,7 +222,7 @@ def validate_no_checks(state,plan,results):
     if plan.get('manual_confirmation_required'):
         reject('MANUAL_CONFIRMATION_REQUIRED','task is waiting for explicit human confirmation')
     record=plan['no_checks_acceptance']
-    path=evidence_path(state['evidence_root'],record['evidence_path'])
+    path=evidence_path(resolve_state_path(state,state['evidence_root']),record['evidence_path'])
     if sha256_file(path)!=record['evidence_sha256']:
         reject('NO_CHECK_EVIDENCE_HASH_MISMATCH',record['evidence_path'])
 
@@ -189,6 +234,7 @@ def validate_results(state,plan,results,current_digest):
         validate_no_checks(state,plan,results); return
 
     checks={check['id']:check for check in plan['checks']}
+    evidence_root=resolve_state_path(state,state['evidence_root'])
     grouped={key:[] for key in checks}; attempt_ids=set(); used_evidence=set()
     for attempt in results['attempts']:
         cid=attempt['check_id']
@@ -205,7 +251,7 @@ def validate_results(state,plan,results,current_digest):
         if max(numbers)>check['max_attempts']: reject('MAX_ATTEMPTS_EXCEEDED',cid)
         ordered=sorted(rows,key=lambda row:row['attempt_number'])
         for attempt in ordered:
-            verify_attempt(attempt,check,current_digest,state['evidence_root'],used_evidence)
+            verify_attempt(attempt,check,current_digest,evidence_root,used_evidence)
         latest=ordered[-1]
         if latest['status']!='PASS': reject('CHECK_NOT_PASS',f'{cid}:{latest["status"]}')
 
@@ -227,13 +273,25 @@ def commit_state(path,state,expected):
     state['state_version']=expected+1
     atomic_json_write(path,state)
 
-def apply_test_rework(state,reason,version):
-    state['phase']='TEST_REWORK'
-    state['code_review']['status']='STALE'
-    state['test_plan']['status']='STALE'
+def invalidate_downstream(state):
+    if state['code_review']['status']!='NOT_RUN': state['code_review']['status']='STALE'
+    if state['test_plan']['status']!='NOT_CREATED': state['test_plan']['status']='STALE'
     state['test_results_path']=None
-    state['dispatch_state']='NOT_SENT'
+
+def apply_test_rework(state,reason,version):
+    invalidate_downstream(state)
+    state['phase']='TEST_REWORK'
     state['findings'].append({'id':f'test-rework-{version}','status':'OPEN','category':'TEST_DEFECT','reason':reason})
+
+def require_round_settled(state,action):
+    if state['writer']['status']!='STOPPED':
+        reject('WRITER_NOT_STOPPED',f'{action} requires a stopped writer')
+    if state['dispatch_state'] in ('SENT','SEND_UNKNOWN'):
+        reject('DISPATCH_UNSETTLED',f'{action} requires resolved dispatch state')
+
+def prepare_new_round(state,action):
+    require_round_settled(state,action)
+    state['dispatch_state']='NOT_SENT'
 
 def main():
     ap=argparse.ArgumentParser(); sub=ap.add_subparsers(dest='cmd',required=True)
@@ -264,21 +322,24 @@ def main():
             state=load_state_locked(state_path,args.expected_state_version); ensure_mutable(state); version=state['state_version']
 
             if args.cmd=='contract-update':
-                contract=load_json(args.contract); policy=load_json(args.policy); validate('contract',contract); validate('policy',policy)
-                cd=canonical_digest(contract); policy_digest=canonical_digest(policy); plan=plan_digest=results=None
+                if state['phase']=='BLOCKED':
+                    reject('RESUME_REQUIRED','resolve BLOCKED state before updating Contract')
+                require_round_settled(state,'Contract update')
+                contract=load_json(args.contract); validate('contract',contract)
+                _,policy_digest,_=load_bound_policy(state,args.policy)
+                cd=canonical_digest(contract); plan=plan_digest=results=None
                 if state['snapshot_policy']['digest']!=policy_digest:
                     reject('POLICY_DIGEST_MISMATCH','policy must not change implicitly with Contract update')
                 if contract['contract_id']!=state['contract_id'] or contract['revision']<=state['contract_revision']:
                     reject('CONTRACT_REVISION_INVALID','Contract update must keep id and increment revision')
             else:
-                contract,policy,cd,policy_digest,plan,plan_digest,results=read_identity(
+                contract,cd,policy_digest,plan,plan_digest,results=read_identity(
                     state,args.contract,args.policy,getattr(args,'test_plan',None),getattr(args,'results',None))
             verify_baseline(state)
 
             if args.cmd=='review-pass':
                 if state['phase']!='CODE_REVIEW': reject('ILLEGAL_TRANSITION','review-pass requires CODE_REVIEW')
-                if state['writer']['status']!='STOPPED' or state['dispatch_state'] not in ('SETTLED','NOT_SENT'):
-                    reject('WRITER_OR_DISPATCH_UNSETTLED','review-pass requires stopped writer and settled dispatch')
+                require_round_settled(state,'review-pass')
                 manifest=current_manifest(state)
                 state['code_review']={'status':'PASS','review_id':args.review_id,'contract_revision':state['contract_revision'],'contract_digest':cd,'reviewed_deliverable_digest':manifest['deliverable_digest'],'finding_ids':[]}
                 state['phase']='TEST_PLAN'
@@ -294,15 +355,17 @@ def main():
             elif args.cmd=='transition':
                 if state['phase']=='BLOCKED': reject('RESUME_REQUIRED','BLOCKED may only leave through resume')
                 if args.to not in ALLOWED[state['phase']]: reject('ILLEGAL_TRANSITION',f'{state["phase"]}->{args.to}')
+                if args.to=='IMPLEMENT_REWORK':
+                    invalidate_downstream(state)
                 if args.to=='TEST':
                     if plan is None: reject('PLAN_REQUIRED','TEST transition requires Test Plan')
                     manifest=current_manifest(state); validate_test_entry(state,cd,policy_digest,plan,plan_digest,manifest)
-                    state['dispatch_state']='NOT_SENT'
+                    prepare_new_round(state,'TEST start')
                 state['phase']=args.to
 
             elif args.cmd=='invalidate':
                 if state['phase']!='TEST': reject('INVALIDATE_SOURCE_INVALID','invalidate allowed only from TEST')
-                if state['writer']['status']!='STOPPED': reject('WRITER_NOT_STOPPED','stop worker before invalidate')
+                prepare_new_round(state,'test rework')
                 apply_test_rework(state,args.reason,version)
 
             elif args.cmd=='block':
@@ -331,9 +394,12 @@ def main():
                 state['writer']['last_observed_at']=dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z')
 
             elif args.cmd=='dispatch':
-                if args.state=='SENT' and (state['phase']=='BLOCKED' or state['writer']['status']=='UNKNOWN'):
-                    reject('DISPATCH_START_UNSAFE','cannot dispatch while blocked or writer identity is unknown')
                 old=state['dispatch_state']; new=args.state
+                if new=='SENT' and (state['phase']=='BLOCKED' or state['writer']['status']!='STOPPED'):
+                    reject('DISPATCH_START_UNSAFE','new dispatch requires an unblocked phase and stopped prior writer')
+                if old=='SETTLED' and new=='NOT_SENT':
+                    if state['phase']=='BLOCKED': reject('RESUME_REQUIRED','do not reset dispatch while BLOCKED')
+                    require_round_settled(state,'dispatch reset')
                 valid={('NOT_SENT','SENT'),('SENT','SETTLED'),('SENT','SEND_UNKNOWN'),('SEND_UNKNOWN','SETTLED'),('SETTLED','NOT_SENT')}
                 if old!=new and (old,new) not in valid: reject('DISPATCH_TRANSITION_INVALID',f'{old}->{new}')
                 state['dispatch_state']=new
@@ -345,9 +411,7 @@ def main():
 
             elif args.cmd=='contract-update':
                 state['contract_revision']=contract['revision']; state['contract_digest']=cd
-                if state['code_review']['status']!='NOT_RUN': state['code_review']['status']='STALE'
-                if state['test_plan']['status']!='NOT_CREATED': state['test_plan']['status']='STALE'
-                state['test_results_path']=None
+                invalidate_downstream(state)
                 if state['phase'] not in ('CONTRACT','IMPLEMENT'): state['phase']='IMPLEMENT_REWORK'
                 state['findings'].append({'id':f'contract-update-{contract["revision"]}','status':'OPEN','category':'CONTRACT_CHANGE','reason':args.reason})
                 state['dispatch_state']='NOT_SENT'
@@ -361,7 +425,8 @@ def main():
                 manifest=current_manifest(state); validate_test_entry(state,cd,policy_digest,plan,plan_digest,manifest)
                 validate_results(state,plan,results,manifest['deliverable_digest'])
                 if canonical_digest(load_json(args.contract))!=cd: reject('ARTIFACT_CHANGED_DURING_VALIDATION','Contract changed')
-                if canonical_digest(load_json(args.policy))!=policy_digest: reject('ARTIFACT_CHANGED_DURING_VALIDATION','policy changed')
+                _,current_policy_digest,_=load_bound_policy(state,args.policy)
+                if current_policy_digest!=policy_digest: reject('ARTIFACT_CHANGED_DURING_VALIDATION','policy changed')
                 if canonical_digest(load_json(args.test_plan))!=plan_digest: reject('ARTIFACT_CHANGED_DURING_VALIDATION','plan changed')
                 if canonical_digest(load_json(args.results))!=canonical_digest(results): reject('ARTIFACT_CHANGED_DURING_VALIDATION','results changed')
                 state['test_results_path']=str(Path(args.results).resolve()); state['phase']='COMPLETE'

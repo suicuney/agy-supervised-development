@@ -64,3 +64,5 @@ scripts/validate-run-state.sh
 需要主观人工验收时保持待人工确认，不伪装成自动 PASS。确实无需执行任何检查时可使用带理由和 hash 证据的 `no_checks_acceptance`。
 
 旧的 alpha.3 前期扩展 Run State/Test Plan/Test Results 与当前精简格式不兼容时，应重新建立当前 run 的审查、计划和测试记录，不自动补成 PASS。
+
+`scripts/test-readiness.sh` 只做结构、文档和工作流静态检查，并可选检查 Herdr 环境；它不执行项目测试、构建、行为复现或完整 AGY 流程。`evals/scenarios.json` 只是场景定义，不代表这些场景已经通过。

@@ -117,6 +117,13 @@
       ]
     }
   },
+  "allOf": [
+    {
+      "if": {"properties": {"phase": {"const": "BLOCKED"}}},
+      "then": {"properties": {"blocked": {"type": "object"}}},
+      "else": {"properties": {"blocked": {"type": "null"}}}
+    }
+  ],
   "$defs": {"d": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
   "additionalProperties": false
 }
