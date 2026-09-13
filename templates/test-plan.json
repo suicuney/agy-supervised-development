@@ -1,25 +1,15 @@
 {
-  "schema_version": 1,
-  "task_id": "example-task",
-  "contract_id": "example-contract",
+  "schema_version": 2,
+  "task_id": "<task-id>",
+  "contract_id": "<contract-id>",
   "contract_revision": 1,
-  "plan_id": "example-plan",
+  "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "policy_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "plan_id": "<plan-id>",
   "plan_revision": 1,
   "reviewed_deliverable_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "status": "FROZEN",
-  "checks": [
-    {
-      "id": "T1",
-      "type": "command",
-      "cwd": ".",
-      "required": true,
-      "applicability": {"mode": "always"},
-      "evidence_types": ["log"],
-      "max_attempts": 1,
-      "command": {"argv": ["true"], "expected_exit_codes": [0], "timeout_seconds": 30},
-      "expected": "command exits with an explicitly accepted code"
-    }
-  ],
+  "checks": [],
   "metrics": [],
-  "no_checks_acceptance": null
+  "no_checks_acceptance": {"covers": ["A1", "C1"], "reason": "<frozen reason>", "evidence_path": "no-check-evidence.txt", "evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000"}
 }
