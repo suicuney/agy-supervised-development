@@ -1,23 +1,9 @@
-# Example: Small Feature in 4.1
+# Example: Small Feature
 
-Astra freezes a compact Contract with observable behavior/scenario and, only if useful, a bounded diagnostic such as a targeted typecheck. The diagnostic is recorded with `formal_acceptance=false`.
+Astra freezes a compact Contract with observable behavior and optional bounded diagnostics. AGY implements through Herdr and stops. Astra reviews the complete deliverable without running tests.
 
-AGY implements through Herdr and stops. Astra reviews the complete deliverable digest (including tests/config/generated artifacts required by repository rules) without executing tests. Findings return as bounded `IMPLEMENT_REWORK` until `CODE_REVIEW_PASS`.
+After `CODE_REVIEW_PASS`, Astra freezes only the commands needed for acceptance. Each command records cwd, argv, accepted exit codes, timeout and retry limit. Checks that are not applicable are simply not included; the plan notes why.
 
-Astra then writes canonical `test-plan.json`. Example command check freezes argv, cwd, applicability, accepted exit codes, timeout/max attempts and required metric threshold.
+AGY runs the frozen commands through its existing execution tools and records actual argv/cwd, timestamps, exit code, raw evidence hashes and before/after deliverable digests. `validate-run-state complete` checks those records against the frozen plan and current deliverable.
 
-Before AGY tests, the host calls:
-
-```bash
-bash scripts/validate-run-state.sh transition --run-state "$state" --contract "$contract" --test-plan "$plan" --to TEST --expected-state-version "$version"
-```
-
-AGY executes the frozen plan through Herdr and stores each attempt separately under the approved evidence root. It cannot edit the plan or lower thresholds.
-
-Final completion is only:
-
-```bash
-bash scripts/validate-run-state.sh complete --run-state "$state" --contract "$contract" --test-plan "$plan" --results "$results" --expected-state-version "$version"
-```
-
-If a deliverable file changes after review—including test assertions, fixture/golden, config or lockfile—the old review/plan/evidence is stale and cannot complete.
+If testing changes any deliverable file, the old review and test evidence become stale and the task returns to Astra review.

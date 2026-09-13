@@ -1,7 +1,27 @@
 # Astra Code Review
 
-Astra reviews the complete current deliverable after AGY stops writing. This phase is code-only: no formal test execution.
+Astra reviews after AGY stops writing. This stage is code/deliverable inspection only; Astra does not run tests or quality gates here.
 
-Inputs: current Contract + `contract_digest`, project rules, baseline/snapshot policy, complete task delta and current `deliverable_digest`. Review includes implementation, tests/fixtures/goldens/config/lockfiles/generated sources and necessary propagation.
+Review the complete task delta against the Contract and repository rules, including committed/staged/unstaged/untracked content, deletions/renames, binary/mode changes, test/config/lock/generated artifacts, and required callers/consumers/schema/docs.
 
-A PASS is recorded only through `validate-run-state review-pass`, binding Contract revision+digest and current deliverable digest. Any later deliverable change makes the review stale. Review findings return to Herdr-managed AGY in `IMPLEMENT_REWORK`.
+Outcomes:
+
+```text
+CODE_REVIEW_PASS
+CODE_REVIEW_REWORK
+BLOCKED
+```
+
+A finding needs only:
+
+```text
+finding id
+Contract/rule
+concrete code evidence
+required outcome
+status
+```
+
+Put findings in `templates/review-report.md`; there is no separate rework contract. AGY performs bounded rework and stops, then Astra reviews the complete deliverable again.
+
+A PASS is bound to the current Contract digest and deliverable digest. Any later deliverable change—including tests, fixtures, configuration, lockfiles or generated source—makes the PASS stale.

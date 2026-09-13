@@ -1,27 +1,15 @@
 ---
 name: agy-supervised-development
-description: Astra defines/reviews; Herdr-managed AGY implements and runs frozen checks; local evidence decides completion.
+description: Astra defines/reviews, AGY implements/tests through Herdr, and a local gate checks completion consistency.
 version: 4.1.0-alpha.3
 ---
 
 # AGY Supervised Development
 
-Read `../../SKILL.md`; it is the canonical router.
+Read `../../SKILL.md`; it is the canonical active workflow.
 
 ```text
-Astra: Contract
-→ AGY/Herdr: Implement
-→ Astra: Code review only
-→ Astra: Freeze machine Test Plan
-→ AGY/Herdr: run frozen checks
-→ validate-run-state: Complete or reject
+Astra Contract → AGY implement → Astra code review → Astra frozen command plan → AGY test → completion gate
 ```
 
-Rules:
-- Astra owns `WHAT / BOUNDARY / DONE`, code review, and frozen test criteria; AGY owns ordinary `HOW`.
-- Contract-preauthorized diagnostics may run during implementation but never count as formal acceptance.
-- Astra code review runs no tests and is bound to the current deliverable digest.
-- AGY cannot weaken a frozen plan; any deliverable change after review invalidates review/plan/formal evidence.
-- Every AGY execution is Herdr-managed; preserve baseline/user changes and dispatch safety.
-- No default Luna supervisor, Sol plan review, or second Astra test-review stage.
-- Default readiness validates code/workflow logic and wiring only; Python fixture execution is not a release gate.
+Keep the Contract compact, preserve user changes, use Herdr for every AGY run, and return to Astra review whenever the deliverable changes after review PASS.

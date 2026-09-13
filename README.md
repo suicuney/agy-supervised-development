@@ -2,34 +2,41 @@
 
 当前开发版本：**4.1.0-alpha.3**
 
-> Astra 定需求与验收边界，AGY 经 Herdr 实现和执行冻结测试，Astra 只做代码复核，本地确定性 gate 最终决定 COMPLETE。
+这是一个精简的受监督开发 Skill：Astra 负责需求边界、代码审查和正式测试命令；AGY 经 Herdr 负责实现、返工和执行测试；本地判定器只核对计划、执行记录、证据和当前代码状态是否一致。
 
-## 默认流程
+## 最短流程
 
 ```text
-Astra：Contract + 验收场景/反例 + 可选诊断权限
-→ AGY/Herdr：实现（诊断不是正式验收）
-→ Astra：Code Review only
-→ Astra：冻结结构化 Test Plan
-→ TEST-entry gate
-→ AGY/Herdr：run-frozen-check
+Astra：Contract
+→ AGY/Herdr：实现并停止
+→ Astra：完整代码审查
+→ Astra：冻结必要测试命令
+→ AGY/Herdr：执行并记录实际结果
 → validate-run-state complete
 ```
 
-没有默认 Luna supervisor、Sol plan review、第二次 Astra 测试复核，也不要求小任务写文件级施工计划。
+代码审查有问题就返工再审；测试后修改交付内容就使旧审查/测试证据失效并重走审查与测试；环境缺失使用 `BLOCKED`，恢复后回原阶段。
 
-## alpha.3 可靠性重点
+## Formal Test Plan
 
-- Contract 使用 canonical `contract_digest`，同 revision 改正文会让 review/plan/results 失效。
-- snapshot 输出不可覆盖；不修改已有父目录权限；tracked 删除可表达；未跟踪原文、binary、symlink target、可执行位可恢复/核对。
-- `deliverable_digest` 与 Git/index `ownership_digest` 分离，纯 `git add` 不触发无意义代码重审。
-- 冻结 snapshot policy，精确控制 ignored 输入与敏感未跟踪授权；runner、TEST-entry、complete 全程复用同一 policy digest。
-- Test Plan / receipt / results 全部机器可读；AGY 不再手工定义正式 exit、PASS 或 measured values。
-- `run-frozen-check.sh` 实际执行冻结 argv；`validate-run-state.sh` 负责状态与完成判定。
-- business applicability 与 environment prerequisite 分开：业务不适用才 N/A，缺浏览器/认证/依赖是 BLOCKED。
-- `COMPLETE` 是终态；测试修代码必须 invalidate → TEST_REWORK → Astra 重审 → 新计划 → 重测。
+正式计划只有命令清单。每条检查冻结：
 
-## 核心文件
+- check id
+- cwd + argv
+- accepted exit codes
+- timeout
+- max attempts
+- 必要的显式 input paths
+
+所有进入计划的检查都必须通过。不适用的检查在冻结前删除并写入 `notes`；浏览器、凭证、依赖缺失是 BLOCKED，不是自动免测。
+
+AGY 使用已有执行工具运行命令，并把真实 argv/cwd、时间、退出码、证据 path/hash、before/after deliverable digest 写入 `test-results.json`。本仓库不再提供通用测试执行、指标解析或人工观察适配层。
+
+## 数据保护
+
+`snapshot_code_state.py` 保留 baseline、deliverable digest、Git ownership digest、未跟踪原文保护、binary、symlink target 和 executable bit。snapshot policy 精确声明 ignored inputs 与敏感未跟踪授权，并由 TEST-entry/complete 复用。
+
+## 主要入口
 
 ```text
 SKILL.md
@@ -38,38 +45,22 @@ resources/run-state.md
 resources/agy-execution.md
 resources/code-review.md
 resources/testing.md
-schemas/development-contract.schema.json
-schemas/snapshot-policy.schema.json
-schemas/run-state.schema.json
-schemas/test-plan.schema.json
-schemas/test-receipt.schema.json
-schemas/test-results.schema.json
+schemas/*.json
+templates/development-contract.json
+templates/snapshot-policy.json
+templates/run-state.json
+templates/test-plan.json
+templates/test-results.json
+templates/execution-unit.md
+templates/review-report.md
 scripts/snapshot-code-state.sh
-scripts/run-frozen-check.sh
 scripts/validate-run-state.sh
 ```
 
-## 验证策略
+## 能力边界
 
-alpha.3 默认 readiness **只检查代码与工作流逻辑的一致性**：文件结构、JSON 可解析性、版本、活跃角色依赖、schema 关键字段和 runtime entrypoint wiring。它不执行 Python fixture、`py_compile` 或 Python 行为回归，也不会把静态逻辑检查冒充真实运行证明。
+`validate-run-state` 检查 Contract/plan/digest、命令记录、退出码、证据 hash、attempt 顺序、writer/dispatch/findings 和当前 deliverable 是否一致。它不能仅凭日志 hash 证明所有业务行为正确，也不提供对同权限恶意执行者的不可伪造证明。
 
-Python 文件仍是 snapshot / runner / completion 的运行实现。真实正确性由真实任务或一次性临时仓库 smoke 单独证明。
+需要主观人工验收时保持待人工确认，不伪装成自动 PASS。确实无需执行任何检查时可使用带理由和 hash 证据的 `no_checks_acceptance`。
 
-```bash
-bash scripts/test-readiness.sh
-bash scripts/test-readiness.sh --environment   # 额外检查 Herdr 环境
-```
-
-默认输出区分：
-
-```text
-STATIC_LOGIC_VALID
-ENVIRONMENT_READY
-PYTHON_BEHAVIOR_CHECKS
-FLOW_VERIFIED
-SEMANTIC_EVALS
-```
-
-## 迁移
-
-alpha.2 及更早 Run State 缺少 contract/policy/receipt 绑定时不能自动补成 PASS。应从当前仓库状态重建需要的身份关系，重新 Code Review、冻结计划并重新执行正式 checks。
+旧的 alpha.3 前期扩展 Run State/Test Plan/Test Results 与当前精简格式不兼容时，应重新建立当前 run 的审查、计划和测试记录，不自动补成 PASS。

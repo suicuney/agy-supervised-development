@@ -1,16 +1,25 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "state_version": 1,
-  "task_id": "<task-id>",
-  "contract_id": "<contract-id>",
+  "task_id": "example-task",
+  "contract_id": "example-contract",
   "contract_revision": 1,
   "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
-  "repo_root": "<repo-root>",
-  "working_directory": "<working-directory>",
-  "branch": null,
-  "snapshot_policy": {"path": "<policy-path>", "digest": "0000000000000000000000000000000000000000000000000000000000000000"},
-  "baseline": {"commit": "<commit>", "snapshot_ref": "<snapshot-ref>", "deliverable_digest": "0000000000000000000000000000000000000000000000000000000000000000", "ownership_digest": "0000000000000000000000000000000000000000000000000000000000000000", "policy_digest": "0000000000000000000000000000000000000000000000000000000000000000"},
-  "evidence_root": "<evidence-root>",
+  "repo_root": "/tmp/example-repo",
+  "working_directory": "/tmp/example-repo",
+  "branch": "example-branch",
+  "snapshot_policy": {
+    "path": "/tmp/example-evidence/snapshot-policy.json",
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "baseline": {
+    "commit": "example-commit",
+    "snapshot_ref": "/tmp/example-evidence/baseline",
+    "deliverable_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "ownership_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "policy_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "evidence_root": "/tmp/example-evidence",
   "herdr": {"workspace_id": null, "pane_id": null, "agy_agent": null, "native_session_ref": null},
   "phase": "CONTRACT",
   "dispatch_state": "NOT_SENT",
@@ -19,7 +28,5 @@
   "test_plan": {"status": "NOT_CREATED", "path": null, "plan_id": null, "plan_revision": null, "plan_digest": null, "contract_revision": null, "contract_digest": null, "policy_digest": null, "reviewed_deliverable_digest": null},
   "test_results_path": null,
   "findings": [],
-  "blocked": null,
-  "diagnostics": [],
-  "contract_patches": []
+  "blocked": null
 }

@@ -1,9 +1,26 @@
 # Development Contract
 
-Astra freezes compact `WHAT / BOUNDARY / DONE`, plus stable acceptance-scenario/counterexample IDs and optional diagnostic permissions. AGY owns ordinary HOW.
+The Contract is Astra's compact statement of `WHAT / BOUNDARY / DONE`. Runtime truth is the JSON document validated by `schemas/development-contract.schema.json`.
 
-The authoritative Contract is JSON validated by `schemas/development-contract.schema.json`. Its canonical SHA-256 digest is computed from sorted-key compact JSON. Field order does not change the digest; any content change does. A content change must increment `revision`; same revision + new digest is rejected and downstream review/plan/results are stale.
+Keep it small:
 
-Diagnostics are optional and always `formal_acceptance=false`. They may include minimal reproduction, targeted tests, typecheck or compile feedback when preauthorized. They never satisfy final frozen checks.
+```json
+{
+  "contract_id": "task-x",
+  "revision": 1,
+  "goal": "desired outcome",
+  "behavior": ["observable result"],
+  "acceptance_scenarios": ["observable acceptance scenario"],
+  "counterexamples": ["behavior that must not occur"],
+  "constraints": [],
+  "diagnostics": [],
+  "done": ["final completion condition"],
+  "escalate_if": []
+}
+```
 
-Only architect/user may materially patch the Contract. Old alpha.2 states that lack `contract_digest` require migration/re-review, never silent backfill to PASS.
+AGY owns ordinary implementation HOW. Do not turn the Contract into a file/class/line plan.
+
+Diagnostics are optional and bounded. A diagnostic entry identifies `kind`, `scope`, and always has `formal_acceptance=false`. Project rules such as required TDD remain binding; diagnostics do not replace the later formal Test Plan.
+
+The runtime binds the Contract by id, revision, and canonical content digest. If the content changes, increment the revision and re-establish downstream review/plan/test evidence. Same revision with different Contract content is rejected.

@@ -1,15 +1,27 @@
 {
-  "schema_version": 2,
-  "task_id": "<task-id>",
-  "contract_id": "<contract-id>",
+  "schema_version": 3,
+  "task_id": "example-task",
+  "contract_id": "example-contract",
   "contract_revision": 1,
   "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "policy_digest": "0000000000000000000000000000000000000000000000000000000000000000",
-  "plan_id": "<plan-id>",
+  "plan_id": "example-plan",
   "plan_revision": 1,
   "reviewed_deliverable_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "status": "FROZEN",
-  "checks": [],
-  "metrics": [],
-  "no_checks_acceptance": {"covers": ["A1", "C1"], "reason": "<frozen reason>", "evidence_path": "no-check-evidence.txt", "evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000"}
+  "notes": [],
+  "manual_confirmation_required": false,
+  "checks": [
+    {
+      "id": "T1",
+      "cwd": ".",
+      "argv": ["example-test-command"],
+      "expected_exit_codes": [0],
+      "timeout_seconds": 120,
+      "max_attempts": 1,
+      "input_paths": [],
+      "expected": "project test command reports success"
+    }
+  ],
+  "no_checks_acceptance": null
 }

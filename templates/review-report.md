@@ -4,33 +4,24 @@
 CODE REVIEW REPORT
 
 task_id: <task-id>
-review_id: <stable review id>
+review_id: <review-id>
 contract: <contract-id>@<revision>
 reviewed_deliverable_digest: <digest>
 baseline_snapshot: <ref>
 
-Task delta reviewed
-- committed since baseline: yes/no + ref
-- staged / unstaged: yes/no
-- untracked original contents: yes/no
-- deletes / renames / mode / binary: yes/no
-- production + test/assertion/fixture/golden/config/lockfile/generated changes: covered
-- required caller/consumer/schema/docs propagation: covered
-- baseline user changes preserved: yes/no
-
-Code inspection
-- Contract scenarios/counterexamples: PASS | REWORK | BLOCKED
-- correctness by inspection: PASS | REWORK | BLOCKED
-- repository rules: PASS | REWORK | BLOCKED
-- completeness/propagation: PASS | REWORK | BLOCKED
+Reviewed delta
+- committed since baseline
+- staged / unstaged
+- untracked original contents
+- delete / rename / mode / binary
+- production + tests/fixtures/config/lock/generated artifacts
+- required callers/consumers/schema/docs
 
 Findings
-- <id / concrete code evidence / required outcome / status>
+- <id / code evidence / required outcome / status>
 
-Tests/builds/quality gates executed by Astra here: NONE
-
-Outcome
-- CODE_REVIEW_PASS | CODE_REVIEW_REWORK | BLOCKED
+Astra test/build execution in this phase: NONE
+Outcome: CODE_REVIEW_PASS | CODE_REVIEW_REWORK | BLOCKED
 ```
 
-A PASS applies only to the recorded Contract revision + deliverable digest. Any later deliverable change makes it STALE.
+A PASS is valid only for the recorded Contract content and deliverable digest. Any later deliverable change makes it stale.

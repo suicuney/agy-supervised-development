@@ -1,18 +1,17 @@
 {
-  "skill":"agy-supervised-development",
-  "version":"4.1.0-alpha.3",
-  "execution_status":"SCENARIOS_DEFINED_NOT_EXECUTED",
-  "cases":[
-    {"id":"contract-content-bound","expected":"same revision changed Contract body is rejected"},
-    {"id":"runner-receipt-source-of-truth","expected":"runner executes frozen argv and immutable receipt is authoritative"},
-    {"id":"structured-metric-reparse","expected":"completion reparses hashed report and rejects contradictory measured values"},
-    {"id":"business-na-vs-environment-blocked","expected":"business non-applicability may N/A; missing environment blocks"},
-    {"id":"snapshot-existing-output-safe","expected":"existing output is rejected without deletion or parent chmod"},
-    {"id":"tracked-delete-staging-stable","expected":"tracked deletion snapshots and staging-only deletion keeps deliverable digest"},
-    {"id":"snapshot-policy-bound","expected":"exact ignored/sensitive policy digest is reused through completion"},
-    {"id":"complete-terminal","expected":"generic mutation cannot reopen COMPLETE"},
-    {"id":"test-rework-invalidates","expected":"TEST_REWORK only through invalidate and review/plan become STALE"},
-    {"id":"latest-attempt-controls","expected":"later failure cannot be hidden by earlier pass and max attempts applies"},
-    {"id":"state-version-conflict","expected":"only one mutation with old state_version succeeds"}
+  "skill": "agy-supervised-development",
+  "version": "4.1.0-alpha.3",
+  "execution_status": "SCENARIOS_DEFINED_NOT_EXECUTED",
+  "cases": [
+    {"id": "contract-content-bound", "expected": "same revision with changed Contract content is rejected"},
+    {"id": "command-plan-only", "expected": "formal Test Plan contains only mandatory command checks or explicit no-check acceptance"},
+    {"id": "recorded-command-consistency", "expected": "completion requires exact frozen argv/cwd, accepted exit code and evidence hashes"},
+    {"id": "latest-attempt-controls", "expected": "latest bounded attempt determines the current check result and earlier failures remain recorded"},
+    {"id": "deliverable-change-invalidates", "expected": "post-review deliverable changes invalidate review and formal evidence"},
+    {"id": "environment-blocked", "expected": "missing browser/auth/dependency remains BLOCKED and cannot remove a frozen command"},
+    {"id": "snapshot-policy-bound", "expected": "exact ignored/sensitive snapshot policy is reused through TEST-entry and completion"},
+    {"id": "complete-terminal", "expected": "generic mutation cannot reopen COMPLETE"},
+    {"id": "test-rework-invalidates", "expected": "TEST rework uses the invalidate path and stales review/plan/results"},
+    {"id": "dispatch-writer-safety", "expected": "SEND_UNKNOWN or unknown prior writer cannot authorize another execution"}
   ]
 }

@@ -1,12 +1,35 @@
 {
-  "schema_version": 2,
-  "task_id": "<task-id>",
-  "contract_id": "<contract-id>",
+  "schema_version": 3,
+  "task_id": "example-task",
+  "contract_id": "example-contract",
   "contract_revision": 1,
   "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "policy_digest": "0000000000000000000000000000000000000000000000000000000000000000",
-  "plan_id": "<plan-id>",
+  "plan_id": "example-plan",
   "plan_revision": 1,
   "plan_digest": "0000000000000000000000000000000000000000000000000000000000000000",
-  "attempts": []
+  "attempts": [
+    {
+      "check_id": "T1",
+      "attempt_id": "T1-a1",
+      "attempt_number": 1,
+      "status": "PASS",
+      "argv": ["example-test-command"],
+      "cwd": ".",
+      "started_at": "2026-09-13T00:00:00Z",
+      "ended_at": "2026-09-13T00:00:01Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "evidence": [
+        {
+          "path": "T1-a1.log",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "summary": "raw command output"
+        }
+      ],
+      "deliverable_digest_before": "0000000000000000000000000000000000000000000000000000000000000000",
+      "deliverable_digest_after": "0000000000000000000000000000000000000000000000000000000000000000",
+      "reason": "command returned an accepted exit code"
+    }
+  ]
 }

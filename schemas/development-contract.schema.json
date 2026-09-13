@@ -1,23 +1,31 @@
 {
-  "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "title":"AGY Development Contract 4.1",
-  "type":"object",
-  "required":["contract_id","revision","goal","behavior","acceptance_scenarios","counterexamples","constraints","diagnostics","done","escalate_if"],
-  "properties":{
-    "contract_id":{"type":"string","minLength":1},
-    "revision":{"type":"integer","minimum":1},
-    "goal":{"type":"string","minLength":1},
-    "behavior":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},
-    "acceptance_scenarios":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/scenario"}},
-    "counterexamples":{"type":"array","items":{"$ref":"#/$defs/scenario"}},
-    "constraints":{"type":"array","items":{"type":"string","minLength":1}},
-    "diagnostics":{"type":"array","items":{"$ref":"#/$defs/diagnostic"}},
-    "done":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}},
-    "escalate_if":{"type":"array","items":{"type":"string","minLength":1}}
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGY Development Contract 4.1",
+  "type": "object",
+  "required": ["contract_id", "revision", "goal", "behavior", "acceptance_scenarios", "counterexamples", "constraints", "diagnostics", "done", "escalate_if"],
+  "properties": {
+    "contract_id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "goal": {"type": "string", "minLength": 1},
+    "behavior": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "acceptance_scenarios": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "counterexamples": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "constraints": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "scope", "formal_acceptance"],
+        "properties": {
+          "kind": {"enum": ["reproduction", "targeted_test", "typecheck", "compile_feedback", "inspection"]},
+          "scope": {"type": "string", "minLength": 1},
+          "formal_acceptance": {"const": false}
+        },
+        "additionalProperties": false
+      }
+    },
+    "done": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "escalate_if": {"type": "array", "items": {"type": "string", "minLength": 1}}
   },
-  "$defs":{
-    "scenario":{"type":"object","required":["id","description","required"],"properties":{"id":{"type":"string","pattern":"^[A-Za-z0-9._-]+$"},"description":{"type":"string","minLength":1},"required":{"type":"boolean"}},"additionalProperties":false},
-    "diagnostic":{"type":"object","required":["id","purpose","kind","formal_acceptance"],"properties":{"id":{"type":"string","pattern":"^[A-Za-z0-9._-]+$"},"purpose":{"type":"string","minLength":1},"kind":{"enum":["reproduction","targeted_test","typecheck","compile_feedback","inspection"]},"formal_acceptance":{"const":false}},"additionalProperties":false}
-  },
-  "additionalProperties":false
+  "additionalProperties": false
 }
