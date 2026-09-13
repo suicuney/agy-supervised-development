@@ -1,10 +1,12 @@
 {
-  "schema_version": 1,
-  "task_id": "example-task",
-  "contract_id": "example-contract",
+  "schema_version": 2,
+  "task_id": "<task-id>",
+  "contract_id": "<contract-id>",
   "contract_revision": 1,
-  "plan_id": "example-plan",
+  "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "policy_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "plan_id": "<plan-id>",
   "plan_revision": 1,
   "plan_digest": "0000000000000000000000000000000000000000000000000000000000000000",
-  "results": []
+  "attempts": []
 }
