@@ -1,96 +1,51 @@
 ---
 name: agy-supervised-development
-description: Astra plans and reviews code; Herdr-managed AGY implements, diagnoses within Contract authority, and executes Astra-frozen tests.
-version: 4.1.0-alpha.2
+description: Astra defines/reviews; Herdr-managed AGY implements and runs frozen checks; a deterministic local gate decides completion.
+version: 4.1.0-alpha.3
 ---
 
 # AGY Supervised Development 4.1
 
-> **Astra plans. AGY builds. Astra reviews code. AGY proves it with Astra-defined tests. A deterministic gate completes.**
+> **Astra plans. AGY builds. Astra reviews code. AGY runs frozen tests. Local evidence decides COMPLETE.**
 
-## Flow
+## Default flow
 
 ```text
-USER
-→ ASTRA: PROBLEM + compact CONTRACT + acceptance scenarios + optional diagnostics
-→ AGY via HERDR: IMPLEMENT / bounded diagnostics
+ASTRA: compact Contract + acceptance scenarios + optional diagnostics
+→ AGY via HERDR: IMPLEMENT / IMPLEMENT_REWORK
 → ASTRA: CODE REVIEW ONLY
-   ├─ REWORK → AGY bounded fix → ASTRA CODE REVIEW
+   ├─ REWORK → AGY fix → ASTRA review
    └─ PASS
-→ ASTRA: freeze machine-readable TEST PLAN + metrics
-→ deterministic TEST-entry validation
-→ AGY via HERDR: formal TEST
-   ├─ code/deliverable change → invalidate → AGY repair → ASTRA CODE REVIEW
-   ├─ environment blocker → BLOCKED
-   └─ evidence complete
-→ deterministic completion validation
-→ COMPLETE
+→ ASTRA: freeze machine Test Plan
+→ validate-run-state TEST-entry gate
+→ AGY via HERDR: run-frozen-check
+→ local completion gate
+   ├─ COMPLETE
+   ├─ BLOCKED
+   └─ code defect → invalidate → TEST_REWORK → ASTRA review → new plan → retest
 ```
 
-There is no default Luna supervisor, Sol plan review, or second Astra test-review stage.
+No default Luna supervisor, Sol plan review, second Astra test-review, or file-level implementation ceremony.
 
-## Contract
+## Hard rules
 
-Astra freezes only `WHAT / BOUNDARY / DONE`, observable acceptance scenarios/counterexamples, and optional **pre-authorized** minimal diagnostics. AGY owns normal implementation `HOW`; do not require a file-level plan.
-
-Diagnostics may include a minimal reproduction, targeted test, typecheck or compile feedback when useful. They are recorded with `formal_acceptance=false` and never satisfy the frozen formal Test Plan. Applicable project rules such as mandatory TDD remain binding.
-
-Read `resources/development-contract.md` when creating/patching the Contract.
-
-## Baseline / identity
-
-Before AGY writes, snapshot the repository with `scripts/snapshot-code-state.sh` into Git-private/external storage. Preserve existing staged/unstaged/untracked user content; do not auto-stash/reset/clean.
-
-Use separate identities:
-
-- `deliverable_digest`: actual deliverable content/type/path/symlink target/executable identity; staging alone does not change it.
-- `ownership_digest`: Git HEAD/index/status attribution used by recovery.
-
-Untracked original content is archived locally; symlinks are not followed. Sensitive/unsupported inputs fail closed unless explicitly covered. Herdr workspace is runtime isolation, not code isolation.
-
-Read `resources/run-state.md` for baseline, phase state and recovery.
-
-## AGY / Herdr
-
-Every AGY implementation, rework and formal-test run goes through Herdr. `done/idle` is lifecycle evidence only. Before dispatch confirm the prior worker is not still active; `SEND_UNKNOWN` is investigated and never automatically resent. Do not start a replacement writer until the old writer cannot write concurrently.
-
-Read `resources/agy-execution.md` only when dispatching AGY.
-
-## Astra code review
-
-After AGY stops writing, Astra reviews the full deliverable delta against Contract and applicable repository rules. Astra does **not** execute tests/builds/quality gates here.
-
-Review production code plus test source/assertions/fixtures/goldens, config, lockfiles, generated source, callers/consumers, schema/docs and relevant binary/mode changes. A `CODE_REVIEW_PASS` is bound to `contract_revision + reviewed_deliverable_digest`; any later deliverable change makes it stale.
-
-Read `resources/code-review.md` only for this phase.
-
-## Frozen Test Plan
-
-Only after current code review PASS does Astra freeze JSON conforming to `schemas/test-plan.schema.json`. It defines check type, argv/observation, cwd, required/applicability, allowed exit codes, evidence types, timeout/max attempts and whitelist metrics (`eq/ge/le`). Natural-language expectations cannot replace mechanical criteria.
-
-AGY cannot edit the frozen plan/digest, weaken thresholds, or relabel a failure N/A. Conditional N/A requires frozen objective applicability evidence; unknown is BLOCKED.
-
-Read `resources/testing.md` for plan/result rules.
-
-## Deterministic gates
-
-The host must use `bash scripts/validate-run-state.sh` rather than infer phase/completion from prose.
-
-Before `TEST`, the validator re-reads disk and current Git state and requires current Contract, PASS review/digest, frozen plan/digest, stopped writer and safe dispatch state.
-
-Before `COMPLETE`, it additionally verifies complete/unique check coverage, attempt identity, actual execution/observation evidence, evidence hashes, expected exit codes, frozen applicability, measured metrics, no open findings/blockers, settled dispatch, stopped writer and test before/after/current deliverable digest equality. Only success atomically writes `phase=COMPLETE`.
-
-If a formal test causes a deliverable fix, persist failure, stop worker, invalidate review/plan/results, perform bounded AGY repair, then return to Astra review and a fresh plan. Default: a changed deliverable reruns all applicable required formal checks.
-
-## Recovery
-
-Run State lives under Git-private storage, is versioned, and uses lock + optimistic `state_version` + atomic replace for cooperating local processes. BLOCKED stores reason/source phase/resume action. Recovery revalidates repository/worktree, baseline, Contract, plan and worker; never guess a session or replay unknown side effects.
-
-Older Run State without required v2 evidence must be rebuilt/revalidated for the current phase, never silently promoted to PASS.
+- Astra freezes `WHAT / BOUNDARY / DONE`; AGY owns ordinary `HOW`.
+- Every AGY implementation, repair and formal test execution goes through Herdr.
+- `Herdr done/idle` is lifecycle state, never acceptance.
+- Implementation may run only Contract-preauthorized minimal diagnostics. Diagnostic evidence always has `formal_acceptance=false` and cannot satisfy final checks.
+- Astra code review inspects code/delta only; it does not execute formal checks.
+- The frozen Test Plan is JSON source of truth. AGY may not alter required checks, applicability, environment prerequisites, thresholds or max attempts.
+- Formal command checks use `scripts/run-frozen-check.sh`; AGY does not hand-author exit codes or measured values.
+- `scripts/validate-run-state.sh complete` is the only normal path to `COMPLETE`.
+- Contract content, snapshot policy, review, plan, receipts and current deliverable are digest-bound. Same revision + changed Contract text is invalid.
+- Business non-applicability may produce `NOT_APPLICABLE`; missing browser/auth/dependency is `BLOCKED`, not N/A.
+- Any reviewed deliverable change, including tests/fixtures/goldens/config/lockfiles/generated source, invalidates review/plan/results. Git-private logs/reports are evidence, not deliverable.
+- Preserve user staged/unstaged/untracked content; never auto-stash/reset/clean.
+- Never guess sessions, duplicate uncertain sends, or start a second writer while the first may still write.
 
 ## Progressive disclosure
 
-Load only what the current stage needs:
+Load only the current phase resource:
 
 - `resources/development-contract.md`
 - `resources/run-state.md`
@@ -98,4 +53,4 @@ Load only what the current stage needs:
 - `resources/code-review.md`
 - `resources/testing.md`
 
-Historical 3.x/4.0 role descriptions may remain as clearly marked migration history, but active execution may not depend on removed roles.
+Python files implement the local snapshot/runner/completion runtime. Default readiness checks their wiring and workflow logic only; Python fixture execution is not a release gate. Real runtime correctness is established by actual task/smoke evidence, not by static readiness.
