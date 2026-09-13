@@ -1,30 +1,20 @@
 {
-  "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "title":"AGY Run State 4.1 alpha.2",
-  "type":"object",
-  "required":["schema_version","state_version","task_id","contract_id","contract_revision","repo_root","working_directory","baseline","evidence_root","herdr","phase","dispatch_state","writer","code_review","test_plan","findings","blocked"],
-  "properties":{
-    "schema_version":{"const":2},
-    "state_version":{"type":"integer","minimum":1},
-    "task_id":{"type":"string","minLength":1},
-    "contract_id":{"type":"string","minLength":1},
-    "contract_revision":{"type":"integer","minimum":1},
-    "repo_root":{"type":"string","minLength":1},
-    "working_directory":{"type":"string","minLength":1},
-    "branch":{"type":["string","null"]},
-    "baseline":{"type":"object","required":["commit","snapshot_ref","deliverable_digest","ownership_digest"],"properties":{"commit":{"type":"string","minLength":1},"snapshot_ref":{"type":"string","minLength":1},"deliverable_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"},"ownership_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"}},"additionalProperties":false},
-    "evidence_root":{"type":"string","minLength":1},
-    "herdr":{"type":"object","properties":{"workspace_id":{"type":["string","null"]},"pane_id":{"type":["string","null"]},"agy_agent":{"type":["string","null"]},"native_session_ref":{"type":["string","null"]}},"additionalProperties":false},
-    "phase":{"enum":["CONTRACT","IMPLEMENT","CODE_REVIEW","IMPLEMENT_REWORK","TEST_PLAN","TEST","TEST_REWORK","BLOCKED","COMPLETE"]},
-    "dispatch_state":{"enum":["NOT_SENT","SENT","SEND_UNKNOWN","SETTLED"]},
-    "writer":{"type":"object","required":["status"],"properties":{"status":{"enum":["STOPPED","RUNNING","UNKNOWN"]},"task_round":{"type":["string","null"]},"last_observed_at":{"type":["string","null"]}},"additionalProperties":false},
-    "code_review":{"type":"object","required":["status","finding_ids"],"properties":{"status":{"enum":["NOT_RUN","PASS","REWORK","BLOCKED","STALE"]},"review_id":{"type":["string","null"]},"contract_revision":{"type":["integer","null"],"minimum":1},"reviewed_deliverable_digest":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"finding_ids":{"type":"array","uniqueItems":true,"items":{"type":"string"}}},"additionalProperties":false},
-    "test_plan":{"type":"object","required":["status"],"properties":{"status":{"enum":["NOT_CREATED","FROZEN","STALE"]},"path":{"type":["string","null"]},"plan_id":{"type":["string","null"]},"plan_revision":{"type":["integer","null"],"minimum":1},"plan_digest":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"contract_revision":{"type":["integer","null"],"minimum":1},"reviewed_deliverable_digest":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"}},"additionalProperties":false},
-    "test_results_path":{"type":["string","null"]},
-    "findings":{"type":"array","items":{"type":"object","required":["id","status","category"],"properties":{"id":{"type":"string","minLength":1},"status":{"enum":["OPEN","RESOLVED"]},"category":{"type":"string","minLength":1},"reason":{"type":"string"}},"additionalProperties":false}},
-    "blocked":{"anyOf":[{"type":"null"},{"type":"object","required":["reason","blocked_from_phase","resume_action"],"properties":{"reason":{"type":"string","minLength":1},"blocked_from_phase":{"type":"string","minLength":1},"resume_action":{"type":"string","minLength":1},"related_identity":{"type":["string","null"]}},"additionalProperties":false}]},
-    "diagnostics":{"type":"array","items":{"type":"object","required":["purpose","result","formal_acceptance"],"properties":{"purpose":{"type":"string"},"result":{"type":"string"},"formal_acceptance":{"const":false}},"additionalProperties":false}},
-    "contract_patches":{"type":"array","items":{"type":"object","required":["from_revision","to_revision","actor","changed_fields","reason"],"properties":{"from_revision":{"type":"integer"},"to_revision":{"type":"integer"},"actor":{"enum":["architect","user"]},"changed_fields":{"type":"array","minItems":1,"items":{"type":"string"}},"reason":{"type":"string","minLength":1}},"additionalProperties":false}}
-  },
-  "additionalProperties":false
+ "$schema":"https://json-schema.org/draft/2020-12/schema","title":"AGY Run State 4.1 alpha.3","type":"object",
+ "required":["schema_version","state_version","task_id","contract_id","contract_revision","contract_digest","repo_root","working_directory","branch","snapshot_policy","baseline","evidence_root","herdr","phase","dispatch_state","writer","code_review","test_plan","test_results_path","findings","blocked","diagnostics","contract_patches"],
+ "properties":{
+  "schema_version":{"const":3},"state_version":{"type":"integer","minimum":1},"task_id":{"type":"string","minLength":1},"contract_id":{"type":"string","minLength":1},"contract_revision":{"type":"integer","minimum":1},"contract_digest":{"$ref":"#/$defs/d"},"repo_root":{"type":"string","minLength":1},"working_directory":{"type":"string","minLength":1},"branch":{"type":["string","null"]},
+  "snapshot_policy":{"type":"object","required":["path","digest"],"properties":{"path":{"type":"string","minLength":1},"digest":{"$ref":"#/$defs/d"}},"additionalProperties":false},
+  "baseline":{"type":"object","required":["commit","snapshot_ref","deliverable_digest","ownership_digest","policy_digest"],"properties":{"commit":{"type":"string","minLength":1},"snapshot_ref":{"type":"string","minLength":1},"deliverable_digest":{"$ref":"#/$defs/d"},"ownership_digest":{"$ref":"#/$defs/d"},"policy_digest":{"$ref":"#/$defs/d"}},"additionalProperties":false},
+  "evidence_root":{"type":"string","minLength":1},
+  "herdr":{"type":"object","required":["workspace_id","pane_id","agy_agent","native_session_ref"],"properties":{"workspace_id":{"type":["string","null"]},"pane_id":{"type":["string","null"]},"agy_agent":{"type":["string","null"]},"native_session_ref":{"type":["string","null"]}},"additionalProperties":false},
+  "phase":{"enum":["CONTRACT","IMPLEMENT","CODE_REVIEW","IMPLEMENT_REWORK","TEST_PLAN","TEST","TEST_REWORK","BLOCKED","COMPLETE"]},
+  "dispatch_state":{"enum":["NOT_SENT","SENT","SEND_UNKNOWN","SETTLED"]},
+  "writer":{"type":"object","required":["status","task_round","last_observed_at"],"properties":{"status":{"enum":["STOPPED","RUNNING","UNKNOWN"]},"task_round":{"type":["string","null"]},"last_observed_at":{"type":["string","null"],"format":"date-time"}},"additionalProperties":false},
+  "code_review":{"type":"object","required":["status","review_id","contract_revision","contract_digest","reviewed_deliverable_digest","finding_ids"],"properties":{"status":{"enum":["NOT_RUN","PASS","REWORK","BLOCKED","STALE"]},"review_id":{"type":["string","null"]},"contract_revision":{"type":["integer","null"]},"contract_digest":{"oneOf":[{"$ref":"#/$defs/d"},{"type":"null"}]},"reviewed_deliverable_digest":{"oneOf":[{"$ref":"#/$defs/d"},{"type":"null"}]},"finding_ids":{"type":"array","items":{"type":"string"}}},"additionalProperties":false},
+  "test_plan":{"type":"object","required":["status","path","plan_id","plan_revision","plan_digest","contract_revision","contract_digest","policy_digest","reviewed_deliverable_digest"],"properties":{"status":{"enum":["NOT_CREATED","FROZEN","STALE"]},"path":{"type":["string","null"]},"plan_id":{"type":["string","null"]},"plan_revision":{"type":["integer","null"]},"plan_digest":{"oneOf":[{"$ref":"#/$defs/d"},{"type":"null"}]},"contract_revision":{"type":["integer","null"]},"contract_digest":{"oneOf":[{"$ref":"#/$defs/d"},{"type":"null"}]},"policy_digest":{"oneOf":[{"$ref":"#/$defs/d"},{"type":"null"}]},"reviewed_deliverable_digest":{"oneOf":[{"$ref":"#/$defs/d"},{"type":"null"}]}},"additionalProperties":false},
+  "test_results_path":{"type":["string","null"]},
+  "findings":{"type":"array","items":{"type":"object","required":["id","status","category","reason"],"properties":{"id":{"type":"string"},"status":{"enum":["OPEN","RESOLVED"]},"category":{"type":"string"},"reason":{"type":"string"}},"additionalProperties":false}},
+  "blocked":{"oneOf":[{"type":"null"},{"type":"object","required":["reason_code","reason","blocked_from_phase","resume_action","related_identity"],"properties":{"reason_code":{"type":"string"},"reason":{"type":"string"},"blocked_from_phase":{"enum":["CONTRACT","IMPLEMENT","CODE_REVIEW","IMPLEMENT_REWORK","TEST_PLAN","TEST","TEST_REWORK"]},"resume_action":{"type":"string"},"related_identity":{"type":["string","null"]}},"additionalProperties":false}]},
+  "diagnostics":{"type":"array","items":{"type":"object"}},"contract_patches":{"type":"array","items":{"type":"object"}}
+ },"$defs":{"d":{"type":"string","pattern":"^[0-9a-f]{64}$"}},"additionalProperties":false
 }
