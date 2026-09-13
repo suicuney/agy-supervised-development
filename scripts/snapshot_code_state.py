@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, base64, hashlib, json, os, shutil, stat, subprocess, sys, tempfile
+import argparse, base64, hashlib, os, shutil, stat, subprocess, sys, tempfile
 from pathlib import Path
 from workflow_common import canonical_digest, load_json, safe_relpath, sha256_file, atomic_json_write
 

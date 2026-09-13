@@ -5,9 +5,9 @@
 Evidence classes stay separate:
 
 - `SCENARIOS_DEFINED_NOT_EXECUTED`: semantic scenarios only.
-- `scripts/test-snapshot-behavior.py`, `scripts/run-completion-behavior-test.py`, document-role fixtures and Herdr mocks: deterministic/static/mock evidence when actually run.
+- `scripts/test-readiness.sh`: structure/document/workflow checks when actually run; it does not execute command-result behavior tests. Document-role fixtures and Herdr mocks are separate scripts and are not run by this entry point.
 - `FLOW_VERIFIED`: only a real disposable Codex/Astra → Herdr/AGY implement → Astra code review → frozen plan → Herdr/AGY formal test → deterministic completion run.
 
-Current scenarios cover diagnostic-vs-formal evidence, recoverable baselines, special paths/symlinks/binary/mode changes, deliverable vs Git ownership identity, fail-closed capture, structured plan/results, objective applicability, attempt isolation, stale evidence, mechanical completion rejection paths, blocked/recovery/dispatch safety, and migration-note versus active-role detection.
+The case list in `scenarios.json` is the source of truth for coverage. Formal acceptance uses frozen command checks; runtime conditional exemptions and generic metric/observation evaluation are not part of the current workflow.
 
 Do not convert a scenario definition, grep assertion, schema fixture or mock into a real multi-agent/runtime pass claim.

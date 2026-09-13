@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-import hashlib, json, os, re, tempfile
+import hashlib, json, os, tempfile
 from pathlib import Path
-
-HEX64=re.compile(r'^[0-9a-f]{64}$')
 
 def canonical_json_bytes(obj):
     return json.dumps(obj, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False).encode('utf-8')
