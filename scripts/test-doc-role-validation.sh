@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-tmp="$(mktemp -d "${TMPDIR:-/tmp}/agy-role-docs.XXXXXX")"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/agy-role-check.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
-cat > "$tmp/legal.md" <<'EOF'
-# Migration note
-4.1 removed the old Luna supervisor and the legacy `resources/supervisor.md` path.
-EOF
-python3 "$root/scripts/validate_active_roles.py" "$tmp/legal.md" >/dev/null
+cat > "$tmp/good.md" <<'DOC'
+# Migration
+4.1 removed the old Luna supervisor from the default workflow.
+DOC
+"$root/scripts/validate-active-roles.sh" "$tmp/good.md" >/dev/null
 
-cat > "$tmp/illegal.md" <<'EOF'
+cat > "$tmp/bad.md" <<'DOC'
 # Current workflow
-Astra freezes the Contract.
 Luna supervises AGY and verifies delivery.
-EOF
-if python3 "$root/scripts/validate_active_roles.py" "$tmp/illegal.md" >"$tmp/out" 2>"$tmp/err"; then
-  echo 'expected active Luna dependency to fail' >&2
+DOC
+if "$root/scripts/validate-active-roles.sh" "$tmp/bad.md" >"$tmp/out" 2>"$tmp/err"; then
+  echo 'expected active Luna dependency rejection' >&2
   exit 1
 fi
-grep -q 'illegal.md:3: active Luna responsibility' "$tmp/err"
-
-printf 'DOC_ROLE_BEHAVIOR_TESTS_PASS\n'
+grep -q "ACTIVE_ROLE_FORBIDDEN:$tmp/bad.md:2:" "$tmp/err"
+printf 'DOC_ROLE_LOGIC_CHECKS_PASS\n'
