@@ -1,24 +1,9 @@
-# Frozen Test Plan — Human View
+# Frozen Test Plan
 
-The canonical runtime plan is JSON validated by `schemas/test-plan.schema.json`; start from `templates/test-plan.json`. This Markdown is only a review/display view and must not become a second manually maintained source of truth.
+The JSON file is authoritative. This Markdown is explanatory only.
 
-Astra freezes after current `CODE_REVIEW_PASS`:
+Each check freezes: id/type/cwd/required, Contract scenario coverage, business applicability, environment prerequisites, evidence types, max attempts, and either argv + accepted exit codes + timeout + structured reports or a structured observation source.
 
-```text
-task / contract revision
-plan id / revision / canonical SHA-256
-reviewed deliverable digest
-checks:
-  id / command-or-observation / cwd / required / applicability
-  allowed exit codes or observation steps
-  evidence types / timeout / max attempts
-metrics:
-  source check / measured field / eq|ge|le / threshold / unit
-```
+Metrics use only `eq | ge | le`, a typed threshold, optional unit, and a structured report field. `eq` is type-strict; environment failure is BLOCKED rather than N/A. AGY executes the frozen plan but does not rewrite it.
 
-Rules:
-- Include applicable project-required gates and map them back to Contract behavior/rules, not merely the implementation shape.
-- `NOT_APPLICABLE` requires the frozen objective condition and evidence; unknown is BLOCKED.
-- Natural-language `expected` explains intent but cannot mechanically pass a check by itself.
-- AGY executes but cannot edit plan content/digest or thresholds.
-- Any deliverable change makes review/plan/formal evidence stale and returns to Astra review.
+Formal command execution uses `scripts/run-frozen-check.sh`; completion uses `scripts/validate-run-state.sh complete`. Any deliverable change invalidates prior review/plan/formal evidence.
