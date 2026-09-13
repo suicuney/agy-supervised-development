@@ -1,153 +1,172 @@
 #!/usr/bin/env python3
 import argparse, base64, hashlib, json, os, shutil, stat, subprocess, sys, tempfile
 from pathlib import Path
+from workflow_common import canonical_digest, load_json, safe_relpath, sha256_file, atomic_json_write
 
-SENSITIVE_NAMES={'.env','.env.local','.env.production','credentials.json','secrets.json'}
+SENSITIVE_NAMES={'.env','.env.local','.npmrc','.pypirc','id_rsa','id_ed25519','credentials.json','service-account.json'}
 SENSITIVE_SUFFIXES={'.pem','.key','.p12','.pfx'}
 
-def run_git(repo,*args,text=False,allow_empty=False):
-    p=subprocess.run(['git','-C',str(repo),*args],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
-    if p.returncode!=0:
-        if allow_empty and p.returncode==1 and not p.stdout:
-            return '' if text else b''
-        raise RuntimeError(f"git {' '.join(args)} failed ({p.returncode}): {p.stderr.decode('utf-8','replace').strip()}")
-    return p.stdout.decode('utf-8','strict') if text else p.stdout
+def git(repo,*args,text=False):
+    p=subprocess.run(['git','-C',str(repo),*args],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=text)
+    if p.returncode:
+        raise RuntimeError(f'git {" ".join(args)} failed: {(p.stderr if text else p.stderr.decode(errors="replace")).strip()}')
+    return p.stdout
 
-def sha256_bytes(data): return hashlib.sha256(data).hexdigest()
-def b64(raw): return base64.b64encode(raw).decode('ascii')
-def path_record(raw): return {'path_b64':b64(raw),'path_display':os.fsdecode(raw).encode('unicode_escape').decode('ascii')}
+def repo_info(cwd=None):
+    cwd=Path(cwd or Path.cwd())
+    root=Path(git(cwd,'rev-parse','--show-toplevel',text=True).strip()).resolve()
+    gitdir_text=git(root,'rev-parse','--git-dir',text=True).strip()
+    gitdir=(root/gitdir_text).resolve() if not os.path.isabs(gitdir_text) else Path(gitdir_text).resolve()
+    return root,gitdir
 
-def suspicious(raw):
-    base=os.path.basename(os.fsdecode(raw).lower())
-    return base in SENSITIVE_NAMES or any(base.endswith(s) for s in SENSITIVE_SUFFIXES) or any(k in base for k in ('credential','secret','private-key','api-key'))
+def decode_z(data): return [x for x in data.split(b'\0') if x]
+def b64(data): return base64.b64encode(data).decode('ascii')
+def path_b64(rel): return b64(os.fsencode(rel))
+def rel_from_bytes(raw): return os.fsdecode(raw)
 
-def repo_root(cwd):
-    p=subprocess.run(['git','-C',cwd,'rev-parse','--show-toplevel'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
-    if p.returncode!=0: raise RuntimeError('not inside a Git worktree')
-    return Path(p.stdout.decode().strip()).resolve()
-
-def git_dir(repo):
-    p=Path(run_git(repo,'rev-parse','--git-dir',text=True).strip())
-    return (repo/p).resolve() if not p.is_absolute() else p.resolve()
-
-def list_paths(repo):
-    raw=run_git(repo,'ls-files','-z','--cached','--others','--exclude-standard')
-    return sorted(set(x for x in raw.split(b'\0') if x))
-
-def index_modes(repo):
-    raw=run_git(repo,'ls-files','--stage','-z'); out={}
-    for rec in [x for x in raw.split(b'\0') if x]:
-        meta,path=rec.split(b'\t',1); mode,_,stage=meta.split(b' ',2)
-        if stage==b'0': out[path]=mode.decode('ascii')
+def validate_policy(policy, root):
+    if policy.get('schema_version')!=1: raise ValueError('unsupported snapshot policy schema')
+    out={'schema_version':1,'include_ignored':[],'allow_sensitive_untracked':[]}
+    for key in ('include_ignored','allow_sensitive_untracked'):
+        seen=set()
+        for value in policy.get(key,[]):
+            norm=safe_relpath(value)
+            if norm=='.': raise ValueError(f'{key} cannot contain repository root')
+            if norm in seen: raise ValueError(f'duplicate {key} path: {norm}')
+            seen.add(norm); out[key].append(norm)
+        out[key].sort(key=lambda s:os.fsencode(s))
     return out
 
-def ignored_exact(repo,raw):
-    return subprocess.run(['git','-C',str(repo),'check-ignore','-q','--',os.fsdecode(raw)],check=False).returncode==0
+def default_policy(): return {'schema_version':1,'include_ignored':[],'allow_sensitive_untracked':[]}
 
-def read_regular_stable(path):
-    before=os.lstat(path)
-    if not stat.S_ISREG(before.st_mode): raise RuntimeError('not regular')
-    fd=os.open(path,os.O_RDONLY|getattr(os,'O_NOFOLLOW',0))
-    try:
-        fst=os.fstat(fd); chunks=[]
-        while True:
-            chunk=os.read(fd,1024*1024)
-            if not chunk: break
-            chunks.append(chunk)
-        after_fd=os.fstat(fd)
-    finally: os.close(fd)
-    after=os.lstat(path)
-    sig=lambda s:(s.st_dev,s.st_ino,s.st_mode,s.st_size,s.st_mtime_ns)
-    if sig(before)!=sig(after) or sig(fst)!=sig(after_fd): raise RuntimeError('file changed during snapshot')
-    return b''.join(chunks),before
+def is_sensitive(rel):
+    p=Path(rel); lower=p.name.lower()
+    return lower in SENSITIVE_NAMES or p.suffix.lower() in SENSITIVE_SUFFIXES or any(tok in lower for tok in ('secret','credential','token'))
 
-def deliverable_projection(records):
-    projected=[]
-    for rec in records:
-        item={'path_b64':rec['path_b64'],'type':rec['type'],'executable':rec['executable']}
-        if rec['type']=='file':
-            item['sha256']=rec['sha256']; item['size']=rec['size']
-        elif rec['type']=='symlink':
-            item['target_b64']=rec['target_b64']; item['target_sha256']=rec['target_sha256']
-        projected.append(item)
-    return projected
+def index_entries(root):
+    raw=git(root,'ls-files','-z','--stage'); entries={}; submodules=[]
+    for rec in decode_z(raw):
+        meta,path=rec.split(b'\t',1); mode,oid,stage=meta.split(b' ',2); rel=rel_from_bytes(path)
+        if mode==b'160000': submodules.append(rel)
+        entries[rel]={'index_mode':mode.decode(),'oid':oid.decode(),'stage':int(stage)}
+    if submodules: raise RuntimeError('submodules unsupported: '+', '.join(submodules))
+    return entries
 
-def capture_manifest(repo,include_ignored,allow_sensitive,archive_dir=None):
-    modes=index_modes(repo); paths=list_paths(repo)
-    for raw in include_ignored:
-        if raw not in paths:
-            if not ignored_exact(repo,raw): raise RuntimeError(f'include-ignored path not found/ignored: {os.fsdecode(raw)}')
-            paths.append(raw)
-    paths=sorted(set(paths)); records=[]; tracked=set(modes)
-    if archive_dir: (archive_dir/'untracked-blobs').mkdir(parents=True,exist_ok=True)
-    for raw in paths:
-        if modes.get(raw)=='160000': raise RuntimeError(f'submodule unsupported for snapshot: {os.fsdecode(raw)}')
-        full=repo/os.fsdecode(raw)
-        try: st=os.lstat(full)
-        except FileNotFoundError: raise RuntimeError(f'file disappeared during snapshot: {os.fsdecode(raw)}')
-        rec=path_record(raw); rec['tracked']=raw in tracked; rec['index_mode']=modes.get(raw)
-        if stat.S_ISLNK(st.st_mode):
-            target_raw=os.fsencode(os.readlink(full))
-            rec.update({'type':'symlink','target_b64':b64(target_raw),'target_sha256':sha256_bytes(target_raw),'executable':False})
-        elif stat.S_ISREG(st.st_mode):
-            data,stable=read_regular_stable(full); digest=sha256_bytes(data)
-            rec.update({'type':'file','sha256':digest,'size':len(data),'executable':bool(stable.st_mode&stat.S_IXUSR)})
-            if raw not in tracked:
-                if suspicious(raw) and raw not in allow_sensitive:
-                    raise RuntimeError(f'sensitive-looking untracked file requires explicit allow: {os.fsdecode(raw)}')
-                rec['archive_blob']=f'untracked-blobs/{digest}'
-                if archive_dir:
-                    blob=archive_dir/'untracked-blobs'/digest
-                    if not blob.exists():
-                        fd=os.open(blob,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-                        with os.fdopen(fd,'wb') as f: f.write(data)
-        else:
-            raise RuntimeError(f'unsupported file type: {os.fsdecode(raw)}')
+def exact_ignored(root, policy):
+    out=[]
+    for rel in policy['include_ignored']:
+        p=root/rel; chk=subprocess.run(['git','-C',str(root),'check-ignore','-q','--',rel])
+        if chk.returncode!=0: raise RuntimeError(f'policy include_ignored path is not ignored: {rel}')
+        if not os.path.lexists(p): raise RuntimeError(f'policy include_ignored path missing: {rel}')
+        out.append(rel)
+    return out
+
+def actual_untracked(root): return [rel_from_bytes(x) for x in decode_z(git(root,'ls-files','--others','--exclude-standard','-z'))]
+
+def file_record(root,rel,tracked,index_meta,archive_dir,archive_untracked):
+    full=root/rel
+    try: st=os.lstat(full)
+    except FileNotFoundError: return None
+    record={'path_b64':path_b64(rel),'tracked':tracked,'index_mode':index_meta.get('index_mode') if index_meta else None,'kind':None,'executable':bool(st.st_mode & stat.S_IXUSR),'archive_blob':None}
+    if stat.S_ISLNK(st.st_mode):
+        target=os.readlink(full); raw=os.fsencode(target)
+        record.update({'kind':'symlink','target_b64':b64(raw),'content_sha256':hashlib.sha256(raw).hexdigest(),'size':len(raw)})
+    elif stat.S_ISREG(st.st_mode):
+        digest=sha256_file(full); record.update({'kind':'file','content_sha256':digest,'size':st.st_size})
+        if archive_untracked:
+            archive_dir.mkdir(parents=True,exist_ok=True); blob=archive_dir/digest
+            if not blob.exists():
+                with open(full,'rb') as src, open(blob,'xb') as dst: shutil.copyfileobj(src,dst); dst.flush(); os.fsync(dst.fileno())
+                os.chmod(blob,0o600)
+            record['archive_blob']=str(Path('archive')/digest)
+    elif stat.S_ISDIR(st.st_mode): return None
+    else: raise RuntimeError(f'unsupported file type: {rel}')
+    return record
+
+def deliverable_view(records):
+    out=[]
+    for r in records:
+        item={'path_b64':r['path_b64'],'kind':r['kind'],'executable':r['executable'],'content_sha256':r['content_sha256']}
+        if r['kind']=='symlink': item['target_b64']=r['target_b64']
+        out.append(item)
+    return out
+
+def capture_manifest(root, policy, archive_dir):
+    idx=index_entries(root); tracked=sorted(idx.keys(),key=lambda s:os.fsencode(s)); untracked=sorted(set(actual_untracked(root)+exact_ignored(root,policy)),key=lambda s:os.fsencode(s)); allowed_sensitive=set(policy['allow_sensitive_untracked'])
+    records=[]; absent=[]
+    for rel in tracked:
+        rec=file_record(root,rel,True,idx[rel],archive_dir,False)
+        if rec is None: absent.append({'path_b64':path_b64(rel),'index_mode':idx[rel]['index_mode']})
+        else: records.append(rec)
+    for rel in untracked:
+        if is_sensitive(rel) and rel not in allowed_sensitive: raise RuntimeError(f'sensitive untracked path requires exact policy authorization: {rel}')
+        rec=file_record(root,rel,False,None,archive_dir,True)
+        if rec is None: raise RuntimeError(f'untracked path disappeared during snapshot: {rel}')
         records.append(rec)
-    payload=json.dumps(deliverable_projection(records),sort_keys=True,separators=(',',':'),ensure_ascii=True).encode()
-    return records,sha256_bytes(payload)
+    records.sort(key=lambda r:base64.b64decode(r['path_b64'])); absent.sort(key=lambda r:base64.b64decode(r['path_b64']))
+    return records,absent,canonical_digest(deliverable_view(records))
 
-def capture(args):
-    repo=repo_root(os.getcwd()); gd=git_dir(repo); out=Path(args.output)
-    if not out.is_absolute(): out=(Path.cwd()/out).resolve()
-    try: in_repo=os.path.commonpath([str(out),str(repo)])==str(repo)
-    except ValueError: in_repo=False
-    in_git=os.path.commonpath([str(out),str(gd)])==str(gd)
-    if in_repo and not in_git: raise RuntimeError('snapshot output must be outside worktree or under Git-private directory')
-    out.parent.mkdir(parents=True,exist_ok=True); os.chmod(out.parent,0o700)
-    tmp=Path(tempfile.mkdtemp(prefix='snapshot.tmp.',dir=out.parent)); os.chmod(tmp,0o700)
+def status_digest(root, head, records, absent, policy_digest):
+    cached=git(root,'diff','--cached','--binary'); worktree=git(root,'diff','--binary'); status=git(root,'status','--porcelain=v2','-z','--untracked-files=all')
+    obj={'head':head,'policy_digest':policy_digest,'cached_sha256':hashlib.sha256(cached).hexdigest(),'worktree_sha256':hashlib.sha256(worktree).hexdigest(),'status_sha256':hashlib.sha256(status).hexdigest(),'tracked_absent':absent,'index':[{'path_b64':r['path_b64'],'index_mode':r['index_mode']} for r in records if r['tracked']]}
+    return canonical_digest(obj),cached,worktree,status
+
+def ensure_safe_output(out, root, gitdir):
+    out=Path(out)
+    if out.exists() or out.is_symlink(): raise RuntimeError(f'snapshot output already exists: {out}')
+    raw_abs=Path(os.path.abspath(out)); parent=out.parent.resolve(); candidate=(parent/out.name).resolve(strict=False)
+    if candidate==root or candidate==gitdir: raise RuntimeError('dangerous snapshot output path')
     try:
-        include=[os.fsencode(p) for p in args.include_ignored]; allow={os.fsencode(p) for p in args.allow_sensitive_untracked}
-        records1,digest1=capture_manifest(repo,include,allow,tmp)
-        head=run_git(repo,'rev-parse','HEAD',text=True).strip()
-        branch=run_git(repo,'symbolic-ref','--short','-q','HEAD',text=True,allow_empty=True).strip()
-        baseline=args.baseline_commit or ''
-        if baseline: run_git(repo,'rev-parse','--verify',f'{baseline}^{{commit}}')
-        artifacts={
-          'status.porcelain-v2.z':run_git(repo,'status','--porcelain=v2','-z','--branch'),
-          'diff-cached.patch':run_git(repo,'diff','--binary','--find-renames','--cached'),
-          'diff-worktree.patch':run_git(repo,'diff','--binary','--find-renames'),
-          'diff-head.patch':run_git(repo,'diff','--binary','--find-renames','HEAD'),
-          'diff-baseline-to-head.patch':run_git(repo,'diff','--binary','--find-renames',f'{baseline}..HEAD') if baseline else b''}
-        for name,data in artifacts.items(): (tmp/name).write_bytes(data)
-        records2,digest2=capture_manifest(repo,include,allow,None)
-        if digest1!=digest2 or records1!=records2: raise RuntimeError('repository changed during snapshot stability window')
-        ownership_payload=b'HEAD='+head.encode()+b'\nBRANCH='+branch.encode()+b'\nBASELINE='+baseline.encode()+b'\n'+artifacts['status.porcelain-v2.z']
-        manifest={'format_version':2,'repo_root':str(repo),'head':head,'branch':branch or None,'baseline_commit':baseline or None,'deliverable_digest':digest2,'ownership_digest':sha256_bytes(ownership_payload),'files':records2,'stability_check':'two observed manifests matched; this detects changes during the capture window but is not OS-level isolation','ignored_policy':'ignored files are excluded unless passed with --include-ignored; acceptance inputs must be explicitly included'}
-        (tmp/'manifest.json').write_text(json.dumps(manifest,indent=2,ensure_ascii=True)+'\n',encoding='utf-8')
-        (tmp/'deliverable.sha256').write_text(digest2+'\n'); (tmp/'ownership.sha256').write_text(manifest['ownership_digest']+'\n')
-        if out.exists(): shutil.rmtree(out)
-        os.replace(tmp,out)
-        print(f'SNAPSHOT_READY={out}'); print(f'DELIVERABLE_DIGEST={digest2}'); print(f'OWNERSHIP_DIGEST={manifest["ownership_digest"]}')
+        lexical_in_repo=os.path.commonpath([str(root),str(raw_abs)])==str(root); lexical_in_git=os.path.commonpath([str(gitdir),str(raw_abs)])==str(gitdir)
+    except ValueError: lexical_in_repo=lexical_in_git=False
+    try:
+        resolved_in_repo=os.path.commonpath([str(root),str(candidate)])==str(root); resolved_in_git=os.path.commonpath([str(gitdir),str(candidate)])==str(gitdir)
+    except ValueError: resolved_in_repo=resolved_in_git=False
+    if lexical_in_repo and not resolved_in_repo: raise RuntimeError('snapshot output escapes repository through symlink')
+    if lexical_in_git and not resolved_in_git: raise RuntimeError('snapshot output escapes Git private root through symlink')
+    if resolved_in_repo and not resolved_in_git: raise RuntimeError('snapshot output inside working tree is forbidden')
+    if parent.exists() and parent.is_symlink(): raise RuntimeError('snapshot output parent may not be a symlink')
+    parent.mkdir(parents=True,exist_ok=True)
+    return candidate
+
+def write_bytes(path,data):
+    with open(path,'wb') as f: f.write(data); f.flush(); os.fsync(f.fileno())
+
+def snapshot(out, baseline_commit='', policy_path=None, repo_cwd=None):
+    root,gitdir=repo_info(repo_cwd); out=ensure_safe_output(out,root,gitdir)
+    policy=validate_policy(load_json(policy_path) if policy_path else default_policy(),root); pd=canonical_digest(policy); head=git(root,'rev-parse','HEAD',text=True).strip()
+    if baseline_commit: git(root,'rev-parse','--verify',f'{baseline_commit}^{{commit}}')
+    tmp=Path(tempfile.mkdtemp(prefix=out.name+'.tmp.',dir=out.parent)); os.chmod(tmp,0o700)
+    try:
+        archive=tmp/'archive'; records1,absent1,deliver1=capture_manifest(root,policy,archive); owner1,cached,worktree,status=status_digest(root,head,records1,absent1,pd)
+        records2,absent2,deliver2=capture_manifest(root,policy,archive); owner2,_,_,_=status_digest(root,head,records2,absent2,pd)
+        if deliver1!=deliver2 or owner1!=owner2 or records1!=records2 or absent1!=absent2: raise RuntimeError('repository changed during snapshot')
+        branch=git(root,'symbolic-ref','--short','-q','HEAD',text=True).strip()
+        manifest={'schema_version':2,'repo_root':str(root),'head':head,'branch':branch or None,'baseline_commit':baseline_commit or None,'policy':policy,'policy_digest':pd,'deliverable_digest':deliver1,'ownership_digest':owner1,'files':records1,'tracked_absent':absent1}
+        atomic_json_write(tmp/'manifest.json',manifest); write_bytes(tmp/'manifest.sha256',(sha256_file(tmp/'manifest.json')+'\n').encode()); write_bytes(tmp/'diff-cached.patch',cached); write_bytes(tmp/'diff-worktree.patch',worktree); write_bytes(tmp/'status.porcelain-v2.z',status)
+        write_bytes(tmp/'diff-baseline-to-head.patch',git(root,'diff','--binary',f'{baseline_commit}..HEAD') if baseline_commit else b'')
+        os.rename(tmp,out); dfd=os.open(out.parent,os.O_RDONLY)
+        try: os.fsync(dfd)
+        finally: os.close(dfd)
+        return manifest
     except Exception:
         shutil.rmtree(tmp,ignore_errors=True); raise
 
+def verify_snapshot_dir(path):
+    path=Path(path); manifest=load_json(path/'manifest.json'); recorded=(path/'manifest.sha256').read_text().strip()
+    if sha256_file(path/'manifest.json')!=recorded: raise RuntimeError('snapshot manifest hash mismatch')
+    for r in manifest.get('files',[]):
+        blob=r.get('archive_blob')
+        if blob:
+            bp=path/blob
+            if not bp.is_file(): raise RuntimeError(f'snapshot archive missing: {blob}')
+            if sha256_file(bp)!=r['content_sha256']: raise RuntimeError(f'snapshot archive corrupt: {blob}')
+    return manifest
+
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument('output'); ap.add_argument('baseline_commit',nargs='?',default='')
-    ap.add_argument('--include-ignored',action='append',default=[]); ap.add_argument('--allow-sensitive-untracked',action='append',default=[])
-    args=ap.parse_args()
-    try: capture(args)
+    ap=argparse.ArgumentParser(); ap.add_argument('output'); ap.add_argument('baseline_commit',nargs='?',default=''); ap.add_argument('--policy'); args=ap.parse_args()
+    try:
+        m=snapshot(args.output,args.baseline_commit,args.policy); print('SNAPSHOT_OK'); print('DELIVERABLE_DIGEST='+m['deliverable_digest']); print('OWNERSHIP_DIGEST='+m['ownership_digest']); print('POLICY_DIGEST='+m['policy_digest']); return 0
     except Exception as e:
-        print(f'SNAPSHOT_FAILED: {e}',file=sys.stderr); return 1
-    return 0
+        print(f'SNAPSHOT_REJECTED: {e}',file=sys.stderr); return 1
 if __name__=='__main__': raise SystemExit(main())
