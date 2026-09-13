@@ -2,9 +2,13 @@
   "contract_id": "<contract-id>",
   "revision": 1,
   "goal": "<desired outcome>",
-  "behavior": ["<observable result>"],
-  "acceptance_scenarios": ["<observable acceptance scenario>"],
-  "counterexamples": ["<important behavior that must not occur>"],
+  "behavior": ["<observable behavior>"],
+  "acceptance_scenarios": [
+    {"id": "A1", "description": "<observable acceptance scenario>", "required": true}
+  ],
+  "counterexamples": [
+    {"id": "C1", "description": "<important behavior that must not occur>", "required": true}
+  ],
   "constraints": [],
   "diagnostics": [],
   "done": ["<final completion condition>"],
