@@ -1,0 +1,12 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"AGY Snapshot Policy",
+  "type":"object",
+  "required":["schema_version","include_ignored","allow_sensitive_untracked"],
+  "properties":{
+    "schema_version":{"const":1},
+    "include_ignored":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
+    "allow_sensitive_untracked":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}}
+  },
+  "additionalProperties":false
+}
